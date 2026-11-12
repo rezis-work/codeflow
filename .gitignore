@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+coverage/
+*.vsix
+*.tsbuildinfo
+.vscode-test/
+packages/extension/media/webview/
+packages/extension/LICENSE
+.DS_Store
+*.log
