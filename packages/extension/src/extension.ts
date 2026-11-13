@@ -8,8 +8,9 @@ import { SidebarProvider } from './sidebar';
  *
  * Analyzers land under ./analyzers in later phases (ts-morph for TypeScript and
  * JavaScript; rust-analyzer call hierarchy, tree-sitter-rust, and cargo metadata
- * for Rust). They publish into the shared graph and reach the diagram webview
- * only through @codeflow/shared messages.
+ * for Rust). They publish file fragments into the workspace graph
+ * (see ./workspaceGraph) and reach the diagram webview only through
+ * @codeflow/shared messages.
  */
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(

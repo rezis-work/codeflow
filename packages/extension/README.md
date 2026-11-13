@@ -2,7 +2,7 @@
 
 Interactive diagrams of how your code flows, shown beside the code.
 
-This build is the phase 1.1 scaffold: a CodeFlow activity-bar view and an empty diagram panel. Call graphs, dependency maps, and the other views land in later phases.
+This build has the CodeFlow activity-bar view, an empty diagram panel, and the shared graph protocol. The panel shows the graph counts. Drawing the diagram lands in a later phase.
 
 Open the Command Palette and run **CodeFlow: Open Diagram**.
 

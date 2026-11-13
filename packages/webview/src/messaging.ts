@@ -2,6 +2,9 @@ import { isExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import type {
   DiagramWebviewToExtensionMessage,
   ExtensionToDiagramWebviewMessage,
+  Language,
+  NodeId,
+  SourceLocation,
 } from '@codeflow/shared';
 
 interface VsCodeApi {
@@ -26,9 +29,39 @@ function getApi(): VsCodeApi | undefined {
   return cached;
 }
 
-export function postReady(): void {
-  const message: DiagramWebviewToExtensionMessage = { type: 'ready' };
+function post(message: DiagramWebviewToExtensionMessage): void {
   getApi()?.postMessage(message);
+}
+
+export function postReady(): void {
+  post({ type: 'ready' });
+}
+
+export function postRequestGraph(input: {
+  readonly language: Language;
+  readonly uri: string;
+  readonly qualifiedName: string;
+  readonly depth?: number;
+}): void {
+  post({
+    type: 'requestGraph',
+    language: input.language,
+    uri: input.uri,
+    qualifiedName: input.qualifiedName,
+    ...(input.depth !== undefined ? { depth: input.depth } : {}),
+  });
+}
+
+export function postRevealLocation(location: SourceLocation): void {
+  post({ type: 'revealLocation', location });
+}
+
+export function postExpandNode(nodeId: NodeId, depth?: number): void {
+  post({
+    type: 'expandNode',
+    nodeId,
+    ...(depth !== undefined ? { depth } : {}),
+  });
 }
 
 export function onExtensionMessage(

@@ -52,6 +52,23 @@ body {
   color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, Green));
 }
 
+.graph-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--vscode-panel-border, ButtonBorder);
+  color: var(--vscode-descriptionForeground, GrayText);
+}
+
+.graph-meta p {
+  margin: 0;
+}
+
+.graph-error {
+  color: var(--vscode-errorForeground, #f14c4c);
+}
+
 .canvas {
   flex: 1;
   display: grid;
