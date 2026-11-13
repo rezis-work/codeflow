@@ -118,13 +118,16 @@ function ControlBlock({ data }: NodeProps<ControlBlockNode>) {
       className="flow-block"
       data-kind={data.kind}
       data-unreachable={data.unreachable ? 'true' : 'false'}
+      data-uncertain={data.uncertain ? 'true' : 'false'}
       data-active={data.active ? 'true' : 'false'}
       data-testid="flow-block"
     >
       <Handle type="target" position={HandlePosition.Top} id="in" />
       <Handle type="target" position={HandlePosition.Right} id="back-in" />
       <button type="button" className="flow-block-open" onClick={() => data.onReveal()}>
-        <span className="flow-kicker">{data.kind}</span>
+        <span className="flow-kicker">
+          {data.uncertain ? `${data.kind} · uncertain` : data.kind}
+        </span>
         <span className="flow-label">{data.label}</span>
       </button>
       {data.nested.map((item) => (

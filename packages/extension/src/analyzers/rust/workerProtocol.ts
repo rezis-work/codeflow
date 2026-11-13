@@ -4,7 +4,7 @@
  * the WASM parser lives only in the worker bundle.
  */
 
-import type { FileFragment } from '@codeflow/shared';
+import type { ControlFlowGraph, FileFragment, SourceRange } from '@codeflow/shared';
 
 export interface IndexRoot {
   readonly rootDir: string;
@@ -30,6 +30,17 @@ export type HostToWorkerMessage =
       readonly id: number;
       readonly filePath: string;
     }
+  | {
+      readonly type: 'controlFlow';
+      readonly id: number;
+      readonly filePath: string;
+      readonly content: string;
+      readonly uri: string;
+      readonly position?: { readonly line: number; readonly character: number };
+      readonly range?: SourceRange;
+      readonly functionId?: string;
+      readonly qualifiedName?: string;
+    }
   | { readonly type: 'shutdown' };
 
 export interface WorkerFragmentsMessage {
@@ -53,7 +64,30 @@ export interface WorkerFailedMessage {
   readonly message: string;
 }
 
+export type ControlFlowWorkerResult =
+  | { readonly ok: true; readonly graph: ControlFlowGraph }
+  | { readonly ok: false; readonly code: 'not-found' | 'internal'; readonly message: string };
+
+export interface ControlFlowResultMessage {
+  readonly type: 'controlFlowResult';
+  readonly id: number;
+  readonly result: ControlFlowWorkerResult;
+}
+
 export type WorkerToHostMessage = WorkerFragmentsMessage | WorkerDoneMessage | WorkerFailedMessage;
+
+export function isControlFlowResult(value: unknown): value is ControlFlowResultMessage {
+  if (!isRecord(value) || value.type !== 'controlFlowResult' || typeof value.id !== 'number') {
+    return false;
+  }
+  if (!isRecord(value.result) || (value.result.ok !== true && value.result.ok !== false)) {
+    return false;
+  }
+  if (value.result.ok === false) {
+    return typeof value.result.message === 'string';
+  }
+  return isRecord(value.result.graph);
+}
 
 export function isWorkerToHostMessage(value: unknown): value is WorkerToHostMessage {
   if (!isRecord(value) || typeof value.type !== 'string' || typeof value.id !== 'number') {

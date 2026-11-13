@@ -126,7 +126,7 @@ describe('extension manifest', () => {
       (item) => item.command === SHOW_CONTROL_FLOW_COMMAND,
     )?.when;
     expect(flowWhen).toContain('editorLangId == typescript');
-    expect(flowWhen).not.toContain('rust');
+    expect(flowWhen).toContain('editorLangId == rust');
     expect(manifest.activationEvents).toContain(`onCommand:${SHOW_CONTROL_FLOW_COMMAND}`);
     expect(binding?.when).not.toContain('shift+alt+f');
     const follow =

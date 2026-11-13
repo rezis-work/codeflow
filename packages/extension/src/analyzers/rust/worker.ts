@@ -10,6 +10,7 @@ import type { RustAnalysisSession } from './analyzer';
 import { openRustSession } from './analyzer';
 import { discoverRustWorkspace } from './discover';
 import { isInsideRoot } from '../typescript/globs';
+import { buildRustControlFlow } from './controlFlow';
 import { initRustParser } from './parser';
 import type { HostToWorkerMessage, IndexRoot } from './workerProtocol';
 
@@ -44,6 +45,10 @@ parent.on('message', (message: unknown) => {
         }
         if (message.type === 'updateFile') {
           updateFile(message.id, message.filePath, message.content, message.version);
+          return;
+        }
+        if (message.type === 'controlFlow') {
+          buildControlFlow(message);
           return;
         }
         removeFile(message.id, message.filePath);
@@ -112,6 +117,37 @@ function updateFile(
   }
   const removed = session.has(path.resolve(filePath)) ? [] : [filePath];
   done(id, fragment ? 1 : 0, session.limitReached, [...session.errors], removed);
+}
+
+function buildControlFlow(message: Extract<HostToWorkerMessage, { type: 'controlFlow' }>): void {
+  try {
+    const result = buildRustControlFlow({
+      content: message.content,
+      uri: message.uri,
+      ...(message.position ? { position: message.position } : {}),
+      ...(message.range ? { range: message.range } : {}),
+      ...(message.functionId ? { functionId: message.functionId } : {}),
+      ...(message.qualifiedName ? { qualifiedName: message.qualifiedName } : {}),
+    });
+    parent?.postMessage({
+      type: 'controlFlowResult',
+      id: message.id,
+      result: result.ok
+        ? { ok: true, graph: result.graph }
+        : { ok: false, code: 'not-found', message: result.message },
+    });
+  } catch (error) {
+    parent?.postMessage({
+      type: 'controlFlowResult',
+      id: message.id,
+      result: {
+        ok: false,
+        code: 'internal',
+        message:
+          error instanceof Error ? error.message : 'CodeFlow could not build that flowchart.',
+      },
+    });
+  }
 }
 
 function removeFile(id: number, filePath: string): void {
@@ -196,6 +232,13 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
   }
   if (message.type === 'updateFile' || message.type === 'removeFile') {
     return typeof (value as { filePath?: unknown }).filePath === 'string';
+  }
+  if (message.type === 'controlFlow') {
+    return (
+      typeof (value as { filePath?: unknown }).filePath === 'string' &&
+      typeof (value as { content?: unknown }).content === 'string' &&
+      typeof (value as { uri?: unknown }).uri === 'string'
+    );
   }
   return false;
 }

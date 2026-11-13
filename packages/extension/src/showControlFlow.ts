@@ -1,19 +1,25 @@
 import * as vscode from 'vscode';
-import { controlFlowForCursor } from './controlFlowHost';
+import { CONTROL_FLOW_FILE_HINT, controlFlowForCursor } from './controlFlowHost';
 import { DiagramPanel } from './diagramPanel';
+import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 
 /** Opens the flowchart for the function that contains the cursor. */
 export async function showControlFlowAtCursor(
   context: vscode.ExtensionContext,
-  indexer: TypeScriptIndexer,
+  typescript: TypeScriptIndexer,
+  rust: RustIndexer,
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
-    void vscode.window.showInformationMessage('Open a TypeScript or JavaScript file first.');
+    void vscode.window.showInformationMessage(CONTROL_FLOW_FILE_HINT);
     return;
   }
   DiagramPanel.open(context);
-  const message = await controlFlowForCursor(indexer, editor.document, editor.selection.active);
+  const message = await controlFlowForCursor(
+    { typescript, rust },
+    editor.document,
+    editor.selection.active,
+  );
   DiagramPanel.showControlFlow(message);
 }
