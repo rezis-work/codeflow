@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Control flow
+
+- **CodeFlow: Show Control Flow for Function at Cursor** draws a flowchart for the TypeScript or JavaScript function at the cursor. It is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, and JSX.
+- A function or method node in the call diagram has a Flow button that opens the same view. Rust answers “Rust control flow is coming in 2.2.”
+- The flowchart runs top to bottom: decisions, switches, loops with back edges, try/catch/finally, returns, throws, await, and yield. Clicking a block selects its source. The cursor highlights the block that contains it. Saving the file rebuilds the flowchart. A missing function is reported in the panel. The breadcrumb returns to the call graph.
+- A nested function stays one collapsed block, with a control that opens its own flowchart. `?.`, `??`, `&&`, and `||` stay in the block label. A function with more than 500 blocks shows the first 500 and a notice.
+- The graph is the shared `ControlFlowGraph` (`version` 1), so a later Rust builder can emit the same shape.
+
 ## 0.1.0
 
 First release of the CodeFlow extension for VS Code and Cursor.

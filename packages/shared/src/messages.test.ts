@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CONTROL_FLOW_VERSION } from './controlFlow';
 import { createEdge, createNode, emptyGraph } from './graph';
 import type { CodeNode, GraphDelta } from './graph';
 import { nodeId } from './ids';
@@ -19,6 +20,24 @@ function node(qualifiedName = 'main'): CodeNode {
     uri: URI,
     range: { start: { line: 1, character: 0 }, end: { line: 1, character: 4 } },
   });
+}
+
+function sampleFlow(functionId: string) {
+  const range = { start: { line: 0, character: 0 }, end: { line: 1, character: 1 } };
+  return {
+    version: CONTROL_FLOW_VERSION,
+    functionId,
+    name: 'main',
+    qualifiedName: 'main',
+    language: 'ts' as const,
+    uri: URI,
+    range,
+    nodes: [
+      { id: 'entry', kind: 'entry' as const, label: 'entry', range },
+      { id: 'exit', kind: 'exit' as const, label: 'exit', range },
+    ],
+    edges: [{ id: 'e0', from: 'entry', to: 'exit', kind: 'next' as const }],
+  };
 }
 
 function emptyDelta(): GraphDelta {
@@ -64,6 +83,21 @@ describe('webview to extension messages', () => {
     );
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'focus' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'all' })).toBe(false);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'dismissControlFlow' })).toBe(true);
+    expect(
+      isDiagramWebviewToExtensionMessage({
+        type: 'requestControlFlow',
+        version: CONTROL_FLOW_VERSION,
+        nodeId: symbol.id,
+      }),
+    ).toBe(true);
+    expect(
+      isDiagramWebviewToExtensionMessage({
+        type: 'requestControlFlow',
+        uri: URI,
+        position: { line: 2, character: 1 },
+      }),
+    ).toBe(true);
   });
 
   it('rejects malformed messages', () => {
@@ -108,6 +142,10 @@ describe('webview to extension messages', () => {
       { type: 'expandNode' },
       { type: 'expandNode', nodeId: 'not-an-id' },
       { type: 'expandNode', nodeId: symbol.id, depth: PROTOCOL_MAX_DEPTH + 1 },
+      { type: 'requestControlFlow' },
+      { type: 'requestControlFlow', version: 2, nodeId: symbol.id },
+      { type: 'requestControlFlow', version: 1, uri: URI },
+      { type: 'requestControlFlow', nodeId: 'not-an-id' },
     ];
     for (const value of malformed) {
       expect(isDiagramWebviewToExtensionMessage(value)).toBe(false);
@@ -175,6 +213,31 @@ describe('extension to webview messages', () => {
       }),
     ).toBe(true);
     expect(isExtensionToDiagramWebviewMessage({ type: 'error', message: 'Broken.' })).toBe(true);
+    const flow = sampleFlow(symbol.id);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'controlFlow',
+        version: CONTROL_FLOW_VERSION,
+        functionId: flow.functionId,
+        graph: flow,
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'controlFlow',
+        version: CONTROL_FLOW_VERSION,
+        functionId: symbol.id,
+        error: { code: 'unsupported-language', message: 'Rust control flow is coming in 2.2.' },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'controlFlowCursor',
+        version: CONTROL_FLOW_VERSION,
+        uri: URI,
+        position: { line: 1, character: 0 },
+      }),
+    ).toBe(true);
   });
 
   it('rejects malformed messages', () => {
@@ -217,6 +280,27 @@ describe('extension to webview messages', () => {
       { type: 'error', message: '' },
       { type: 'error', message: 'Broken.', code: 'nope' },
       { type: 'error' },
+      { type: 'controlFlow', version: 1 },
+      { type: 'controlFlow', version: 2, error: { code: 'internal', message: 'nope' } },
+      {
+        type: 'controlFlow',
+        version: 1,
+        functionId: symbol.id,
+        graph: sampleFlow(symbol.id),
+        error: { code: 'internal', message: 'both' },
+      },
+      {
+        type: 'controlFlow',
+        version: 1,
+        functionId: 'other',
+        graph: sampleFlow(symbol.id),
+      },
+      { type: 'controlFlowCursor', version: 1, uri: URI },
+      {
+        type: 'controlFlow',
+        version: 1,
+        error: { code: 'nope', message: 'bad' },
+      },
     ];
     for (const value of malformed) {
       expect(isExtensionToDiagramWebviewMessage(value)).toBe(false);

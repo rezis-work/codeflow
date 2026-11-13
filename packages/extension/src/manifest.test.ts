@@ -6,6 +6,7 @@ import {
   SHOW_CALLERS_COMMAND,
   SHOW_DEPENDENCIES_COMMAND,
   SHOW_FILE_DEPENDENCIES_COMMAND,
+  SHOW_CONTROL_FLOW_COMMAND,
   SHOW_FLOW_COMMAND,
   SIDEBAR_VIEW_ID,
   VIEW_CONTAINER_ID,
@@ -67,6 +68,7 @@ describe('extension manifest', () => {
         SHOW_CALLEES_COMMAND,
         SHOW_FILE_DEPENDENCIES_COMMAND,
         SHOW_DEPENDENCIES_COMMAND,
+        SHOW_CONTROL_FLOW_COMMAND,
       ]),
     );
     const palette = manifest.contributes?.menus?.commandPalette?.map((item) => item.command) ?? [];
@@ -77,6 +79,7 @@ describe('extension manifest', () => {
         SHOW_CALLEES_COMMAND,
         SHOW_FILE_DEPENDENCIES_COMMAND,
         SHOW_DEPENDENCIES_COMMAND,
+        SHOW_CONTROL_FLOW_COMMAND,
       ]),
     );
     const containers = manifest.contributes?.viewsContainers?.activitybar ?? [];
@@ -119,6 +122,12 @@ describe('extension manifest', () => {
     );
     expect(binding).toMatchObject({ key: 'ctrl+alt+f', mac: 'cmd+alt+f' });
     expect(binding?.when).toContain('editorLangId == typescript');
+    const flowWhen = manifest.contributes?.menus?.['editor/context']?.find(
+      (item) => item.command === SHOW_CONTROL_FLOW_COMMAND,
+    )?.when;
+    expect(flowWhen).toContain('editorLangId == typescript');
+    expect(flowWhen).not.toContain('rust');
+    expect(manifest.activationEvents).toContain(`onCommand:${SHOW_CONTROL_FLOW_COMMAND}`);
     expect(binding?.when).not.toContain('shift+alt+f');
     const follow =
       manifest.contributes?.configuration?.properties?.['codeflow.editor.followCursor'];

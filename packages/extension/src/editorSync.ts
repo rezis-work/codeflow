@@ -86,6 +86,7 @@ function highlight(point: CursorPoint): void {
   const nodes = nodesInFile(getWorkspaceGraph(), editor.document.uri.fsPath);
   const symbol = findSymbolAt(nodes, position.line, position.character);
   DiagramPanel.highlightCursor(symbol?.id);
+  DiagramPanel.highlightControlFlow(point.uri, position.line, position.character);
 }
 
 function isFollowedDocument(document: vscode.TextDocument): boolean {

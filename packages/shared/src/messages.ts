@@ -22,13 +22,19 @@ import {
 } from './ids';
 import type { Language, NodeId } from './ids';
 import {
+  CONTROL_FLOW_ERROR_CODES,
+  CONTROL_FLOW_VERSION,
+  parseControlFlowGraph,
+} from './controlFlow';
+import type { ControlFlowErrorCode, ControlFlowGraph } from './controlFlow';
+import {
   asEdgeId,
   parseCodeEdge,
   parseCodeGraph,
   parseCodeNode,
   parseSourceLocation,
 } from './graph';
-import type { CodeGraph, GraphDelta, SourceLocation } from './graph';
+import type { CodeGraph, GraphDelta, Position, SourceLocation } from './graph';
 
 /** Largest depth the webview may request. The store itself is only bounded by the graph. */
 export const PROTOCOL_MAX_DEPTH = 32;
@@ -75,12 +81,32 @@ export interface SetViewModeMessage {
   readonly mode: DiagramViewMode;
 }
 
+/**
+ * Asks for one function's flowchart.
+ * `nodeId` is a call-graph symbol. `uri` plus `position` is a cursor or a
+ * nested function's start. An omitted version means {@link CONTROL_FLOW_VERSION}.
+ */
+export interface RequestControlFlowMessage {
+  readonly type: 'requestControlFlow';
+  readonly version?: typeof CONTROL_FLOW_VERSION;
+  readonly nodeId?: NodeId;
+  readonly uri?: string;
+  readonly position?: Position;
+}
+
+/** The webview left the flowchart and is showing the call graph again. */
+export interface DismissControlFlowMessage {
+  readonly type: 'dismissControlFlow';
+}
+
 export type DiagramWebviewToExtensionMessage =
   | ReadyMessage
   | RequestGraphMessage
   | RevealLocationMessage
   | ExpandNodeMessage
-  | SetViewModeMessage;
+  | SetViewModeMessage
+  | RequestControlFlowMessage
+  | DismissControlFlowMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -123,6 +149,29 @@ export interface ErrorMessage {
   readonly code?: DiagramErrorCode;
 }
 
+/**
+ * One function's flowchart. `graph` and `error` are alternatives.
+ * `version` is {@link CONTROL_FLOW_VERSION}.
+ */
+export interface ControlFlowMessage {
+  readonly type: 'controlFlow';
+  readonly version: typeof CONTROL_FLOW_VERSION;
+  readonly functionId?: string;
+  readonly graph?: ControlFlowGraph;
+  readonly error?: {
+    readonly code: ControlFlowErrorCode;
+    readonly message: string;
+  };
+}
+
+/** Cursor position while a flowchart is open. The webview highlights that block. */
+export interface ControlFlowCursorMessage {
+  readonly type: 'controlFlowCursor';
+  readonly version: typeof CONTROL_FLOW_VERSION;
+  readonly uri: string;
+  readonly position: Position;
+}
+
 export type ExtensionToDiagramWebviewMessage =
   | AckMessage
   | GraphSnapshotMessage
@@ -130,7 +179,9 @@ export type ExtensionToDiagramWebviewMessage =
   | FocusNodeMessage
   | CursorHintMessage
   | ConfigMessage
-  | ErrorMessage;
+  | ErrorMessage
+  | ControlFlowMessage
+  | ControlFlowCursorMessage;
 
 export function isDiagramWebviewToExtensionMessage(
   value: unknown,
@@ -159,6 +210,10 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return parseExpand(value);
     case 'setViewMode':
       return parseSetViewMode(value);
+    case 'requestControlFlow':
+      return parseRequestControlFlow(value);
+    case 'dismissControlFlow':
+      return { type: 'dismissControlFlow' };
     default:
       return undefined;
   }
@@ -183,6 +238,10 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parseConfig(value);
     case 'error':
       return parseError(value);
+    case 'controlFlow':
+      return parseControlFlowMessage(value);
+    case 'controlFlowCursor':
+      return parseControlFlowCursor(value);
     default:
       return undefined;
   }
@@ -299,6 +358,115 @@ function parseCursorHint(value: Record<string, unknown>): CursorHintMessage | un
   return message.length > 0 ? { type: 'cursorHint', message } : { type: 'cursorHint' };
 }
 
+function parseRequestControlFlow(
+  value: Record<string, unknown>,
+): RequestControlFlowMessage | undefined {
+  if (value.version !== undefined && value.version !== CONTROL_FLOW_VERSION) {
+    return undefined;
+  }
+  const node = value.nodeId === undefined ? undefined : asNodeId(value.nodeId);
+  if (value.nodeId !== undefined && !node) {
+    return undefined;
+  }
+  let uri: string | undefined;
+  if (value.uri !== undefined) {
+    if (typeof value.uri !== 'string') {
+      return undefined;
+    }
+    uri = normalizeUri(value.uri);
+    if (uri.length === 0) {
+      return undefined;
+    }
+  }
+  const position = value.position === undefined ? undefined : parseMessagePosition(value.position);
+  if (value.position !== undefined && !position) {
+    return undefined;
+  }
+  if (!node && !(uri && position)) {
+    return undefined;
+  }
+  return {
+    type: 'requestControlFlow',
+    ...(value.version === CONTROL_FLOW_VERSION ? { version: CONTROL_FLOW_VERSION } : {}),
+    ...(node ? { nodeId: node } : {}),
+    ...(uri ? { uri } : {}),
+    ...(position ? { position } : {}),
+  };
+}
+
+function parseControlFlowMessage(value: Record<string, unknown>): ControlFlowMessage | undefined {
+  if (value.version !== CONTROL_FLOW_VERSION) {
+    return undefined;
+  }
+  if (value.functionId !== undefined && !isNonEmptyString(value.functionId)) {
+    return undefined;
+  }
+  const hasGraph = value.graph !== undefined;
+  const hasError = value.error !== undefined;
+  if (hasGraph === hasError) {
+    return undefined;
+  }
+  if (hasGraph) {
+    const graph = parseControlFlowGraph(value.graph);
+    if (
+      !graph.ok ||
+      !isNonEmptyString(value.functionId) ||
+      graph.value.functionId !== value.functionId
+    ) {
+      return undefined;
+    }
+    return {
+      type: 'controlFlow',
+      version: CONTROL_FLOW_VERSION,
+      functionId: value.functionId,
+      graph: graph.value,
+    };
+  }
+  const error = parseControlFlowError(value.error);
+  if (!error) {
+    return undefined;
+  }
+  return {
+    type: 'controlFlow',
+    version: CONTROL_FLOW_VERSION,
+    ...(isNonEmptyString(value.functionId) ? { functionId: value.functionId } : {}),
+    error,
+  };
+}
+
+function parseControlFlowError(
+  value: unknown,
+): { readonly code: ControlFlowErrorCode; readonly message: string } | undefined {
+  if (!isRecord(value) || !isControlFlowErrorCode(value.code) || !isNonEmptyString(value.message)) {
+    return undefined;
+  }
+  return { code: value.code, message: value.message };
+}
+
+function parseControlFlowCursor(
+  value: Record<string, unknown>,
+): ControlFlowCursorMessage | undefined {
+  if (value.version !== CONTROL_FLOW_VERSION || typeof value.uri !== 'string') {
+    return undefined;
+  }
+  const uri = normalizeUri(value.uri);
+  const position = parseMessagePosition(value.position);
+  if (uri.length === 0 || !position) {
+    return undefined;
+  }
+  return { type: 'controlFlowCursor', version: CONTROL_FLOW_VERSION, uri, position };
+}
+
+function parseMessagePosition(value: unknown): Position | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (!isNonNegativeInteger(value.line) || !isNonNegativeInteger(value.character)) {
+    return undefined;
+  }
+  return { line: value.line, character: value.character };
+}
+
 function parseSetViewMode(value: Record<string, unknown>): SetViewModeMessage | undefined {
   if (!isDiagramViewMode(value.mode)) {
     return undefined;
@@ -411,4 +579,10 @@ function isDiagramMaxNodes(value: unknown): value is number {
 
 function isDiagramErrorCode(value: unknown): value is DiagramErrorCode {
   return typeof value === 'string' && (DIAGRAM_ERROR_CODES as readonly string[]).includes(value);
+}
+
+function isControlFlowErrorCode(value: unknown): value is ControlFlowErrorCode {
+  return (
+    typeof value === 'string' && (CONTROL_FLOW_ERROR_CODES as readonly string[]).includes(value)
+  );
 }

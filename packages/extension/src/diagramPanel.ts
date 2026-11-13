@@ -1,6 +1,7 @@
 import { applyDelta, emptyGraph, isDiagramWebviewToExtensionMessage } from '@codeflow/shared';
 import type {
   CodeGraph,
+  ControlFlowMessage,
   DiagramViewMode,
   ExtensionToDiagramWebviewMessage,
   GraphDelta,
@@ -22,7 +23,17 @@ import { renderDiagramHtml, renderMissingAssetsHtml } from './html';
 import { createNonce } from './nonce';
 import { noteDiagramReveal } from './revealGuard';
 import { readMaxNodes, readViewMode } from './viewSettings';
+import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './controlFlowHost';
+import type { FlowSession } from './controlFlowHost';
+import type { TypeScriptIndexer } from './typescriptIndexer';
 import { getWorkspaceGraph } from './workspaceGraph';
+
+let flowIndexer: TypeScriptIndexer | undefined;
+
+/** The panel asks this indexer for flowcharts. Set once from activate. */
+export function bindControlFlowIndexer(indexer: TypeScriptIndexer): void {
+  flowIndexer = indexer;
+}
 
 const FOCUS_REFRESH_MS = 80;
 const TRANSCRIPT_LIMIT = 500;
@@ -70,6 +81,21 @@ export class DiagramPanel {
     DiagramPanel.current?.highlightCursor(nodeId);
   }
 
+  /** Shows one function's flowchart. Queued until the webview has said ready. */
+  public static showControlFlow(message: ControlFlowMessage): void {
+    DiagramPanel.current?.showControlFlow(message);
+  }
+
+  /** Highlights the block under the cursor when that function's flowchart is open. */
+  public static highlightControlFlow(uri: string, line: number, character: number): void {
+    DiagramPanel.current?.highlightControlFlow(uri, line, character);
+  }
+
+  /** Rebuilds the open flowchart after the file is saved. */
+  public static refreshControlFlow(document: vscode.TextDocument): void {
+    void DiagramPanel.current?.refreshControlFlow(document);
+  }
+
   private readonly disposables: vscode.Disposable[] = [];
   private disposed = false;
   private webviewReady = false;
@@ -79,6 +105,9 @@ export class DiagramPanel {
   private viewGraph: CodeGraph | undefined;
   private focusTimer: ReturnType<typeof setTimeout> | undefined;
   private rememberedColumn: vscode.ViewColumn | undefined;
+  private flowSession: FlowSession | undefined;
+  private pendingFlow: ControlFlowMessage | undefined;
+  private flowGeneration = 0;
 
   public static open(context: vscode.ExtensionContext): void {
     if (DiagramPanel.current) {
@@ -246,8 +275,56 @@ export class DiagramPanel {
     });
   }
 
+  public showControlFlow(message: ControlFlowMessage): void {
+    this.flowGeneration += 1;
+    this.applyFlow(message);
+  }
+
+  private applyFlow(message: ControlFlowMessage): void {
+    this.flowSession = sessionFrom(message);
+    this.pendingFlow = message;
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post(message);
+  }
+
+  public highlightControlFlow(uri: string, line: number, character: number): void {
+    if (!this.webviewReady || this.disposed || !this.flowSession || this.flowSession.uri !== uri) {
+      return;
+    }
+    this.post({
+      type: 'controlFlowCursor',
+      version: 1,
+      uri,
+      position: { line, character },
+    });
+  }
+
+  public async refreshControlFlow(document: vscode.TextDocument): Promise<void> {
+    const session = this.flowSession;
+    const indexer = flowIndexer;
+    if (!session || !indexer || document.uri.toString() !== session.uri) {
+      return;
+    }
+    const generation = this.flowGeneration;
+    const message = await controlFlowForRefresh(indexer, document, session);
+    if (this.disposed || this.flowSession !== session || generation !== this.flowGeneration) {
+      return;
+    }
+    const next = sessionFrom(message);
+    if (next) {
+      this.flowSession = next;
+    }
+    this.pendingFlow = message;
+    if (this.webviewReady) {
+      this.post(message);
+    }
+  }
+
   private onMessage(message: unknown): void {
-    if (isDiagramWebviewToExtensionMessage(message) && message.type === 'ready') {
+    const ready = isDiagramWebviewToExtensionMessage(message) && message.type === 'ready';
+    if (ready) {
       this.webviewReady = true;
     }
     try {
@@ -256,6 +333,9 @@ export class DiagramPanel {
       const text =
         error instanceof Error ? error.message : 'CodeFlow could not handle that message.';
       this.post({ type: 'error', code: 'internal', message: text });
+    }
+    if (ready && this.pendingFlow) {
+      this.post(this.pendingFlow);
     }
   }
 
@@ -325,7 +405,30 @@ export class DiagramPanel {
       reveal: (location) => {
         this.revealLocation(location);
       },
+      requestControlFlow: (message) => {
+        void this.answerControlFlow(message);
+      },
+      dismissControlFlow: () => {
+        this.flowSession = undefined;
+        this.pendingFlow = undefined;
+      },
     };
+  }
+
+  private async answerControlFlow(
+    message: Parameters<NonNullable<DiagramHost['requestControlFlow']>>[0],
+  ): Promise<void> {
+    const indexer = flowIndexer;
+    if (!indexer) {
+      return;
+    }
+    this.flowGeneration += 1;
+    const generation = this.flowGeneration;
+    const flow = await controlFlowForRequest(indexer, message);
+    if (this.disposed || generation !== this.flowGeneration) {
+      return;
+    }
+    this.applyFlow(flow);
   }
 
   private post(message: ExtensionToDiagramWebviewMessage): void {

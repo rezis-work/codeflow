@@ -36,6 +36,18 @@ export {
   serializeGraphStore,
 } from './store';
 export {
+  CFG_DECISION_KINDS,
+  CFG_EDGE_KINDS,
+  CFG_LOOP_KINDS,
+  CFG_NODE_KINDS,
+  CONTROL_FLOW_BLOCK_LIMIT,
+  CONTROL_FLOW_ERROR_CODES,
+  CONTROL_FLOW_VERSION,
+  controlFlowBlockAt,
+  formatControlFlow,
+  parseControlFlowGraph,
+} from './controlFlow';
+export {
   DIAGRAM_ERROR_CODES,
   DIAGRAM_MAX_NODES_LIMIT,
   DIAGRAM_THEMES,
@@ -74,13 +86,27 @@ export type {
   SubgraphQuery,
 } from './store';
 export type {
+  CfgDecisionKind,
+  CfgEdgeKind,
+  CfgLoopKind,
+  CfgNodeKind,
+  ControlFlowEdge,
+  ControlFlowErrorCode,
+  ControlFlowGraph,
+  ControlFlowNested,
+  ControlFlowNode,
+} from './controlFlow';
+export type {
   AckMessage,
   ConfigMessage,
+  ControlFlowCursorMessage,
+  ControlFlowMessage,
   CursorHintMessage,
   DiagramErrorCode,
   DiagramTheme,
   DiagramViewMode,
   DiagramWebviewToExtensionMessage,
+  DismissControlFlowMessage,
   ErrorMessage,
   ExpandNodeMessage,
   ExtensionToDiagramWebviewMessage,
@@ -88,6 +114,7 @@ export type {
   GraphDeltaMessage,
   GraphSnapshotMessage,
   ReadyMessage,
+  RequestControlFlowMessage,
   RequestGraphMessage,
   RevealLocationMessage,
   SetViewModeMessage,

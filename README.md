@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs and file or crate dependency maps. Later phases add control flow, request flows, trait and impl maps, sequence views, and runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one TypeScript or JavaScript function, and file or crate dependency maps. Later phases add Rust control flow, request flows, trait and impl maps, sequence views, and runtime traces.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
@@ -15,6 +15,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 ## Features
 
 - Call neighbourhood for the symbol under the cursor, plus callers-only and callees-only views.
+- Control flow for the TypeScript or JavaScript function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`. Rust control flow comes later.
 - Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
 - Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
 - Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
@@ -25,16 +26,17 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ## Commands
 
-These appear in the Command Palette. The four editor commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer.
+These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** appears in that menu for TypeScript and JavaScript, and on a function or method node in the call diagram. **CodeFlow: Show Dependencies** appears on files and folders in the explorer.
 
-| Command                                  | What it draws                                                                            |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
-| CodeFlow: Show Flow for Symbol at Cursor | Undirected neighbourhood of the symbol, depth 2, every edge kind                         |
-| CodeFlow: Show Callers                   | Incoming call edges, depth `codeflow.editor.callDepth` (default 2)                       |
-| CodeFlow: Show Callees                   | Outgoing call edges, same depth                                                          |
-| CodeFlow: Show File Dependencies         | Import edges of the current file's module                                                |
-| CodeFlow: Show Dependencies              | The same import view for a file, or the file modules inside a folder plus one import hop |
-| CodeFlow: Open Diagram                   | The panel, without changing the current symbol                                           |
+| Command                                            | What it draws                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| CodeFlow: Show Flow for Symbol at Cursor           | Undirected neighbourhood of the symbol, depth 2, every edge kind                         |
+| CodeFlow: Show Callers                             | Incoming call edges, depth `codeflow.editor.callDepth` (default 2)                       |
+| CodeFlow: Show Callees                             | Outgoing call edges, same depth                                                          |
+| CodeFlow: Show File Dependencies                   | Import edges of the current file's module                                                |
+| CodeFlow: Show Dependencies                        | The same import view for a file, or the file modules inside a folder plus one import hop |
+| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript and JavaScript)                      |
+| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                           |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
@@ -81,6 +83,7 @@ ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse it
 - `codeflow.maxNodes` (default 300) caps what is drawn. `codeflow.maxFiles` (default 2500) caps what is analyzed.
 - Git worktrees, where `.git` is a file, are not watched for branch switches. A normal checkout's `HEAD` is.
 - The diagram reveal ignores the cursor move it just caused. A later move in that editor is followed.
+- Control flow does not branch on `?.`, `??`, `&&`, or `||`. A ternary is a decision only when it is the whole statement, the arrow body, the return value, or a single binding. Nested functions stay one collapsed block. Implicit exceptions from calls are not drawn. A function with more than 500 blocks is truncated. Anonymous functions are refreshed from the range they had when the flowchart opened.
 
 ## Layout
 
@@ -168,8 +171,10 @@ Analyzers should put each edge in the file where the relationship is written. Em
 
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
-- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`.
-- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`.
+- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`.
+- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`.
+
+`requestControlFlow` asks for one function, by a call-graph node id or by a file URI and a cursor position. `controlFlow` answers with a versioned graph (`version: 1`) or an error. `dismissControlFlow` leaves the flowchart. `controlFlowCursor` is the caret, so the open flowchart can highlight the block that contains it. Older messages are unchanged.
 
 `ready` receives `ack`, then the theme and the current view. In focus mode with a symbol, that view is the depth-2 neighbourhood and a `focusNode`. Otherwise it is the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. `setViewMode` switches the session between `focus` and `workspace` and sends that view again. `config` may include `viewMode` and `maxNodes`. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
 
@@ -188,6 +193,16 @@ A Rust `mod` declaration and the file it points at are two nodes joined by an im
 `codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
 
 While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
+
+A function or method node has a Flow button. It opens a top-to-bottom flowchart of that function (ELK layered, direction down). Decisions and switches are marked, loops are dashed, entry and exit are rounded, returns and throws use their own borders, and exception edges are dashed. Back edges leave the right side of a block. Clicking a block selects its source range. The breadcrumb returns to the call graph. Saving the file rebuilds the flowchart. If the function is gone, the panel says so. A function with more than 500 blocks shows the first 500 and a notice. The same command is **CodeFlow: Show Control Flow for Function at Cursor**. Rust shows “Rust control flow is coming in 2.2.”
+
+## Control flow
+
+The shared model is `ControlFlowGraph` in `packages/shared`. One graph is one function. Blocks are `entry`, `exit`, a straight-line `statement`, a `decision` (`if` or `ternary`), a `switch`, a `loop` (`for`, `for-of`, `for-in`, `while`, `do-while`), `try` / `catch` / `finally`, `return`, `throw`, `break`, `continue`, `await`, `yield`, or `call`. Each block has a short label and a source range. Edges are `true` / `false`, case values and `default`, `loop-body` / `loop-exit` / `back`, `exception`, `finally`, `fallthrough`, or an unlabeled `next`. `await` and `yield` are suspension points. A nested function is listed on its statement so the diagram can open that function’s own flowchart. The payload version is `1`. A graph with more than 500 blocks is rejected by the parser; the builder stops earlier and sets `truncated`.
+
+The TypeScript builder walks the syntax tree in the analyzer worker. It covers functions, methods, arrow functions, function expressions, constructors, getters, setters, async functions, and generators. `finally` is copied once per way of leaving the `try` (fall through, return, throw, break, continue), which matches a `return` inside `try` that must not also run the code after the `try`. A `return` inside `finally` replaces the pending return. Code after `return` or `throw` stays in the graph and is marked unreachable so the diagram can dim it. `for await` is a `for-of` loop that suspends.
+
+Rust does not build a flowchart yet. The command and the diagram button answer with `unsupported-language` and the text “Rust control flow is coming in 2.2.” The shared graph is what that later builder should emit. Short-circuit `and` and `or` decision kinds exist on the model for that builder. The TypeScript builder leaves `&&` and `||` inside the statement label.
 
 ## Rust
 
@@ -209,6 +224,7 @@ Not read yet: macro expansion, `include!`, full type inference, the standard lib
 - **1.4 Rust analyzer** (done): tree-sitter-rust (WASM) and cargo metadata fill the same graph. rust-analyzer, when it is already running, upgrades calls for the symbol under the cursor. See [Rust](#rust).
 - **1.5 Diagram webview** (done): React Flow and ELK.js draw the graph. See [Diagram](#diagram).
 - **1.6 Editor integration** (done): context menus, callers and callees, file and folder dependencies, click-to-open in the editor column, cursor highlight, save and git refresh, and the status bar. See [Commands](#commands). CodeLens is phase 2.
+- **2.1 Control flow for TypeScript and JavaScript** (unreleased): a flowchart for one function. See [Control flow](#control-flow). Rust is 2.2.
 
 ## License
 

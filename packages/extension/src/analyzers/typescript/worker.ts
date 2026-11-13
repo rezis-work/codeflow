@@ -11,6 +11,7 @@ import { openAnalysisSession } from './analyzer';
 import type { AnalysisProject } from './discover';
 import { defaultCompilerOptions, discoverProjects } from './discover';
 import { isInsideRoot } from './globs';
+import { buildTypeScriptControlFlow } from './controlFlow';
 import type { HostToWorkerMessage, IndexRoot } from './workerProtocol';
 
 const parent = parentPort;
@@ -38,6 +39,10 @@ parent.on('message', (message: unknown) => {
     }
     if (message.type === 'updateFile') {
       updateFile(message.id, message.filePath, message.content, message.version);
+      return;
+    }
+    if (message.type === 'controlFlow') {
+      buildControlFlow(message);
       return;
     }
     removeFile(message.id, message.filePath);
@@ -100,6 +105,45 @@ function updateFile(
   }
   const removed = session.has(path.resolve(filePath)) ? [] : [filePath];
   done(id, fragment ? 1 : 0, session.limitReached, [...session.errors], removed);
+}
+
+function buildControlFlow(message: Extract<HostToWorkerMessage, { type: 'controlFlow' }>): void {
+  try {
+    const result = buildTypeScriptControlFlow({
+      content: message.content,
+      fileName: message.filePath,
+      uri: message.uri,
+      language: message.language,
+      ...(message.position ? { position: message.position } : {}),
+      ...(message.range ? { range: message.range } : {}),
+      ...(message.functionId ? { functionId: message.functionId } : {}),
+      ...(message.qualifiedName ? { qualifiedName: message.qualifiedName } : {}),
+    });
+    if (!result.ok) {
+      parent?.postMessage({
+        type: 'controlFlowResult',
+        id: message.id,
+        result: { ok: false, code: 'not-found', message: result.message },
+      });
+      return;
+    }
+    parent?.postMessage({
+      type: 'controlFlowResult',
+      id: message.id,
+      result: { ok: true, graph: result.graph },
+    });
+  } catch (error) {
+    parent?.postMessage({
+      type: 'controlFlowResult',
+      id: message.id,
+      result: {
+        ok: false,
+        code: 'internal',
+        message:
+          error instanceof Error ? error.message : 'CodeFlow could not build that flowchart.',
+      },
+    });
+  }
 }
 
 function removeFile(id: number, filePath: string): void {
@@ -215,6 +259,17 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
   }
   if (message.type === 'removeFile') {
     return typeof message.filePath === 'string';
+  }
+  if (message.type === 'controlFlow') {
+    return (
+      typeof message.filePath === 'string' &&
+      'content' in value &&
+      typeof value.content === 'string' &&
+      'uri' in value &&
+      typeof value.uri === 'string' &&
+      'language' in value &&
+      (value.language === 'ts' || value.language === 'js')
+    );
   }
   return false;
 }
