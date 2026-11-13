@@ -2,29 +2,48 @@ import { isDiagramWebviewToExtensionMessage, nodeId } from '@codeflow/shared';
 import type {
   ConfigMessage,
   DiagramTheme,
+  DiagramViewMode,
   ExtensionToDiagramWebviewMessage,
   GraphStore,
+  NodeId,
   SourceLocation,
 } from '@codeflow/shared';
+import { SYMBOL_FLOW_DEPTH } from './constants';
 
 export interface DiagramHost {
   readonly store: GraphStore;
   theme(): DiagramTheme;
   post(message: ExtensionToDiagramWebviewMessage): void;
   reveal(location: SourceLocation): void;
+  /** Session mode. Omitted hosts always receive the full graph from `ready`. */
+  viewMode?(): DiagramViewMode;
+  maxNodes?(): number;
+  focusId?(): NodeId | undefined;
+  setViewMode?(mode: DiagramViewMode): void;
 }
 
 const SHOW_INFERRED_EDGES = true;
 
-export function diagramConfig(theme: DiagramTheme): ConfigMessage {
-  return { type: 'config', theme, showInferredEdges: SHOW_INFERRED_EDGES };
+export function diagramConfig(
+  theme: DiagramTheme,
+  extras?: { readonly viewMode?: DiagramViewMode; readonly maxNodes?: number },
+): ConfigMessage {
+  return {
+    type: 'config',
+    theme,
+    showInferredEdges: SHOW_INFERRED_EDGES,
+    ...(extras?.viewMode ? { viewMode: extras.viewMode } : {}),
+    ...(extras?.maxNodes !== undefined ? { maxNodes: extras.maxNodes } : {}),
+  };
 }
 
 /**
  * Answers a webview message. `ready` still gets `ack`, then the current theme
- * and a snapshot of the workspace graph (empty until an analyzer ingests a file).
- * A symbol request replaces the view with the subgraph around that symbol.
- * Expand patches the view with a wider subgraph. Malformed messages are ignored.
+ * and the active view: the depth-2 neighbourhood when a symbol is focused in
+ * focus mode, otherwise the workspace graph. A symbol request replaces the
+ * view with the subgraph around that symbol. Expand patches the view with a
+ * wider subgraph. `setViewMode` switches the session and sends that view.
+ * Malformed messages are ignored.
  */
 export function handleDiagramMessage(message: unknown, host: DiagramHost): void {
   if (!isDiagramWebviewToExtensionMessage(message)) {
@@ -33,8 +52,8 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
   switch (message.type) {
     case 'ready':
       host.post({ type: 'ack' });
-      host.post(diagramConfig(host.theme()));
-      host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+      host.post(configFor(host));
+      publishDiagramView(host);
       return;
     case 'requestGraph': {
       const id = nodeId({
@@ -82,9 +101,52 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
       });
       return;
     }
+    case 'setViewMode':
+      host.setViewMode?.(message.mode);
+      host.post(configFor(host, message.mode));
+      publishDiagramView(host, message.mode);
+      return;
     default: {
       const unreachable: never = message;
       return unreachable;
     }
   }
+}
+
+/**
+ * Pushes the graph the open mode should show. Focus mode with a symbol sends
+ * that symbol and its depth-2 neighbourhood. Workspace mode sends the whole
+ * graph and, when a symbol is focused, highlights it.
+ */
+export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramViewMode): void {
+  const mode = modeOverride ?? host.viewMode?.() ?? 'focus';
+  const focusId = host.focusId?.();
+  if (mode === 'focus' && focusId) {
+    const graph = host.store.subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
+    if (!graph) {
+      host.post({
+        type: 'error',
+        code: 'not-found',
+        message: 'That symbol is not in the graph.',
+      });
+      host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+      return;
+    }
+    host.post({ type: 'focusNode', nodeId: focusId });
+    host.post({ type: 'graphSnapshot', graph });
+    return;
+  }
+  host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+  if (focusId) {
+    host.post({ type: 'focusNode', nodeId: focusId });
+  }
+}
+
+function configFor(host: DiagramHost, modeOverride?: DiagramViewMode): ConfigMessage {
+  const viewMode = modeOverride ?? host.viewMode?.();
+  const maxNodes = host.maxNodes?.();
+  return diagramConfig(host.theme(), {
+    ...(viewMode ? { viewMode } : {}),
+    ...(maxNodes !== undefined ? { maxNodes } : {}),
+  });
 }

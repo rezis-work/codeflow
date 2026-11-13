@@ -5,8 +5,9 @@
  * traffic. Later messages are discriminated unions, checked at runtime, and
  * unknown fields are ignored so a newer sender does not break an older check
  * of a type it already understands. A graph snapshot replaces the webview's
- * current view. A delta patches it. Both sides ship in one extension, so
- * there is no separate protocol version on each message.
+ * current view. A delta patches it. `setViewMode` asks the host to switch
+ * between the focused neighbourhood and the whole workspace graph. Both
+ * sides ship in one extension, so there is no separate protocol version.
  */
 
 import {
@@ -34,6 +35,13 @@ export const PROTOCOL_MAX_DEPTH = 32;
 export const DIAGRAM_THEMES = ['light', 'dark', 'high-contrast', 'high-contrast-light'] as const;
 export type DiagramTheme = (typeof DIAGRAM_THEMES)[number];
 
+/** How much of the workspace graph the diagram is showing. */
+export const DIAGRAM_VIEW_MODES = ['focus', 'workspace'] as const;
+export type DiagramViewMode = (typeof DIAGRAM_VIEW_MODES)[number];
+
+/** Largest node cap the webview will accept from config. */
+export const DIAGRAM_MAX_NODES_LIMIT = 100_000;
+
 export const DIAGRAM_ERROR_CODES = ['not-found', 'invalid-location', 'internal'] as const;
 export type DiagramErrorCode = (typeof DIAGRAM_ERROR_CODES)[number];
 
@@ -60,8 +68,18 @@ export interface ExpandNodeMessage {
   readonly depth?: number;
 }
 
+/** Switches the open diagram between the focused neighbourhood and the whole graph. */
+export interface SetViewModeMessage {
+  readonly type: 'setViewMode';
+  readonly mode: DiagramViewMode;
+}
+
 export type DiagramWebviewToExtensionMessage =
-  ReadyMessage | RequestGraphMessage | RevealLocationMessage | ExpandNodeMessage;
+  | ReadyMessage
+  | RequestGraphMessage
+  | RevealLocationMessage
+  | ExpandNodeMessage
+  | SetViewModeMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -86,6 +104,10 @@ export interface ConfigMessage {
   readonly type: 'config';
   readonly theme: DiagramTheme;
   readonly showInferredEdges: boolean;
+  /** Omitted by older hosts. The webview then stays on its current mode. */
+  readonly viewMode?: DiagramViewMode;
+  /** Render cap. Omitted by older hosts. */
+  readonly maxNodes?: number;
 }
 
 export interface ErrorMessage {
@@ -127,6 +149,8 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return parseReveal(value);
     case 'expandNode':
       return parseExpand(value);
+    case 'setViewMode':
+      return parseSetViewMode(value);
     default:
       return undefined;
   }
@@ -254,11 +278,30 @@ function parseFocus(value: Record<string, unknown>): FocusNodeMessage | undefine
   return { type: 'focusNode', nodeId };
 }
 
+function parseSetViewMode(value: Record<string, unknown>): SetViewModeMessage | undefined {
+  if (!isDiagramViewMode(value.mode)) {
+    return undefined;
+  }
+  return { type: 'setViewMode', mode: value.mode };
+}
+
 function parseConfig(value: Record<string, unknown>): ConfigMessage | undefined {
   if (!isDiagramTheme(value.theme) || typeof value.showInferredEdges !== 'boolean') {
     return undefined;
   }
-  return { type: 'config', theme: value.theme, showInferredEdges: value.showInferredEdges };
+  if (value.viewMode !== undefined && !isDiagramViewMode(value.viewMode)) {
+    return undefined;
+  }
+  if (value.maxNodes !== undefined && !isDiagramMaxNodes(value.maxNodes)) {
+    return undefined;
+  }
+  return {
+    type: 'config',
+    theme: value.theme,
+    showInferredEdges: value.showInferredEdges,
+    ...(isDiagramViewMode(value.viewMode) ? { viewMode: value.viewMode } : {}),
+    ...(isDiagramMaxNodes(value.maxNodes) ? { maxNodes: value.maxNodes } : {}),
+  };
 }
 
 function parseError(value: Record<string, unknown>): ErrorMessage | undefined {
@@ -335,6 +378,14 @@ function isProtocolDepth(value: unknown): value is number {
 
 function isDiagramTheme(value: unknown): value is DiagramTheme {
   return typeof value === 'string' && (DIAGRAM_THEMES as readonly string[]).includes(value);
+}
+
+function isDiagramViewMode(value: unknown): value is DiagramViewMode {
+  return typeof value === 'string' && (DIAGRAM_VIEW_MODES as readonly string[]).includes(value);
+}
+
+function isDiagramMaxNodes(value: unknown): value is number {
+  return isNonNegativeInteger(value) && value >= 1 && value <= DIAGRAM_MAX_NODES_LIMIT;
 }
 
 function isDiagramErrorCode(value: unknown): value is DiagramErrorCode {

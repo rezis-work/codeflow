@@ -69,5 +69,9 @@ describe('extension manifest', () => {
     const setting =
       manifest.contributes?.configuration?.properties?.['codeflow.rust.useRustAnalyzer'];
     expect(setting).toMatchObject({ type: 'boolean', default: true });
+    const mode = manifest.contributes?.configuration?.properties?.['codeflow.view.defaultMode'];
+    expect(mode).toMatchObject({ type: 'string', default: 'focus' });
+    const maxNodes = manifest.contributes?.configuration?.properties?.['codeflow.view.maxNodes'];
+    expect(maxNodes).toMatchObject({ type: 'number', default: 300 });
   });
 });

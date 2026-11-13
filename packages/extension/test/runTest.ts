@@ -5,7 +5,10 @@ import { runTests } from '@vscode/test-electron';
 async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '..');
   const extensionTestsPath = path.resolve(__dirname, 'suite/index');
-  const workspacePath = path.resolve(extensionDevelopmentPath, 'test-fixtures/workspace');
+  const workspacePath = path.resolve(
+    extensionDevelopmentPath,
+    'test-fixtures/codeflow.code-workspace',
+  );
   const bundle = path.join(extensionDevelopmentPath, 'dist', 'extension.js');
 
   if (!existsSync(bundle)) {

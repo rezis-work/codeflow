@@ -1,5 +1,7 @@
-import { isDiagramWebviewToExtensionMessage } from '@codeflow/shared';
+import { applyDelta, emptyGraph, isDiagramWebviewToExtensionMessage } from '@codeflow/shared';
 import type {
+  CodeGraph,
+  DiagramViewMode,
   ExtensionToDiagramWebviewMessage,
   GraphDelta,
   NodeId,
@@ -8,16 +10,36 @@ import type {
 import * as vscode from 'vscode';
 import { hasWebviewBundle } from './bundle';
 import { DIAGRAM_PANEL_VIEW_TYPE, SYMBOL_FLOW_DEPTH } from './constants';
-import { diagramConfig, handleDiagramMessage } from './diagramMessages';
+import { diagramConfig, handleDiagramMessage, publishDiagramView } from './diagramMessages';
+import type { DiagramHost } from './diagramMessages';
 import { diagramThemeFromColorTheme } from './diagramTheme';
+import { diffGraphs } from './graphDiff';
 import { renderDiagramHtml, renderMissingAssetsHtml } from './html';
 import { createNonce } from './nonce';
+import { readMaxNodes, readViewMode } from './viewSettings';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 const FOCUS_REFRESH_MS = 80;
+const TRANSCRIPT_LIMIT = 500;
 
 export class DiagramPanel {
   public static current: DiagramPanel | undefined;
+
+  /** Messages posted to the open diagram, capped, for the extension test host. */
+  public static transcript(): readonly ExtensionToDiagramWebviewMessage[] {
+    return DiagramPanel.posted;
+  }
+
+  public static clearTranscript(): void {
+    DiagramPanel.posted = [];
+  }
+
+  /** Delivers a message as if the webview had posted it. */
+  public static deliver(message: unknown): void {
+    DiagramPanel.current?.onMessage(message);
+  }
+
+  private static posted: ExtensionToDiagramWebviewMessage[] = [];
 
   /** Pushes a store change into the open panel. Drops it until the webview is ready. */
   public static publishDelta(delta: GraphDelta): void {
@@ -33,6 +55,8 @@ export class DiagramPanel {
   private disposed = false;
   private webviewReady = false;
   private focusId: NodeId | undefined;
+  private viewMode: DiagramViewMode = readViewMode();
+  private viewGraph: CodeGraph | undefined;
   private focusTimer: ReturnType<typeof setTimeout> | undefined;
 
   public static open(context: vscode.ExtensionContext): void {
@@ -66,7 +90,28 @@ export class DiagramPanel {
     );
     vscode.window.onDidChangeActiveColorTheme(
       () => {
-        this.post(diagramConfig(diagramThemeFromColorTheme(vscode.window.activeColorTheme.kind)));
+        this.post(this.configMessage());
+      },
+      null,
+      this.disposables,
+    );
+    vscode.workspace.onDidChangeConfiguration(
+      (event) => {
+        const modeChanged = event.affectsConfiguration('codeflow.view.defaultMode');
+        const capChanged = event.affectsConfiguration('codeflow.view.maxNodes');
+        if (!modeChanged && !capChanged) {
+          return;
+        }
+        if (modeChanged) {
+          this.viewMode = readViewMode();
+        }
+        if (!this.webviewReady) {
+          return;
+        }
+        this.post(this.configMessage());
+        if (modeChanged) {
+          publishDiagramView(this.asHost());
+        }
       },
       null,
       this.disposables,
@@ -96,14 +141,14 @@ export class DiagramPanel {
     if (!this.webviewReady || this.disposed) {
       return;
     }
-    this.publishFocus();
+    publishDiagramView(this.asHost());
   }
 
   public publishDelta(delta: GraphDelta): void {
     if (!this.webviewReady || this.disposed || isEmptyDelta(delta)) {
       return;
     }
-    if (this.focusId) {
+    if (this.viewMode === 'focus' && this.focusId) {
       this.scheduleFocusRefresh();
       return;
     }
@@ -133,44 +178,14 @@ export class DiagramPanel {
   private onMessage(message: unknown): void {
     if (isDiagramWebviewToExtensionMessage(message) && message.type === 'ready') {
       this.webviewReady = true;
-      if (this.focusId) {
-        this.post({ type: 'ack' });
-        this.post(diagramConfig(diagramThemeFromColorTheme(vscode.window.activeColorTheme.kind)));
-        this.publishFocus();
-        return;
-      }
     }
     try {
-      handleDiagramMessage(message, {
-        store: getWorkspaceGraph(),
-        theme: () => diagramThemeFromColorTheme(vscode.window.activeColorTheme.kind),
-        post: (outgoing) => {
-          this.post(outgoing);
-        },
-        reveal: (location) => {
-          this.revealLocation(location);
-        },
-      });
+      handleDiagramMessage(message, this.asHost());
     } catch (error) {
       const text =
         error instanceof Error ? error.message : 'CodeFlow could not handle that message.';
       this.post({ type: 'error', code: 'internal', message: text });
     }
-  }
-
-  private publishFocus(): void {
-    const focusId = this.focusId;
-    if (!focusId) {
-      return;
-    }
-    const graph = getWorkspaceGraph().subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
-    if (!graph) {
-      this.focusId = undefined;
-      this.post({ type: 'graphSnapshot', graph: getWorkspaceGraph().snapshot() });
-      return;
-    }
-    this.post({ type: 'focusNode', nodeId: focusId });
-    this.post({ type: 'graphSnapshot', graph });
   }
 
   private scheduleFocusRefresh(): void {
@@ -179,8 +194,59 @@ export class DiagramPanel {
     }
     this.focusTimer = setTimeout(() => {
       this.focusTimer = undefined;
-      this.publishFocus();
+      this.publishFocusDelta();
     }, FOCUS_REFRESH_MS);
+  }
+
+  /**
+   * Recomputes the focused neighbourhood and patches the webview. A snapshot
+   * is sent only when the panel has not published a view yet.
+   */
+  private publishFocusDelta(): void {
+    const focusId = this.focusId;
+    if (!focusId || this.viewMode !== 'focus') {
+      return;
+    }
+    const next = getWorkspaceGraph().subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
+    if (!next) {
+      return;
+    }
+    const previous = this.viewGraph;
+    if (!previous) {
+      this.post({ type: 'focusNode', nodeId: focusId });
+      this.post({ type: 'graphSnapshot', graph: next });
+      return;
+    }
+    const delta = diffGraphs(previous, next);
+    if (!isEmptyDelta(delta)) {
+      this.post({ type: 'graphDelta', delta });
+    }
+  }
+
+  private configMessage() {
+    return diagramConfig(diagramThemeFromColorTheme(vscode.window.activeColorTheme.kind), {
+      viewMode: this.viewMode,
+      maxNodes: readMaxNodes(),
+    });
+  }
+
+  private asHost(): DiagramHost {
+    return {
+      store: getWorkspaceGraph(),
+      theme: () => diagramThemeFromColorTheme(vscode.window.activeColorTheme.kind),
+      viewMode: () => this.viewMode,
+      maxNodes: () => readMaxNodes(),
+      focusId: () => this.focusId,
+      setViewMode: (mode) => {
+        this.viewMode = mode;
+      },
+      post: (message) => {
+        this.post(message);
+      },
+      reveal: (location) => {
+        this.revealLocation(location);
+      },
+    };
   }
 
   private post(message: ExtensionToDiagramWebviewMessage): void {
@@ -189,6 +255,15 @@ export class DiagramPanel {
     }
     if (message.type === 'focusNode') {
       this.focusId = message.nodeId;
+    }
+    if (message.type === 'graphSnapshot') {
+      this.viewGraph = message.graph;
+    } else if (message.type === 'graphDelta') {
+      this.viewGraph = applyDelta(this.viewGraph ?? emptyGraph(), message.delta);
+    }
+    DiagramPanel.posted.push(message);
+    if (DiagramPanel.posted.length > TRANSCRIPT_LIMIT) {
+      DiagramPanel.posted.splice(0, DiagramPanel.posted.length - TRANSCRIPT_LIMIT);
     }
     void this.panel.webview.postMessage(message);
   }

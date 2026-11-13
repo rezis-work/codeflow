@@ -18,12 +18,14 @@ export {
   applyDelta,
   createEdge,
   createNode,
+  edgeEquals,
   edgeId,
   emptyGraph,
   isConfidence,
   isEdgeKind,
   isNodeKind,
   isTypeKind,
+  nodeEquals,
 } from './graph';
 export {
   GRAPH_STORE_VERSION,
@@ -35,7 +37,9 @@ export {
 } from './store';
 export {
   DIAGRAM_ERROR_CODES,
+  DIAGRAM_MAX_NODES_LIMIT,
   DIAGRAM_THEMES,
+  DIAGRAM_VIEW_MODES,
   PROTOCOL_MAX_DEPTH,
   isDiagramWebviewToExtensionMessage,
   isExtensionToDiagramWebviewMessage,
@@ -74,6 +78,7 @@ export type {
   ConfigMessage,
   DiagramErrorCode,
   DiagramTheme,
+  DiagramViewMode,
   DiagramWebviewToExtensionMessage,
   ErrorMessage,
   ExpandNodeMessage,
@@ -84,4 +89,5 @@ export type {
   ReadyMessage,
   RequestGraphMessage,
   RevealLocationMessage,
+  SetViewModeMessage,
 } from './messages';

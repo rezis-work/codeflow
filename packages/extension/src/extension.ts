@@ -1,3 +1,4 @@
+import type { ExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { OPEN_DIAGRAM_COMMAND, SHOW_FLOW_COMMAND, SIDEBAR_VIEW_ID } from './constants';
 import { DiagramPanel } from './diagramPanel';
@@ -6,6 +7,13 @@ import { SidebarProvider } from './sidebar';
 import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
 
+/** Returned from `activate` so the integration test can see diagram traffic. */
+export interface CodeFlowExtensionApi {
+  diagramMessages(): readonly ExtensionToDiagramWebviewMessage[];
+  clearDiagramMessages(): void;
+  postFromWebview(message: unknown): void;
+}
+
 /**
  * CodeFlow extension host.
  *
@@ -13,7 +21,7 @@ import { TypeScriptIndexer } from './typescriptIndexer';
  * publish file fragments into the same workspace graph. The diagram webview
  * only hears about the graph through @codeflow/shared messages.
  */
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi {
   const typescript = new TypeScriptIndexer(context);
   const rust = new RustIndexer(context);
   typescript.start();
@@ -35,6 +43,16 @@ export function activate(context: vscode.ExtensionContext): void {
       DiagramPanel.current?.dispose();
     }),
   );
+
+  return {
+    diagramMessages: () => DiagramPanel.transcript(),
+    clearDiagramMessages: () => {
+      DiagramPanel.clearTranscript();
+    },
+    postFromWebview: (message) => {
+      DiagramPanel.deliver(message);
+    },
+  };
 }
 
 export function deactivate(): void {

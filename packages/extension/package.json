@@ -106,6 +106,21 @@
           "minimum": 1,
           "description": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript and Rust are capped separately."
         },
+        "codeflow.view.defaultMode": {
+          "type": "string",
+          "enum": [
+            "focus",
+            "workspace"
+          ],
+          "default": "focus",
+          "description": "Diagram opened by CodeFlow: Show Flow for Symbol at Cursor. focus draws the neighbourhood around the symbol (depth 2). workspace draws the whole graph and highlights the symbol. The toolbar toggle changes this for the open panel."
+        },
+        "codeflow.view.maxNodes": {
+          "type": "number",
+          "default": 300,
+          "minimum": 1,
+          "description": "Maximum number of nodes the diagram draws at once. Larger graphs show a notice and suggest focus mode."
+        },
         "codeflow.rust.useRustAnalyzer": {
           "type": "boolean",
           "default": true,

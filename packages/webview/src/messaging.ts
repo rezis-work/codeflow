@@ -1,5 +1,6 @@
 import { isExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import type {
+  DiagramViewMode,
   DiagramWebviewToExtensionMessage,
   ExtensionToDiagramWebviewMessage,
   Language,
@@ -62,6 +63,10 @@ export function postExpandNode(nodeId: NodeId, depth?: number): void {
     nodeId,
     ...(depth !== undefined ? { depth } : {}),
   });
+}
+
+export function postSetViewMode(mode: DiagramViewMode): void {
+  post({ type: 'setViewMode', mode });
 }
 
 export function onExtensionMessage(
