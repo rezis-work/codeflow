@@ -6,7 +6,7 @@ CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows i
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
-This repository has the extension shell, the shared code graph, and a TypeScript/JavaScript analyzer. The activity bar and **CodeFlow: Open Diagram** open a React panel. **CodeFlow: Show Flow for Symbol at Cursor** indexes the symbol under the cursor and lists its neighbourhood. The drawn diagram comes later. CodeFlow keeps analysis on your machine. It has no telemetry and it does not call paid services.
+This repository has the extension shell, the shared code graph, TypeScript/JavaScript and Rust analyzers, and an interactive diagram. The activity bar and **CodeFlow: Open Diagram** open the panel. **CodeFlow: Show Flow for Symbol at Cursor** draws the neighbourhood of the symbol under the cursor. CodeFlow keeps analysis on your machine. It has no telemetry and it does not call paid services.
 
 ## Layout
 
@@ -16,9 +16,9 @@ The npm workspace is split so later phases can land without rearranging the repo
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/shared`    | Language-neutral code graph, the per-file graph store, and the typed messages between the extension and the webview. Pure TypeScript, with no VS Code API, so both sides import it.                                                                                                             |
 | `packages/extension` | VS Code extension host: commands, the activity bar, and webview panels. esbuild bundles the host and, separately, the TypeScript worker and the Rust worker. Rust uses tree-sitter (WASM) and cargo metadata, and can upgrade the focused symbol's calls when rust-analyzer is already running. |
-| `packages/webview`   | React UI, built with Vite. The empty canvas in `App` is the diagram surface. Phase 1.5 mounts React Flow and ELK.js there. The webview talks to the extension only with `postMessage`.                                                                                                          |
+| `packages/webview`   | React diagram, built with Vite. React Flow draws the graph and ELK lays it out. The webview talks to the extension only with `postMessage`.                                                                                                                                                     |
 
-The webview production bundle is written to `packages/extension/media/webview`. The extension generates the panel HTML and sets a nonce-based Content Security Policy: `default-src 'none'`, scripts only when they carry that nonce, and styles only from the extension bundle.
+The webview production bundle is written to `packages/extension/media/webview`. The extension generates the panel HTML and sets a nonce-based Content Security Policy: `default-src 'none'`, scripts only when they carry that nonce, styles from the extension bundle, and `style-src-attr 'unsafe-inline'` so React Flow can position nodes. Scripts stay nonce-only. There is no `unsafe-eval` and no remote load.
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ Then:
 - Click the CodeFlow icon in the activity bar. The sidebar has an **Open Diagram** button.
 - Run **CodeFlow: Open Diagram** from the Command Palette.
 
-The panel shows a CodeFlow shell. The React view sends `ready`. The extension answers `ack`, then the current theme and a snapshot of the workspace graph. The shell shows **Connected**, the node and edge counts, and, once the analyzer has indexed a file, a list of symbols and relationships. Click a symbol to open it in the editor. **CodeFlow: Show Flow for Symbol at Cursor** replaces that list with the neighbourhood of the symbol under the cursor. If the panel says the diagram view is not built, run `npm run build` from the repository root.
+The panel shows the diagram. The React view sends `ready`. The extension answers `ack`, then the current theme and the current view of the graph. Click a node to open that symbol in the editor. The expand button asks for its neighbours. **CodeFlow: Show Flow for Symbol at Cursor** centers a depth-2 neighbourhood of the symbol under the cursor. The toolbar switches that focus view and the whole workspace graph. If the panel says the diagram view is not built, run `npm run build` from the repository root.
 
 Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, and a folder with neither uses a plain JavaScript project. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits are re-analyzed after a short pause. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists.
 
@@ -94,10 +94,26 @@ Analyzers should put each edge in the file where the relationship is written. Em
 
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
-- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`.
+- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`.
 - Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `error`.
 
-`ready` still receives `ack`, then the theme and a snapshot of the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
+`ready` receives `ack`, then the theme and the current view. In focus mode with a symbol, that view is the depth-2 neighbourhood and a `focusNode`. Otherwise it is the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. `setViewMode` switches the session between `focus` and `workspace` and sends that view again. `config` may include `viewMode` and `maxNodes`. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
+
+## Diagram
+
+The panel is a React Flow canvas. ELK lays the graph out left to right with the layered algorithm. The bundled ELK build (`elkjs/lib/elk.bundled.js`) runs that layout through an in-process stand-in for a worker: it schedules the pass with `setTimeout`, and it does not use `eval`, `new Function`, a blob URL, or a real `Worker`. That keeps the nonce CSP intact. The pass still occupies the UI thread once the timer fires, so `codeflow.view.maxNodes` (default 300) caps how many nodes are drawn. elkjs is licensed under the EPL-2.0 or GPL-3.0-or-later; React Flow is MIT. Minification can drop the elkjs header, so the license is recorded here.
+
+A snapshot, and any change to the edge filters, lays the visible graph out again. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas.
+
+A single click on a node sends `revealLocation`. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, and switches for each edge kind and for inferred edges. Certain edges are solid. Inferred edges are dashed, dimmer, and their tooltip says `inferred`.
+
+Node colour follows the kind (function, method, type, module). A type shows its `typeKind` (struct, enum, trait, class, interface). A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
+
+A Rust `mod` declaration and the file it points at are two nodes joined by an import. The diagram hides the file node, keeps the module, and retargets the file's edges onto that module. The collapsed file name is shown on the module. TypeScript file modules stay visible.
+
+`codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
+
+While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
 
 ## Rust
 
@@ -117,7 +133,7 @@ Not read yet: macro expansion, `include!`, full type inference, the standard lib
 - **1.2 Shared graph model and message protocol** (done): the language-neutral graph, the per-file store, and the typed messages that carry it.
 - **1.3 TypeScript analyzer** (done): the TypeScript compiler API reads `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, and `.cts` files into the shared graph. A worker thread does the analysis.
 - **1.4 Rust analyzer** (done): tree-sitter-rust (WASM) and cargo metadata fill the same graph. rust-analyzer, when it is already running, upgrades calls for the symbol under the cursor. See [Rust](#rust).
-- **1.5 Diagram webview**: React Flow and ELK.js draw the graph. The symbol list in the panel is a stand-in.
+- **1.5 Diagram webview** (done): React Flow and ELK.js draw the graph. See [Diagram](#diagram).
 - **1.6 Editor integration**: CodeLens and tighter editor sync. Saving and editing already refresh the graph.
 
 ## License

@@ -1,5 +1,16 @@
-import { createFileFragment, createGraphStore, createNode, nodeId } from '@codeflow/shared';
-import type { ExtensionToDiagramWebviewMessage, SourceLocation } from '@codeflow/shared';
+import {
+  createEdge,
+  createFileFragment,
+  createGraphStore,
+  createNode,
+  nodeId,
+} from '@codeflow/shared';
+import type {
+  DiagramViewMode,
+  ExtensionToDiagramWebviewMessage,
+  NodeId,
+  SourceLocation,
+} from '@codeflow/shared';
 import { describe, expect, it } from 'vitest';
 import { handleDiagramMessage } from './diagramMessages';
 import type { DiagramHost } from './diagramMessages';
@@ -136,6 +147,98 @@ describe('diagram message handler', () => {
       host,
     );
     expect(posted[0]).toMatchObject({ type: 'error', code: 'not-found' });
+  });
+
+  it('sends a depth-2 neighbourhood when focus mode has a symbol', () => {
+    const range = { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } };
+    const names = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const nodes = names.map((name) =>
+      createNode({
+        kind: 'function',
+        name,
+        qualifiedName: name,
+        language: 'ts',
+        uri: URI,
+        range,
+      }),
+    );
+    const edges = names.slice(0, -1).map((name, index) => {
+      const from = nodes[index];
+      const to = nodes[index + 1];
+      if (!from || !to) {
+        throw new Error('chain');
+      }
+      return createEdge({
+        kind: 'call',
+        from: from.id,
+        to: to.id,
+        confidence: 'certain',
+        location: from.location,
+      });
+    });
+    const store = createGraphStore([
+      createFileFragment({
+        uri: URI,
+        language: 'ts',
+        contentHash: 'hash',
+        nodes,
+        edges,
+      }),
+    ]);
+    let mode: DiagramViewMode = 'focus';
+    const focus: NodeId | undefined = nodes[2]?.id;
+    const posted: ExtensionToDiagramWebviewMessage[] = [];
+    handleDiagramMessage(
+      { type: 'ready' },
+      {
+        store,
+        theme: () => 'dark',
+        viewMode: () => mode,
+        maxNodes: () => 300,
+        focusId: () => focus,
+        setViewMode: (next) => {
+          mode = next;
+        },
+        post: (message) => {
+          posted.push(message);
+        },
+        reveal: () => undefined,
+      },
+    );
+    const snapshot = posted.find((message) => message.type === 'graphSnapshot');
+    expect(snapshot?.type).toBe('graphSnapshot');
+    if (snapshot?.type !== 'graphSnapshot') {
+      return;
+    }
+    expect(snapshot.graph.nodes.map((node) => node.name).sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(posted.some((message) => message.type === 'focusNode' && message.nodeId === focus)).toBe(
+      true,
+    );
+    expect(posted[1]).toMatchObject({ type: 'config', viewMode: 'focus', maxNodes: 300 });
+
+    posted.length = 0;
+    handleDiagramMessage(
+      { type: 'setViewMode', mode: 'workspace' },
+      {
+        store,
+        theme: () => 'dark',
+        viewMode: () => mode,
+        focusId: () => focus,
+        setViewMode: (next) => {
+          mode = next;
+        },
+        post: (message) => {
+          posted.push(message);
+        },
+        reveal: () => undefined,
+      },
+    );
+    const whole = posted.find((message) => message.type === 'graphSnapshot');
+    expect(whole?.type).toBe('graphSnapshot');
+    if (whole?.type === 'graphSnapshot') {
+      expect(whole.graph.nodes).toHaveLength(names.length);
+    }
+    expect(posted.some((message) => message.type === 'focusNode')).toBe(true);
   });
 
   it('ignores malformed messages', () => {

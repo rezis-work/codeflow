@@ -2,7 +2,17 @@ import { createEdge, createNode, emptyGraph, nodeId } from '@codeflow/shared';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
-import { postExpandNode, postRequestGraph, postRevealLocation } from './messaging';
+import { postExpandNode, postRequestGraph, postRevealLocation, postSetViewMode } from './messaging';
+
+vi.mock('./diagram/elkLayout', () => ({
+  elkEngine: (nodes: readonly { id: string }[]) => {
+    const positions = new Map<string, { x: number; y: number }>();
+    nodes.forEach((node, index) => {
+      positions.set(node.id, { x: index * 220, y: 0 });
+    });
+    return Promise.resolve(positions);
+  },
+}));
 
 const postMessage = vi.fn();
 
@@ -108,8 +118,8 @@ describe('App', () => {
   });
 });
 
-describe('symbol outline', () => {
-  it('lists symbols and hides inferred relationships when asked', async () => {
+describe('diagram', () => {
+  it('draws symbols, hides inferred edges, and reveals or expands a node', async () => {
     render(<App />);
     const format = createNode({
       kind: 'function',
@@ -144,18 +154,24 @@ describe('symbol outline', () => {
       },
     });
 
-    expect(await screen.findByTestId('symbol-outline')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'function main' })).toBeTruthy();
     expect(screen.queryByText('No diagram yet')).toBeNull();
     expect(screen.getByTestId('graph-summary').textContent).toBe('2 nodes · 1 edge');
-    expect(screen.getByRole('button', { name: 'function main' })).toBeTruthy();
-    expect(screen.getByText('contains main → format (certain)')).toBeTruthy();
-    expect(screen.queryByText(/inferred/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'function format' })).toBeTruthy();
+    expect(document.querySelector('[data-confidence="inferred"]')).toBeNull();
+    expect(document.querySelector('[data-kind="contains"]')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'function main' }));
     expect(postMessage).toHaveBeenCalledWith({
       type: 'revealLocation',
       location: mainNode.location,
     });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand main' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'expandNode', nodeId: mainNode.id });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'setViewMode', mode: 'workspace' });
   });
 });
 
@@ -169,6 +185,7 @@ describe('outgoing diagram messages', () => {
     });
     postRevealLocation(mainNode.location);
     postExpandNode(mainNode.id);
+    postSetViewMode('focus');
     expect(postMessage).toHaveBeenCalledWith({
       type: 'requestGraph',
       language: 'ts',
@@ -181,5 +198,6 @@ describe('outgoing diagram messages', () => {
       location: mainNode.location,
     });
     expect(postMessage).toHaveBeenCalledWith({ type: 'expandNode', nodeId: mainNode.id });
+    expect(postMessage).toHaveBeenCalledWith({ type: 'setViewMode', mode: 'focus' });
   });
 });

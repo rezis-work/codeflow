@@ -54,8 +54,16 @@ export function renderDiagramHtml(options: DiagramHtmlOptions): string {
   const cspSource = escapeHtml(options.cspSource);
   const scriptUri = escapeHtml(options.scriptUri);
   const styleUri = escapeHtml(options.styleUri);
+  // Scripts stay nonce-only: no unsafe-eval, no remote script. React Flow
+  // positions nodes with the style attribute, so style-src-attr allows that
+  // and style-src still only loads the bundled stylesheet. ELK runs from
+  // elk.bundled's in-process scheduler (setTimeout), so no worker-src is added.
   return renderDocument({
-    policy: basePolicy([`style-src ${cspSource}`, `script-src 'nonce-${nonce}'`]),
+    policy: basePolicy([
+      `style-src ${cspSource}`,
+      `style-src-attr 'unsafe-inline'`,
+      `script-src 'nonce-${nonce}'`,
+    ]),
     head: `<link rel="stylesheet" href="${styleUri}" />`,
     body: `<div id="root"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>`,
@@ -93,7 +101,7 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
   </style>`,
     body: `<main>
     <h1>CodeFlow</h1>
-    <p>Open a diagram panel beside the editor. Flow diagrams for the active file will show up there in later phases.</p>
+    <p>Open a diagram panel beside the editor to see how the symbols in this workspace connect.</p>
     <button type="button" id="open">Open Diagram</button>
   </main>
   <script nonce="${nonce}">

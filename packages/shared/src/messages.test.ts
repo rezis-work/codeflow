@@ -59,6 +59,11 @@ describe('webview to extension messages', () => {
         depth: 0,
       }),
     ).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'workspace' })).toBe(
+      true,
+    );
+    expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'focus' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'all' })).toBe(false);
   });
 
   it('rejects malformed messages', () => {
@@ -150,6 +155,15 @@ describe('extension to webview messages', () => {
     ).toBe(true);
     expect(
       isExtensionToDiagramWebviewMessage({
+        type: 'config',
+        theme: 'dark',
+        showInferredEdges: true,
+        viewMode: 'focus',
+        maxNodes: 300,
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
         type: 'error',
         message: 'Missing symbol.',
         code: 'not-found',
@@ -191,6 +205,9 @@ describe('extension to webview messages', () => {
       { type: 'focusNode', nodeId: 'main' },
       { type: 'config', theme: 'blue', showInferredEdges: true },
       { type: 'config', theme: 'dark', showInferredEdges: 'true' },
+      { type: 'config', theme: 'dark', showInferredEdges: true, viewMode: 'graph' },
+      { type: 'config', theme: 'dark', showInferredEdges: true, maxNodes: 0 },
+      { type: 'config', theme: 'dark', showInferredEdges: true, maxNodes: 1.5 },
       { type: 'error', message: '' },
       { type: 'error', message: 'Broken.', code: 'nope' },
       { type: 'error' },

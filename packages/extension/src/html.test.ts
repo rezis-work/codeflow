@@ -25,13 +25,16 @@ describe('renderDiagramHtml', () => {
     expect(html).toContain("base-uri 'none'");
     expect(html).toContain(`script-src 'nonce-${nonce}'`);
     expect(html).toContain('style-src vscode-webview-resource:');
+    expect(html).toContain("style-src-attr 'unsafe-inline'");
     expect(html).toContain('<div id="root"></div>');
     expect(html).toContain(
       `<script nonce="${nonce}" src="vscode-webview-resource:/index.js"></script>`,
     );
     expect(html).toContain('href="vscode-webview-resource:/index.css"');
-    expect(html).not.toContain('unsafe-inline');
+    const scriptSrc = html.match(/script-src [^;"]+/)?.[0];
+    expect(scriptSrc).toBe(`script-src 'nonce-${nonce}'`);
     expect(html).not.toContain('unsafe-eval');
+    expect(html).not.toContain('worker-src');
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');
   });
