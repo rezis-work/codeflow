@@ -59,3 +59,41 @@ export async function layoutWithElk(
   }
   return positions;
 }
+
+/** Top-to-bottom layout for one function. The call graph stays left-to-right. */
+export async function layoutControlFlow(
+  nodes: readonly LayoutNode[],
+  edges: readonly LayoutEdge[],
+): Promise<Map<string, LayoutPoint>> {
+  if (nodes.length === 0) {
+    return new Map();
+  }
+  const result = await instance().layout({
+    id: 'control-flow',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'DOWN',
+      'elk.spacing.nodeNode': '36',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '48',
+      'elk.edgeRouting': 'ORTHOGONAL',
+      'elk.layered.unnecessaryBendpoints': 'true',
+      'elk.layered.feedbackEdges': 'true',
+      'elk.padding': '[top=16,left=24,bottom=16,right=48]',
+    },
+    children: nodes.map((node) => ({
+      id: node.id,
+      width: node.width,
+      height: node.height,
+    })),
+    edges: edges.map((edge) => ({
+      id: edge.id,
+      sources: [edge.source],
+      targets: [edge.target],
+    })),
+  });
+  const positions = new Map<string, LayoutPoint>();
+  for (const child of result.children ?? []) {
+    positions.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
+  }
+  return positions;
+}

@@ -69,6 +69,24 @@ export function postSetViewMode(mode: DiagramViewMode): void {
   post({ type: 'setViewMode', mode });
 }
 
+export function postRequestControlFlow(input: {
+  readonly nodeId?: NodeId;
+  readonly uri?: string;
+  readonly position?: { readonly line: number; readonly character: number };
+}): void {
+  post({
+    type: 'requestControlFlow',
+    version: 1,
+    ...(input.nodeId ? { nodeId: input.nodeId } : {}),
+    ...(input.uri ? { uri: input.uri } : {}),
+    ...(input.position ? { position: input.position } : {}),
+  });
+}
+
+export function postDismissControlFlow(): void {
+  post({ type: 'dismissControlFlow' });
+}
+
 export function onExtensionMessage(
   handler: (message: ExtensionToDiagramWebviewMessage) => void,
 ): () => void {

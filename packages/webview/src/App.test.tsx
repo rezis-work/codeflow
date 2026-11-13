@@ -15,6 +15,13 @@ vi.mock('./diagram/elkLayout', () => ({
     });
     return Promise.resolve(positions);
   },
+  layoutControlFlow: (nodes: readonly { id: string }[]) => {
+    const positions = new Map<string, { x: number; y: number }>();
+    nodes.forEach((node, index) => {
+      positions.set(node.id, { x: 0, y: index * 80 });
+    });
+    return Promise.resolve(positions);
+  },
 }));
 
 const postMessage = vi.fn();

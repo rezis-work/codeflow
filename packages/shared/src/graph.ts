@@ -576,7 +576,7 @@ function locationEquals(
   );
 }
 
-function parseSourceRange(value: unknown): ParseResult<SourceRange> {
+export function parseSourceRange(value: unknown): ParseResult<SourceRange> {
   if (!isRecord(value)) {
     return rejected('A range must be an object.');
   }

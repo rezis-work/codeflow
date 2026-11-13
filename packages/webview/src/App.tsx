@@ -2,12 +2,15 @@ import { applyDelta, emptyGraph, EDGE_KINDS } from '@codeflow/shared';
 import type {
   CodeGraph,
   CodeNode,
+  ControlFlowMessage,
   DiagramTheme,
   DiagramViewMode,
   EdgeKind,
   NodeId,
+  Position,
 } from '@codeflow/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ControlFlowView } from './diagram/ControlFlowView';
 import { DiagramCanvas } from './diagram/DiagramCanvas';
 import type { LayoutRevision } from './diagram/DiagramCanvas';
 import { EDGE_KIND_LABEL } from './diagram/appearance';
@@ -15,8 +18,10 @@ import { Legend } from './diagram/Legend';
 import { nodeText } from './diagram/labels';
 import {
   onExtensionMessage,
+  postDismissControlFlow,
   postExpandNode,
   postReady,
+  postRequestControlFlow,
   postRevealLocation,
   postSetViewMode,
 } from './messaging';
@@ -37,6 +42,11 @@ export function App() {
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<ReadonlySet<EdgeKind>>(() => new Set());
   const [showMinimap, setShowMinimap] = useState(true);
   const [layoutRevision, setLayoutRevision] = useState<LayoutRevision>({ id: 0, mode: 'full' });
+  const [surface, setSurface] = useState<'graph' | 'flow'>('graph');
+  const [flow, setFlow] = useState<ControlFlowMessage | undefined>(undefined);
+  const [flowCursor, setFlowCursor] = useState<
+    { readonly uri: string; readonly position: Position } | undefined
+  >(undefined);
   const reducedMotion = usePrefersReducedMotion();
   const inferredTouched = useRef(false);
 
@@ -88,6 +98,15 @@ export function App() {
         case 'error':
           setError(message.message);
           return;
+        case 'controlFlow':
+          setFlow(message);
+          setFlowCursor(undefined);
+          setSurface('flow');
+          setError(undefined);
+          return;
+        case 'controlFlowCursor':
+          setFlowCursor({ uri: message.uri, position: message.position });
+          return;
         default: {
           const unreachable: never = message;
           return unreachable;
@@ -105,6 +124,30 @@ export function App() {
   const onReveal = useCallback((location: CodeNode['location']) => {
     postRevealLocation(location);
   }, []);
+  const onBack = useCallback(() => {
+    postDismissControlFlow();
+    setSurface('graph');
+  }, []);
+  const onRevealRange = useCallback(
+    (range: CodeNode['location']['range']) => {
+      const uri = flow?.graph?.uri;
+      if (!uri) {
+        return;
+      }
+      postRevealLocation({ uri, range });
+    },
+    [flow?.graph?.uri],
+  );
+  const onOpenNested = useCallback(
+    (range: CodeNode['location']['range']) => {
+      const uri = flow?.graph?.uri;
+      if (!uri) {
+        return;
+      }
+      postRequestControlFlow({ uri, position: range.start });
+    },
+    [flow?.graph?.uri],
+  );
   const onExpand = useCallback((nodeId: NodeId) => {
     postExpandNode(nodeId);
   }, []);
@@ -119,6 +162,7 @@ export function App() {
       data-theme={theme}
       data-show-inferred={String(showInferred)}
       data-view-mode={viewMode}
+      data-surface={surface}
     >
       <header className="shell-header">
         <h1>CodeFlow</h1>
@@ -144,111 +188,141 @@ export function App() {
           </p>
         ) : null}
       </div>
-      <div className="toolbar" role="toolbar" aria-label="Diagram controls">
-        <div className="toolbar-group" role="group" aria-label="View mode">
+      {surface === 'flow' ? null : (
+        <div className="toolbar" role="toolbar" aria-label="Diagram controls">
+          <div className="toolbar-group" role="group" aria-label="View mode">
+            <button
+              type="button"
+              aria-pressed={viewMode === 'focus'}
+              onClick={() => {
+                setViewMode('focus');
+                postSetViewMode('focus');
+              }}
+            >
+              Focus
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === 'workspace'}
+              onClick={() => {
+                setViewMode('workspace');
+                postSetViewMode('workspace');
+              }}
+            >
+              Workspace
+            </button>
+          </div>
+          <label className="search">
+            <span className="search-label">Search</span>
+            <input
+              type="search"
+              value={query}
+              placeholder="Filter by name"
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+            />
+          </label>
+          <div className="toolbar-group" role="group" aria-label="Edge kinds">
+            {EDGE_KINDS.map((kind) => {
+              const hidden = hiddenEdgeKinds.has(kind);
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={!hidden}
+                  onClick={() => {
+                    setHiddenEdgeKinds((current) => toggleKind(current, kind));
+                  }}
+                >
+                  {EDGE_KIND_LABEL[kind]}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              aria-pressed={showInferred}
+              onClick={() => {
+                inferredTouched.current = true;
+                setShowInferred((current) => !current);
+              }}
+            >
+              Inferred
+            </button>
+          </div>
           <button
             type="button"
-            aria-pressed={viewMode === 'focus'}
+            aria-pressed={showMinimap}
             onClick={() => {
-              setViewMode('focus');
-              postSetViewMode('focus');
+              setShowMinimap((current) => !current);
             }}
           >
-            Focus
-          </button>
-          <button
-            type="button"
-            aria-pressed={viewMode === 'workspace'}
-            onClick={() => {
-              setViewMode('workspace');
-              postSetViewMode('workspace');
-            }}
-          >
-            Workspace
+            Minimap
           </button>
         </div>
-        <label className="search">
-          <span className="search-label">Search</span>
-          <input
-            type="search"
-            value={query}
-            placeholder="Filter by name"
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-          />
-        </label>
-        <div className="toolbar-group" role="group" aria-label="Edge kinds">
-          {EDGE_KINDS.map((kind) => {
-            const hidden = hiddenEdgeKinds.has(kind);
-            return (
-              <button
-                key={kind}
-                type="button"
-                aria-pressed={!hidden}
-                onClick={() => {
-                  setHiddenEdgeKinds((current) => toggleKind(current, kind));
-                }}
-              >
-                {EDGE_KIND_LABEL[kind]}
+      )}
+      {surface === 'flow' ? (
+        <section className="canvas" aria-label="Control flow">
+          {flow?.graph ? (
+            <ControlFlowView
+              graph={flow.graph}
+              reducedMotion={reducedMotion}
+              onReveal={onRevealRange}
+              onOpenNested={onOpenNested}
+              onBack={onBack}
+              {...(theme ? { theme } : {})}
+              {...(flowCursor && flowCursor.uri === flow.graph.uri
+                ? { cursor: flowCursor.position }
+                : {})}
+            />
+          ) : (
+            <div className="empty" data-testid="flow-missing">
+              <p className="empty-title">No flowchart</p>
+              <p className="empty-body">
+                {flow?.error?.message ?? 'CodeFlow could not draw this function.'}
+              </p>
+              <button type="button" onClick={onBack}>
+                Back to call graph
               </button>
-            );
-          })}
-          <button
-            type="button"
-            aria-pressed={showInferred}
-            onClick={() => {
-              inferredTouched.current = true;
-              setShowInferred((current) => !current);
-            }}
-          >
-            Inferred
-          </button>
-        </div>
-        <button
-          type="button"
-          aria-pressed={showMinimap}
-          onClick={() => {
-            setShowMinimap((current) => !current);
-          }}
-        >
-          Minimap
-        </button>
-      </div>
-      <section className="canvas" aria-label="Diagram canvas">
-        {graph && graph.nodes.length > 0 ? (
-          <DiagramCanvas
-            graph={graph}
-            theme={theme}
-            showInferred={showInferred}
-            hiddenEdgeKinds={hiddenEdgeKinds}
-            query={query}
-            maxNodes={maxNodes}
-            viewMode={viewMode}
-            reducedMotion={reducedMotion}
-            showMinimap={showMinimap}
-            layoutRevision={layoutRevision}
-            onReveal={onReveal}
-            onExpand={onExpand}
-            {...(focusId ? { focusId } : {})}
-          />
-        ) : connected && !graph ? (
-          <div className="empty" data-testid="analyzing">
-            <p className="empty-title">Analyzing</p>
-            <p className="empty-body">Reading the workspace into the diagram.</p>
-          </div>
-        ) : (
-          <div className="empty">
-            <p className="empty-title">No diagram yet</p>
-            <p className="empty-body">
-              {viewMode === 'focus'
-                ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
-                : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
-            </p>
-          </div>
-        )}
-      </section>
-      <Legend />
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="canvas" aria-label="Diagram canvas">
+          {graph && graph.nodes.length > 0 ? (
+            <DiagramCanvas
+              graph={graph}
+              theme={theme}
+              showInferred={showInferred}
+              hiddenEdgeKinds={hiddenEdgeKinds}
+              query={query}
+              maxNodes={maxNodes}
+              viewMode={viewMode}
+              reducedMotion={reducedMotion}
+              showMinimap={showMinimap}
+              layoutRevision={layoutRevision}
+              onReveal={onReveal}
+              onExpand={onExpand}
+              {...(focusId ? { focusId } : {})}
+            />
+          ) : connected && !graph ? (
+            <div className="empty" data-testid="analyzing">
+              <p className="empty-title">Analyzing</p>
+              <p className="empty-body">Reading the workspace into the diagram.</p>
+            </div>
+          ) : (
+            <div className="empty">
+              <p className="empty-title">No diagram yet</p>
+              <p className="empty-body">
+                {viewMode === 'focus'
+                  ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
+                  : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+      {surface === 'flow' ? null : <Legend />}
     </main>
   );
 }

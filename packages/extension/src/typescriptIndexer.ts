@@ -8,8 +8,8 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import type { FileFragment } from '@codeflow/shared';
 import * as vscode from 'vscode';
-import type { IndexRoot } from './analyzers/typescript/workerProtocol';
-import { isWorkerToHostMessage } from './analyzers/typescript/workerProtocol';
+import type { ControlFlowWorkerResult, IndexRoot } from './analyzers/typescript/workerProtocol';
+import { isControlFlowResult, isWorkerToHostMessage } from './analyzers/typescript/workerProtocol';
 import { combineExcludeGlobs } from './analyzers/typescript/globs';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { pathToFileUri } from './analyzers/typescript/uri';
@@ -23,6 +23,7 @@ import { getWorkspaceGraph } from './workspaceGraph';
 const EDIT_DEBOUNCE_MS = 300;
 const INDEX_TIMEOUT_MS = 5 * 60 * 1000;
 const FILE_TIMEOUT_MS = 60 * 1000;
+const CONTROL_FLOW_TIMEOUT_MS = 20 * 1000;
 const MAX_RESTARTS = 3;
 
 interface PendingRequest {
@@ -38,10 +39,31 @@ interface IndexResult {
   readonly capped: boolean;
 }
 
+interface FlowWait {
+  readonly timer: NodeJS.Timeout;
+  resolve: (result: ControlFlowWorkerResult) => void;
+  reject: (error: Error) => void;
+}
+
+export interface ControlFlowQuery {
+  readonly filePath: string;
+  readonly content: string;
+  readonly uri: string;
+  readonly language: 'ts' | 'js';
+  readonly position?: { readonly line: number; readonly character: number };
+  readonly range?: {
+    readonly start: { readonly line: number; readonly character: number };
+    readonly end: { readonly line: number; readonly character: number };
+  };
+  readonly functionId?: string;
+  readonly qualifiedName?: string;
+}
+
 export class TypeScriptIndexer implements vscode.Disposable {
   private readonly workerPath: string;
   private worker: Worker | undefined;
   private readonly pending = new Map<number, PendingRequest>();
+  private readonly flowWaits = new Map<number, FlowWait>();
   private readonly burst: PathBurst;
   private indexedUris = new Set<string>();
   private tail: Promise<void> = Promise.resolve();
@@ -93,6 +115,35 @@ export class TypeScriptIndexer implements vscode.Disposable {
         this.schedulePath(change.path);
       }
     }
+  }
+
+  public controlFlow(query: ControlFlowQuery): Promise<ControlFlowWorkerResult> {
+    const worker = this.worker;
+    if (!worker) {
+      return Promise.reject(
+        new Error('CodeFlow analyzer is not running. Run the build and reload.'),
+      );
+    }
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.flowWaits.delete(id);
+        reject(new Error('CodeFlow control flow timed out.'));
+      }, CONTROL_FLOW_TIMEOUT_MS);
+      this.flowWaits.set(id, { timer, resolve, reject });
+      worker.postMessage({
+        type: 'controlFlow',
+        id,
+        filePath: query.filePath,
+        content: query.content,
+        uri: query.uri,
+        language: query.language,
+        ...(query.position ? { position: query.position } : {}),
+        ...(query.range ? { range: query.range } : {}),
+        ...(query.functionId ? { functionId: query.functionId } : {}),
+        ...(query.qualifiedName ? { qualifiedName: query.qualifiedName } : {}),
+      });
+    });
   }
 
   public syncDocument(document: vscode.TextDocument): Promise<void> {
@@ -316,6 +367,16 @@ export class TypeScriptIndexer implements vscode.Disposable {
   }
 
   private onWorkerMessage(message: unknown): void {
+    if (isControlFlowResult(message)) {
+      const wait = this.flowWaits.get(message.id);
+      if (!wait) {
+        return;
+      }
+      clearTimeout(wait.timer);
+      this.flowWaits.delete(message.id);
+      wait.resolve(message.result);
+      return;
+    }
     if (!isWorkerToHostMessage(message)) {
       return;
     }
@@ -426,6 +487,11 @@ export class TypeScriptIndexer implements vscode.Disposable {
       clearTimeout(request.timer);
       request.reject(new Error(message));
       this.pending.delete(id);
+    }
+    for (const [id, wait] of this.flowWaits) {
+      clearTimeout(wait.timer);
+      wait.reject(new Error(message));
+      this.flowWaits.delete(id);
     }
   }
 

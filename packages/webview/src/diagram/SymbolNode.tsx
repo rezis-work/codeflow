@@ -1,5 +1,6 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import { postRequestControlFlow } from '../messaging';
 import type { SymbolFlowNode } from './toFlow';
 
 /** Single click opens the symbol. The expand control asks for its neighbours. */
@@ -30,6 +31,23 @@ export function SymbolNodeView({ data }: NodeProps<SymbolFlowNode>) {
         <span className="code-node-title">{data.title}</span>
         {data.detail ? <span className="code-node-detail">{data.detail}</span> : null}
       </button>
+      {data.kind === 'function' || data.kind === 'method' ? (
+        <button
+          type="button"
+          className="code-node-flow nodrag nopan"
+          aria-label={`Control flow for ${data.title}`}
+          title="Control flow"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            postRequestControlFlow({ nodeId: data.nodeId });
+          }}
+        >
+          Flow
+        </button>
+      ) : null}
       <button
         type="button"
         className="code-node-expand nodrag nopan"

@@ -7,10 +7,11 @@ import {
   SHOW_CALLERS_COMMAND,
   SHOW_DEPENDENCIES_COMMAND,
   SHOW_FILE_DEPENDENCIES_COMMAND,
+  SHOW_CONTROL_FLOW_COMMAND,
   SHOW_FLOW_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
-import { DiagramPanel } from './diagramPanel';
+import { bindControlFlowIndexer, DiagramPanel } from './diagramPanel';
 import { startEditorSync } from './editorSync';
 import { watchGitChanges } from './gitWatch';
 import {
@@ -20,6 +21,7 @@ import {
   showFileDependencies,
   showFlowAtCursor,
 } from './showFlow';
+import { showControlFlowAtCursor } from './showControlFlow';
 import { SidebarProvider } from './sidebar';
 import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
@@ -48,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   });
   typescript.start();
   rust.start();
+  bindControlFlowIndexer(typescript);
 
   context.subscriptions.push(
     typescript,
@@ -62,6 +65,12 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     }),
     vscode.commands.registerCommand(SHOW_FLOW_COMMAND, () => {
       void showFlowAtCursor(context, typescript, rust);
+    }),
+    vscode.commands.registerCommand(SHOW_CONTROL_FLOW_COMMAND, () => {
+      void showControlFlowAtCursor(context, typescript);
+    }),
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      DiagramPanel.refreshControlFlow(document);
     }),
     vscode.commands.registerCommand(SHOW_CALLERS_COMMAND, () => {
       void showCallersAtCursor(context, typescript, rust);

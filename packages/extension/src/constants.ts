@@ -4,6 +4,7 @@ export const SHOW_CALLERS_COMMAND = 'codeflow.showCallers';
 export const SHOW_CALLEES_COMMAND = 'codeflow.showCallees';
 export const SHOW_FILE_DEPENDENCIES_COMMAND = 'codeflow.showFileDependencies';
 export const SHOW_DEPENDENCIES_COMMAND = 'codeflow.showDependencies';
+export const SHOW_CONTROL_FLOW_COMMAND = 'codeflow.showControlFlowAtCursor';
 /** Editor languages that have a CodeFlow context menu. */
 export const EDITOR_LANGUAGE_IDS = [
   'typescript',
