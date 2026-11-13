@@ -15,6 +15,10 @@ interface Manifest {
     commands?: Array<{ command?: string }>;
     viewsContainers?: { activitybar?: Array<{ id?: string; icon?: string }> };
     views?: Record<string, Array<{ id?: string; type?: string }>>;
+    menus?: { 'editor/context'?: Array<{ command?: string; when?: string }> };
+    configuration?: {
+      properties?: Record<string, { type?: string; default?: unknown }>;
+    };
   };
 }
 
@@ -55,5 +59,15 @@ describe('extension manifest', () => {
     expect(views).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: SIDEBAR_VIEW_ID, type: 'webview' })]),
     );
+  });
+
+  it('offers Show Flow for Rust and the rust-analyzer setting', () => {
+    const when = manifest.contributes?.menus?.['editor/context']?.find(
+      (item) => item.command === SHOW_FLOW_COMMAND,
+    )?.when;
+    expect(when).toContain('editorLangId == rust');
+    const setting =
+      manifest.contributes?.configuration?.properties?.['codeflow.rust.useRustAnalyzer'];
+    expect(setting).toMatchObject({ type: 'boolean', default: true });
   });
 });

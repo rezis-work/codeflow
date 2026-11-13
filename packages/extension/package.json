@@ -77,7 +77,7 @@
       "editor/context": [
         {
           "command": "codeflow.showFlowAtCursor",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
           "group": "navigation"
         }
       ]
@@ -98,13 +98,18 @@
             "**/*.min.js",
             "**/.next/**"
           ],
-          "description": "Glob patterns for files and folders CodeFlow does not analyze. node_modules is always skipped. These patterns are combined with files.exclude."
+          "description": "Glob patterns for files and folders CodeFlow does not analyze. node_modules is always skipped, and Rust analysis also skips target/. These patterns are combined with files.exclude."
         },
         "codeflow.maxFiles": {
           "type": "number",
           "default": 2500,
           "minimum": 1,
-          "description": "Maximum number of TypeScript and JavaScript files CodeFlow analyzes in each workspace folder."
+          "description": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript and Rust are capped separately."
+        },
+        "codeflow.rust.useRustAnalyzer": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the rust-analyzer extension is installed and already running, use its call hierarchy to mark calls from the focused Rust symbol as certain. Tree-sitter still builds the graph when this is off or rust-analyzer is not active."
         }
       }
     }
@@ -125,6 +130,8 @@
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",
     "mocha": "^12.0.3",
-    "vitest": "^5.1.0"
+    "tree-sitter-rust": "^0.24.0",
+    "vitest": "^5.1.0",
+    "web-tree-sitter": "^0.24.7"
   }
 }

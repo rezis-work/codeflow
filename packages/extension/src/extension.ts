@@ -3,27 +3,30 @@ import { OPEN_DIAGRAM_COMMAND, SHOW_FLOW_COMMAND, SIDEBAR_VIEW_ID } from './cons
 import { DiagramPanel } from './diagramPanel';
 import { showFlowAtCursor } from './showFlow';
 import { SidebarProvider } from './sidebar';
+import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
 
 /**
  * CodeFlow extension host.
  *
- * The TypeScript and JavaScript analyzer runs in a worker thread and publishes
- * file fragments into the workspace graph. Rust will do the same from its own
- * adapter. The diagram webview only hears about the graph through
- * @codeflow/shared messages.
+ * TypeScript, JavaScript, and Rust each run in their own worker thread and
+ * publish file fragments into the same workspace graph. The diagram webview
+ * only hears about the graph through @codeflow/shared messages.
  */
 export function activate(context: vscode.ExtensionContext): void {
-  const indexer = new TypeScriptIndexer(context);
-  indexer.start();
+  const typescript = new TypeScriptIndexer(context);
+  const rust = new RustIndexer(context);
+  typescript.start();
+  rust.start();
 
   context.subscriptions.push(
-    indexer,
+    typescript,
+    rust,
     vscode.commands.registerCommand(OPEN_DIAGRAM_COMMAND, () => {
       DiagramPanel.open(context);
     }),
     vscode.commands.registerCommand(SHOW_FLOW_COMMAND, () => {
-      void showFlowAtCursor(context, indexer);
+      void showFlowAtCursor(context, typescript, rust);
     }),
     vscode.window.registerWebviewViewProvider(SIDEBAR_VIEW_ID, new SidebarProvider(), {
       webviewOptions: { retainContextWhenHidden: true },

@@ -12,11 +12,11 @@ This repository has the extension shell, the shared code graph, and a TypeScript
 
 The npm workspace is split so later phases can land without rearranging the repo.
 
-| Path                 | Role                                                                                                                                                                                                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/shared`    | Language-neutral code graph, the per-file graph store, and the typed messages between the extension and the webview. Pure TypeScript, with no VS Code API, so both sides import it.                                                                                          |
-| `packages/extension` | VS Code extension host: commands, the activity bar, and webview panels. esbuild bundles the host and, separately, the TypeScript analyzer worker. Rust (phase 1.4) will publish into the same graph with rust-analyzer call hierarchy, tree-sitter-rust, and cargo metadata. |
-| `packages/webview`   | React UI, built with Vite. The empty canvas in `App` is the diagram surface. Phase 1.5 mounts React Flow and ELK.js there. The webview talks to the extension only with `postMessage`.                                                                                       |
+| Path                 | Role                                                                                                                                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared`    | Language-neutral code graph, the per-file graph store, and the typed messages between the extension and the webview. Pure TypeScript, with no VS Code API, so both sides import it.                                                                                                             |
+| `packages/extension` | VS Code extension host: commands, the activity bar, and webview panels. esbuild bundles the host and, separately, the TypeScript worker and the Rust worker. Rust uses tree-sitter (WASM) and cargo metadata, and can upgrade the focused symbol's calls when rust-analyzer is already running. |
+| `packages/webview`   | React UI, built with Vite. The empty canvas in `App` is the diagram surface. Phase 1.5 mounts React Flow and ELK.js there. The webview talks to the extension only with `postMessage`.                                                                                                          |
 
 The webview production bundle is written to `packages/extension/media/webview`. The extension generates the panel HTML and sets a nonce-based Content Security Policy: `default-src 'none'`, scripts only when they carry that nonce, and styles only from the extension bundle.
 
@@ -46,7 +46,7 @@ Then:
 
 The panel shows a CodeFlow shell. The React view sends `ready`. The extension answers `ack`, then the current theme and a snapshot of the workspace graph. The shell shows **Connected**, the node and edge counts, and, once the analyzer has indexed a file, a list of symbols and relationships. Click a symbol to open it in the editor. **CodeFlow: Show Flow for Symbol at Cursor** replaces that list with the neighbourhood of the symbol under the cursor. If the panel says the diagram view is not built, run `npm run build` from the repository root.
 
-Indexing starts after the window is up and does not block activation. It follows `tsconfig.json` and `jsconfig.json`, and it uses a plain JavaScript project when a folder has neither. Edits are re-analyzed after a short pause. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, and `codeflow.maxFiles` caps how many files each workspace folder contributes (the default is 2500).
+Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, and a folder with neither uses a plain JavaScript project. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits are re-analyzed after a short pause. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists.
 
 ```bash
 npm run lint
@@ -99,12 +99,24 @@ The webview protocol is a discriminated union checked by hand, so the bundle doe
 
 `ready` still receives `ack`, then the theme and a snapshot of the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
 
+## Rust
+
+The Rust adapter parses `.rs` files with the WASM build of tree-sitter-rust, so the vsix does not ship a platform-specific native module. `cargo metadata --no-deps` names the crates. When cargo is not installed, or metadata fails, CodeFlow scans `Cargo.toml` and `src/` instead and shows one warning.
+
+It records free functions, structs, enums, traits, trait methods, impl methods (on the type they belong to), and modules. Module declarations cover inline modules and file modules (`foo.rs` and `foo/mod.rs`, including `#[path]`). Contains edges link a file or type to its members. `use` and `mod` become import edges when the path can be resolved (`crate::`, `self::`, `super::`, and another crate in the workspace). `impl Trait for Type` becomes an implements edge. Calls are read from the syntax: `foo()`, `Type::new()`, and method calls whose receiver type is obvious from an annotation, `self`, or a struct literal. A call is `certain` when one workspace item matches. It is `inferred` when the receiver type was only guessed, as with `let widget = Widget::new()`, or when several items match.
+
+Macros are not expanded. A macro invocation is skipped, so tokens inside it are not turned into functions or calls. Attributes such as `#[path]` are read. `#[cfg]` is not evaluated, so both branches are kept when they are real items. `build.rs` is its own crate and is analyzed like any other file.
+
+`codeflow.rust.useRustAnalyzer` (default true) asks rust-analyzer for the outgoing calls of the symbol under the cursor when you run **CodeFlow: Show Flow for Symbol at Cursor**, and only then. The rust-analyzer extension must already be active; CodeFlow does not activate it or index the whole workspace through it. Those calls are stored as `certain`. Without rust-analyzer, the tree-sitter graph is unchanged. The extension-host smoke test launches with `--disable-extensions` and does not install rust-analyzer, so that upgrade is covered by a unit test with a fake client.
+
+Not read yet: macro expansion, `include!`, full type inference, the standard library and other external crates, `dyn Trait`, universal function call syntax, operator traits, closures as nodes, unions, type aliases, precise visibility inside a crate, and procedural macros.
+
 ## Roadmap
 
 - **1.1 Scaffold** (done): extension and webview shells, strict CSP, tooling, CI, and a VSIX.
 - **1.2 Shared graph model and message protocol** (done): the language-neutral graph, the per-file store, and the typed messages that carry it.
 - **1.3 TypeScript analyzer** (done): the TypeScript compiler API reads `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, and `.cts` files into the shared graph. A worker thread does the analysis.
-- **1.4 Rust analyzer**: rust-analyzer call hierarchy, tree-sitter-rust, and cargo metadata.
+- **1.4 Rust analyzer** (done): tree-sitter-rust (WASM) and cargo metadata fill the same graph. rust-analyzer, when it is already running, upgrades calls for the symbol under the cursor. See [Rust](#rust).
 - **1.5 Diagram webview**: React Flow and ELK.js draw the graph. The symbol list in the panel is a stand-in.
 - **1.6 Editor integration**: CodeLens and tighter editor sync. Saving and editing already refresh the graph.
 
