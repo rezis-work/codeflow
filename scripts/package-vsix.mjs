@@ -59,6 +59,7 @@ const required = [
   'extension/dist/tree-sitter-rust.wasm',
   'extension/dist/typescript-lib/lib.es5.d.ts',
   'extension/media/codeflow.svg',
+  'extension/media/codeflow-icon.png',
   'extension/media/webview/index.js',
   'extension/media/webview/index.css',
   'extension/LICENSE.txt',

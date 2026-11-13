@@ -1,5 +1,6 @@
 import { isDiagramWebviewToExtensionMessage, nodeId } from '@codeflow/shared';
 import type {
+  CodeGraph,
   ConfigMessage,
   DiagramTheme,
   DiagramViewMode,
@@ -20,6 +21,12 @@ export interface DiagramHost {
   maxNodes?(): number;
   focusId?(): NodeId | undefined;
   setViewMode?(mode: DiagramViewMode): void;
+  /**
+   * Focus-mode graph chosen by an editor command. `explicit` means that
+   * command owns the view. A missing graph is then an error, not the
+   * default neighbourhood.
+   */
+  focusView?(): { readonly graph: CodeGraph | undefined; readonly explicit: boolean };
 }
 
 const SHOW_INFERRED_EDGES = true;
@@ -121,20 +128,39 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
 export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramViewMode): void {
   const mode = modeOverride ?? host.viewMode?.() ?? 'focus';
   const focusId = host.focusId?.();
-  if (mode === 'focus' && focusId) {
-    const graph = host.store.subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
-    if (!graph) {
-      host.post({
-        type: 'error',
-        code: 'not-found',
-        message: 'That symbol is not in the graph.',
-      });
-      host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+  if (mode === 'focus') {
+    const custom = host.focusView?.();
+    if (custom?.explicit) {
+      if (!custom.graph) {
+        host.post({
+          type: 'error',
+          code: 'not-found',
+          message: 'That symbol is not in the graph.',
+        });
+        host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+        return;
+      }
+      if (focusId) {
+        host.post({ type: 'focusNode', nodeId: focusId });
+      }
+      host.post({ type: 'graphSnapshot', graph: custom.graph });
       return;
     }
-    host.post({ type: 'focusNode', nodeId: focusId });
-    host.post({ type: 'graphSnapshot', graph });
-    return;
+    if (focusId) {
+      const graph = host.store.subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
+      if (!graph) {
+        host.post({
+          type: 'error',
+          code: 'not-found',
+          message: 'That symbol is not in the graph.',
+        });
+        host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+        return;
+      }
+      host.post({ type: 'focusNode', nodeId: focusId });
+      host.post({ type: 'graphSnapshot', graph });
+      return;
+    }
   }
   host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
   if (focusId) {

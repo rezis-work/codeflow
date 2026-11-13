@@ -4,8 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { postExpandNode, postRequestGraph, postRevealLocation, postSetViewMode } from './messaging';
 
+const layoutCalls = vi.hoisted(() => ({ count: 0 }));
+
 vi.mock('./diagram/elkLayout', () => ({
   elkEngine: (nodes: readonly { id: string }[]) => {
+    layoutCalls.count += 1;
     const positions = new Map<string, { x: number; y: number }>();
     nodes.forEach((node, index) => {
       positions.set(node.id, { x: index * 220, y: 0 });
@@ -172,6 +175,30 @@ describe('diagram', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
     expect(postMessage).toHaveBeenCalledWith({ type: 'setViewMode', mode: 'workspace' });
+  });
+});
+
+describe('cursor hint', () => {
+  it('shows a not-in-view hint and does not lay the diagram out again', async () => {
+    render(<App />);
+    send({ type: 'ack' });
+    send({
+      type: 'graphSnapshot',
+      graph: { nodes: [mainNode], edges: [], pendingEdges: [] },
+    });
+    expect(await screen.findByRole('button', { name: 'function main' })).toBeTruthy();
+    await waitFor(() => {
+      expect(layoutCalls.count).toBeGreaterThan(0);
+    });
+    const laidOut = layoutCalls.count;
+
+    send({ type: 'cursorHint', message: 'Not in this diagram' });
+    expect((await screen.findByTestId('cursor-hint')).textContent).toBe('Not in this diagram');
+
+    send({ type: 'focusNode', nodeId: mainNode.id });
+    expect(await screen.findByText('Focus: main')).toBeTruthy();
+    expect(screen.queryByTestId('cursor-hint')).toBeNull();
+    expect(layoutCalls.count).toBe(laidOut);
   });
 });
 

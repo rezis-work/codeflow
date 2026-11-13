@@ -33,6 +33,10 @@ suite('CodeFlow smoke', () => {
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes(OPEN_DIAGRAM_COMMAND));
     assert.ok(commands.includes(SHOW_FLOW_COMMAND));
+    assert.ok(commands.includes('codeflow.showCallers'));
+    assert.ok(commands.includes('codeflow.showCallees'));
+    assert.ok(commands.includes('codeflow.showFileDependencies'));
+    assert.ok(commands.includes('codeflow.showDependencies'));
     assert.ok(commands.includes('workbench.view.extension.codeflow'));
     assert.ok(commands.includes('codeflow.sidebar.focus'));
   });

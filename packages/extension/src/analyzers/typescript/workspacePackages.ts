@@ -159,7 +159,10 @@ function exportTarget(value: unknown): string | undefined {
 }
 
 function workspaceDirectories(rootDir: string, manifest: PackageManifest | undefined): string[] {
-  const patterns = workspacePatterns(manifest?.workspaces);
+  const patterns = [
+    ...workspacePatterns(manifest?.workspaces),
+    ...readPnpmWorkspacePatterns(rootDir),
+  ];
   const directories: string[] = [];
   for (const pattern of patterns) {
     const normalized = pattern.replaceAll('\\', '/').replace(/\/$/, '');
@@ -188,6 +191,57 @@ interface PackageManifest {
   readonly main?: string;
   readonly exports?: unknown;
   readonly workspaces?: unknown;
+}
+
+/**
+ * `packages:` list from a pnpm-workspace.yaml. Only that list is read.
+ * Quoted and bare globs are both accepted. Other keys are ignored.
+ */
+export function parsePnpmWorkspacePatterns(text: string): string[] {
+  const patterns: string[] = [];
+  let inPackages = false;
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!inPackages) {
+      if (/^packages:\s*(?:#.*)?$/.test(trimmed)) {
+        inPackages = true;
+      }
+      continue;
+    }
+    if (trimmed.length === 0 || trimmed.startsWith('#')) {
+      continue;
+    }
+    if (/^\S/.test(line)) {
+      break;
+    }
+    const item = trimmed.match(/^-\s+(.+?)(?:\s+#.*)?$/);
+    if (!item?.[1]) {
+      continue;
+    }
+    let value = item[1].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (value.length > 0) {
+      patterns.push(value);
+    }
+  }
+  return patterns;
+}
+
+function readPnpmWorkspacePatterns(rootDir: string): string[] {
+  const filePath = path.join(rootDir, 'pnpm-workspace.yaml');
+  if (!existsSync(filePath)) {
+    return [];
+  }
+  try {
+    return parsePnpmWorkspacePatterns(readFileSync(filePath, 'utf8'));
+  } catch {
+    return [];
+  }
 }
 
 function workspacePatterns(value: unknown): string[] {

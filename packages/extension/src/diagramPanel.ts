@@ -9,13 +9,18 @@ import type {
 } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { hasWebviewBundle } from './bundle';
-import { DIAGRAM_PANEL_VIEW_TYPE, SYMBOL_FLOW_DEPTH } from './constants';
+import { DIAGRAM_PANEL_VIEW_TYPE, NOT_IN_DIAGRAM, SYMBOL_FLOW_DEPTH } from './constants';
 import { diagramConfig, handleDiagramMessage, publishDiagramView } from './diagramMessages';
 import type { DiagramHost } from './diagramMessages';
 import { diagramThemeFromColorTheme } from './diagramTheme';
+import { textEditorColumn } from './editorColumn';
+import { readRefocusOnCursor } from './editorSettings';
+import { graphForFocus } from './focusQuery';
+import type { FocusSpec } from './focusQuery';
 import { diffGraphs } from './graphDiff';
 import { renderDiagramHtml, renderMissingAssetsHtml } from './html';
 import { createNonce } from './nonce';
+import { noteDiagramReveal } from './revealGuard';
 import { readMaxNodes, readViewMode } from './viewSettings';
 import { getWorkspaceGraph } from './workspaceGraph';
 
@@ -51,20 +56,38 @@ export class DiagramPanel {
     DiagramPanel.current?.showSymbol(nodeId);
   }
 
+  /** Opens a callers, callees, import, or folder view. */
+  public static showSpec(spec: FocusSpec): void {
+    DiagramPanel.current?.showSpec(spec);
+  }
+
+  /**
+   * Highlights a symbol already in the diagram. Does not lay the graph out again.
+   * A symbol outside the current view shows a hint, unless focus mode is allowed
+   * to re-center on the cursor.
+   */
+  public static highlightCursor(nodeId: NodeId | undefined): void {
+    DiagramPanel.current?.highlightCursor(nodeId);
+  }
+
   private readonly disposables: vscode.Disposable[] = [];
   private disposed = false;
   private webviewReady = false;
   private focusId: NodeId | undefined;
+  private spec: FocusSpec | undefined;
   private viewMode: DiagramViewMode = readViewMode();
   private viewGraph: CodeGraph | undefined;
   private focusTimer: ReturnType<typeof setTimeout> | undefined;
+  private rememberedColumn: vscode.ViewColumn | undefined;
 
   public static open(context: vscode.ExtensionContext): void {
-    const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.Beside;
     if (DiagramPanel.current) {
-      DiagramPanel.current.panel.reveal(column);
+      DiagramPanel.current.panel.reveal(DiagramPanel.current.panel.viewColumn);
       return;
     }
+    const column = vscode.window.activeTextEditor
+      ? vscode.ViewColumn.Beside
+      : vscode.ViewColumn.One;
 
     const panel = vscode.window.createWebviewPanel(DIAGRAM_PANEL_VIEW_TYPE, 'CodeFlow', column, {
       enableScripts: true,
@@ -84,6 +107,20 @@ export class DiagramPanel {
     this.panel.webview.onDidReceiveMessage(
       (message: unknown) => {
         this.onMessage(message);
+      },
+      null,
+      this.disposables,
+    );
+    const activeColumn = vscode.window.activeTextEditor?.viewColumn;
+    if (activeColumn !== undefined && activeColumn > 0) {
+      this.rememberedColumn = activeColumn;
+    }
+    vscode.window.onDidChangeActiveTextEditor(
+      (editor) => {
+        const column = editor?.viewColumn;
+        if (column !== undefined && column > 0 && column !== this.panel.viewColumn) {
+          this.rememberedColumn = column;
+        }
       },
       null,
       this.disposables,
@@ -137,18 +174,52 @@ export class DiagramPanel {
   }
 
   public showSymbol(nodeId: NodeId): void {
-    this.focusId = nodeId;
+    this.showSpec({ kind: 'flow', nodeId, depth: SYMBOL_FLOW_DEPTH });
+  }
+
+  public showSpec(spec: FocusSpec): void {
+    this.spec = spec;
+    this.focusId = spec.nodeId;
+    this.viewMode = 'focus';
     if (!this.webviewReady || this.disposed) {
       return;
     }
+    this.post({ type: 'cursorHint' });
+    this.post(this.configMessage());
     publishDiagramView(this.asHost());
+  }
+
+  public highlightCursor(nodeId: NodeId | undefined): void {
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    if (!nodeId) {
+      this.post({ type: 'cursorHint' });
+      return;
+    }
+    const inView = this.viewGraph?.nodes.some((node) => node.id === nodeId) ?? false;
+    if (inView) {
+      this.post({ type: 'cursorHint' });
+      this.post({ type: 'focusNode', nodeId });
+      return;
+    }
+    if (
+      this.viewMode === 'focus' &&
+      readRefocusOnCursor() &&
+      this.spec &&
+      this.spec.kind !== 'folder'
+    ) {
+      this.showSpec({ ...this.spec, nodeId });
+      return;
+    }
+    this.post({ type: 'cursorHint', message: NOT_IN_DIAGRAM });
   }
 
   public publishDelta(delta: GraphDelta): void {
     if (!this.webviewReady || this.disposed || isEmptyDelta(delta)) {
       return;
     }
-    if (this.viewMode === 'focus' && this.focusId) {
+    if (this.viewMode === 'focus' && this.spec) {
       this.scheduleFocusRefresh();
       return;
     }
@@ -203,17 +274,19 @@ export class DiagramPanel {
    * is sent only when the panel has not published a view yet.
    */
   private publishFocusDelta(): void {
-    const focusId = this.focusId;
-    if (!focusId || this.viewMode !== 'focus') {
+    const spec = this.spec;
+    if (!spec || this.viewMode !== 'focus') {
       return;
     }
-    const next = getWorkspaceGraph().subgraph(focusId, { depth: SYMBOL_FLOW_DEPTH });
+    const next = graphForFocus(getWorkspaceGraph(), spec);
     if (!next) {
       return;
     }
     const previous = this.viewGraph;
     if (!previous) {
-      this.post({ type: 'focusNode', nodeId: focusId });
+      if (this.focusId) {
+        this.post({ type: 'focusNode', nodeId: this.focusId });
+      }
       this.post({ type: 'graphSnapshot', graph: next });
       return;
     }
@@ -237,6 +310,12 @@ export class DiagramPanel {
       viewMode: () => this.viewMode,
       maxNodes: () => readMaxNodes(),
       focusId: () => this.focusId,
+      focusView: () => {
+        if (!this.spec) {
+          return { graph: undefined, explicit: false };
+        }
+        return { graph: graphForFocus(getWorkspaceGraph(), this.spec), explicit: true };
+      },
       setViewMode: (mode) => {
         this.viewMode = mode;
       },
@@ -280,31 +359,67 @@ export class DiagramPanel {
       });
       return;
     }
-
-    const selection = new vscode.Range(
-      new vscode.Position(location.range.start.line, location.range.start.character),
-      new vscode.Position(location.range.end.line, location.range.end.character),
-    );
-    void (async () => {
-      try {
-        const document = await vscode.workspace.openTextDocument(uri);
-        if (this.disposed) {
-          return;
-        }
-        await vscode.window.showTextDocument(document, {
-          selection,
-          preview: true,
-          viewColumn: vscode.ViewColumn.Beside,
-        });
-      } catch {
-        this.post({
-          type: 'error',
-          code: 'invalid-location',
-          message: `Could not open ${location.uri}.`,
-        });
-      }
-    })();
+    noteDiagramReveal({
+      uri: uri.toString(),
+      range: location.range,
+    });
+    void this.openLocation(uri, location);
   }
+
+  private async openLocation(uri: vscode.Uri, location: SourceLocation): Promise<void> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      this.post({
+        type: 'error',
+        code: 'invalid-location',
+        message: `Could not open ${uri.fsPath}. The file is missing.`,
+      });
+      return;
+    }
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      if (this.disposed) {
+        return;
+      }
+      const selection = clampRange(document, location.range);
+      const column = textEditorColumn({
+        diagramColumn: this.panel.viewColumn,
+        activeColumn: vscode.window.activeTextEditor?.viewColumn,
+        visibleColumns: vscode.window.visibleTextEditors.map((editor) => editor.viewColumn),
+        remembered: this.rememberedColumn,
+      });
+      const editor = await vscode.window.showTextDocument(document, {
+        selection,
+        preview: true,
+        viewColumn: column,
+      });
+      if (this.disposed) {
+        return;
+      }
+      editor.revealRange(selection, vscode.TextEditorRevealType.InCenter);
+    } catch {
+      this.post({
+        type: 'error',
+        code: 'invalid-location',
+        message: `Could not open ${uri.fsPath}.`,
+      });
+    }
+  }
+}
+
+function clampRange(document: vscode.TextDocument, range: SourceLocation['range']): vscode.Range {
+  return new vscode.Range(clampPosition(document, range.start), clampPosition(document, range.end));
+}
+
+function clampPosition(
+  document: vscode.TextDocument,
+  position: SourceLocation['range']['start'],
+): vscode.Position {
+  const lastLine = Math.max(0, document.lineCount - 1);
+  const line = Math.min(Math.max(0, position.line), lastLine);
+  const maxCharacter = document.lineAt(line).text.length;
+  return new vscode.Position(line, Math.min(Math.max(0, position.character), maxCharacter));
 }
 
 function isEmptyDelta(delta: GraphDelta): boolean {

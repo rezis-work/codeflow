@@ -32,6 +32,7 @@ export function App() {
   const [viewMode, setViewMode] = useState<DiagramViewMode>('focus');
   const [maxNodes, setMaxNodes] = useState(DEFAULT_MAX_NODES);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [cursorHint, setCursorHint] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<ReadonlySet<EdgeKind>>(() => new Set());
   const [showMinimap, setShowMinimap] = useState(true);
@@ -57,6 +58,7 @@ export function App() {
         case 'graphSnapshot':
           setGraph(message.graph);
           setLayoutRevision((current) => ({ id: current.id + 1, mode: 'full' }));
+          setCursorHint(undefined);
           setError(undefined);
           return;
         case 'graphDelta':
@@ -65,7 +67,11 @@ export function App() {
           setError(undefined);
           return;
         case 'focusNode':
+          setCursorHint(undefined);
           setFocusId(message.nodeId);
+          return;
+        case 'cursorHint':
+          setCursorHint(message.message);
           return;
         case 'config':
           setTheme(message.theme);
@@ -127,6 +133,11 @@ export function App() {
       <div className="graph-meta">
         <p data-testid="graph-summary">{graphSummary(graph, showInferred)}</p>
         {focusId ? <p data-testid="focus-node">Focus: {focusLabel}</p> : null}
+        {cursorHint ? (
+          <p className="cursor-hint" role="status" data-testid="cursor-hint">
+            {cursorHint}
+          </p>
+        ) : null}
         {error ? (
           <p className="graph-error" role="alert" data-testid="graph-error">
             {error}

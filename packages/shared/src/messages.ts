@@ -6,8 +6,9 @@
  * unknown fields are ignored so a newer sender does not break an older check
  * of a type it already understands. A graph snapshot replaces the webview's
  * current view. A delta patches it. `setViewMode` asks the host to switch
- * between the focused neighbourhood and the whole workspace graph. Both
- * sides ship in one extension, so there is no separate protocol version.
+ * between the focused neighbourhood and the whole workspace graph.
+ * `cursorHint` is a short status line, separate from `error`. Both sides
+ * ship in one extension, so there is no separate protocol version.
  */
 
 import {
@@ -100,6 +101,12 @@ export interface FocusNodeMessage {
   readonly nodeId: NodeId;
 }
 
+/** A quiet note in the diagram. An omitted or blank message clears it. */
+export interface CursorHintMessage {
+  readonly type: 'cursorHint';
+  readonly message?: string;
+}
+
 export interface ConfigMessage {
   readonly type: 'config';
   readonly theme: DiagramTheme;
@@ -121,6 +128,7 @@ export type ExtensionToDiagramWebviewMessage =
   | GraphSnapshotMessage
   | GraphDeltaMessage
   | FocusNodeMessage
+  | CursorHintMessage
   | ConfigMessage
   | ErrorMessage;
 
@@ -169,6 +177,8 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parseDeltaMessage(value);
     case 'focusNode':
       return parseFocus(value);
+    case 'cursorHint':
+      return parseCursorHint(value);
     case 'config':
       return parseConfig(value);
     case 'error':
@@ -276,6 +286,17 @@ function parseFocus(value: Record<string, unknown>): FocusNodeMessage | undefine
     return undefined;
   }
   return { type: 'focusNode', nodeId };
+}
+
+function parseCursorHint(value: Record<string, unknown>): CursorHintMessage | undefined {
+  if (value.message === undefined) {
+    return { type: 'cursorHint' };
+  }
+  if (typeof value.message !== 'string') {
+    return undefined;
+  }
+  const message = value.message.trim();
+  return message.length > 0 ? { type: 'cursorHint', message } : { type: 'cursorHint' };
 }
 
 function parseSetViewMode(value: Record<string, unknown>): SetViewModeMessage | undefined {

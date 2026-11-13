@@ -2,11 +2,85 @@
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, module and crate dependency maps, and later control flow, request flows, trait and impl maps, sequence views, and runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs and file or crate dependency maps. Later phases add control flow, request flows, trait and impl maps, sequence views, and runtime traces.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
-This repository has the extension shell, the shared code graph, TypeScript/JavaScript and Rust analyzers, and an interactive diagram. The activity bar and **CodeFlow: Open Diagram** open the panel. **CodeFlow: Show Flow for Symbol at Cursor** draws the neighbourhood of the symbol under the cursor. CodeFlow keeps analysis on your machine. It has no telemetry and it does not call paid services.
+Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol at Cursor** (or press Ctrl+Alt+F, Cmd+Alt+F on macOS). The diagram opens beside the editor. Click a node to select that symbol and center it in the editor. Moving the cursor highlights the matching node. Saving the file updates the diagram without throwing away the layout. CodeFlow keeps analysis on your machine. It has no telemetry and it does not call paid services.
+
+![Flow around ripgrep's SearchWorker::search_reader](docs/images/ripgrep-search-reader.png)
+
+![Flow around the lovepet API route handler](docs/images/lovepet-route-handle.png)
+
+## Features
+
+- Call neighbourhood for the symbol under the cursor, plus callers-only and callees-only views.
+- Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
+- Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
+- Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
+- Incremental refresh when a file is saved, when the watcher sees a create, change, or delete, and when git moves `HEAD`. Bursts of changes are analyzed once.
+- Status bar item: analyzing, the node count, or an error. Clicking it opens the panel.
+- TypeScript path aliases, several tsconfig projects in one workspace, npm/yarn `workspaces`, and `pnpm-workspace.yaml`.
+- Rust workspaces via `cargo metadata`, with a Cargo.toml scan when cargo is missing or the metadata command fails. rust-analyzer is optional and only upgrades the calls of the symbol you asked to show.
+
+## Commands
+
+These appear in the Command Palette. The four editor commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer.
+
+| Command                                  | What it draws                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------- |
+| CodeFlow: Show Flow for Symbol at Cursor | Undirected neighbourhood of the symbol, depth 2, every edge kind                         |
+| CodeFlow: Show Callers                   | Incoming call edges, depth `codeflow.editor.callDepth` (default 2)                       |
+| CodeFlow: Show Callees                   | Outgoing call edges, same depth                                                          |
+| CodeFlow: Show File Dependencies         | Import edges of the current file's module                                                |
+| CodeFlow: Show Dependencies              | The same import view for a file, or the file modules inside a folder plus one import hop |
+| CodeFlow: Open Diagram                   | The panel, without changing the current symbol                                           |
+
+**Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
+
+CodeLens is not in this release. It is planned for phase 2.
+
+## Settings
+
+| Setting                           | Default                                   |                                                                                                                                        |
+| --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `codeflow.editor.followCursor`    | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
+| `codeflow.editor.refocusOnCursor` | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
+| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers and Show Callees (1–32)                                                                                    |
+| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`                                                                                                                 |
+| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once                                                                                                                    |
+| `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
+| `codeflow.exclude`                | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
+| `codeflow.maxFiles`               | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
+
+## Requirements
+
+- Node.js 22 or newer to build from source
+- Cursor, or VS Code 1.85 or newer
+- For Rust, a `cargo` on `PATH` so `cargo metadata --no-deps` can name the crates. Without it, CodeFlow reads `Cargo.toml` and `src/` and shows a warning
+- rust-analyzer is optional. CodeFlow does not install it, activate it, or index the workspace through it
+
+## Real projects
+
+Measured on this machine with the extension's analyzer workers, not in CI. The lovepet tree is a private pnpm monorepo (`apps/web`, `apps/api`, and `packages/*`). ripgrep 15.2.0 is a Cargo workspace. Neither project is vendored in this repository.
+
+| Project | Files | Nodes | Edges | First analysis | One-file update |
+| ------- | ----- | ----- | ----- | -------------- | --------------- |
+| lovepet | 223   | 1,018 | 3,414 | 3.5 s          | 243 ms          |
+| ripgrep | 102   | 3,520 | 7,248 | 878 ms         | 275 ms          |
+
+lovepet was not capped and produced no warnings. The route handler `handle` in `apps/web/app/api/v1/[...path]/route.ts` calls `resolveBffRoute` through the `@/` path alias and `loadWebConfig` / `upstreamUrl` in `@lovepet/config`, both `certain`. That package's `exports` point at `dist/`, which is not built here; CodeFlow follows `pnpm-workspace.yaml` and the TypeScript source instead.
+
+ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse its edition 2024 manifest, and the Cargo.toml fallback still indexed all 102 files (901 ms, 7,217 edges). The diagram above is `rg::search::SearchWorker::search_reader`.
+
+## Known limitations
+
+- Macros are not expanded. `#[cfg]` is not evaluated, so both branches are kept when they parse as items.
+- Calls are not a whole-program type inference. TypeScript marks a call `certain` when the checker names one workspace function. Rust marks a call `certain` from syntax or, for the symbol you just showed, from rust-analyzer.
+- External packages and the Rust standard library are not nodes. An import edge stops at the workspace.
+- `codeflow.maxNodes` (default 300) caps what is drawn. `codeflow.maxFiles` (default 2500) caps what is analyzed.
+- Git worktrees, where `.git` is a file, are not watched for branch switches. A normal checkout's `HEAD` is.
+- The diagram reveal ignores the cursor move it just caused. A later move in that editor is followed.
 
 ## Layout
 
@@ -46,7 +120,7 @@ Then:
 
 The panel shows the diagram. The React view sends `ready`. The extension answers `ack`, then the current theme and the current view of the graph. Click a node to open that symbol in the editor. The expand button asks for its neighbours. **CodeFlow: Show Flow for Symbol at Cursor** centers a depth-2 neighbourhood of the symbol under the cursor. The toolbar switches that focus view and the whole workspace graph. If the panel says the diagram view is not built, run `npm run build` from the repository root.
 
-Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, and a folder with neither uses a plain JavaScript project. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits are re-analyzed after a short pause. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists.
+Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, including `paths`, and a folder with neither uses a plain JavaScript project. Workspace packages are read from `package.json` `workspaces` and from `pnpm-workspace.yaml`. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits, saves, watcher events, and git `HEAD` changes are re-analyzed after a short pause, and a burst of paths is one pass. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists. The status bar shows analyzing, the node count, or an error, and opens the panel when clicked.
 
 ```bash
 npm run lint
@@ -95,7 +169,7 @@ Analyzers should put each edge in the file where the relationship is written. Em
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
 - Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`.
-- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `error`.
+- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`.
 
 `ready` receives `ack`, then the theme and the current view. In focus mode with a symbol, that view is the depth-2 neighbourhood and a `focusNode`. Otherwise it is the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. `setViewMode` switches the session between `focus` and `workspace` and sends that view again. `config` may include `viewMode` and `maxNodes`. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
 
@@ -103,9 +177,9 @@ The webview protocol is a discriminated union checked by hand, so the bundle doe
 
 The panel is a React Flow canvas. ELK lays the graph out left to right with the layered algorithm. The bundled ELK build (`elkjs/lib/elk.bundled.js`) runs that layout through an in-process stand-in for a worker: it schedules the pass with `setTimeout`, and it does not use `eval`, `new Function`, a blob URL, or a real `Worker`. That keeps the nonce CSP intact. The pass still occupies the UI thread once the timer fires, so `codeflow.view.maxNodes` (default 300) caps how many nodes are drawn. elkjs is licensed under the EPL-2.0 or GPL-3.0-or-later; React Flow is MIT. Minification can drop the elkjs header, so the license is recorded here.
 
-A snapshot, and any change to the edge filters, lays the visible graph out again. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas.
+A snapshot, and any change to the edge filters, lays the visible graph out again and fits every node in view. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas. A later `focusNode` (the cursor moved onto a symbol that is already drawn) pans to that node and does not lay the graph out again. Reduced motion makes that pan instant. `cursorHint` is the short "Not in this diagram" line.
 
-A single click on a node sends `revealLocation`. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, and switches for each edge kind and for inferred edges. Certain edges are solid. Inferred edges are dashed, dimmer, and their tooltip says `inferred`.
+A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, and switches for each edge kind and for inferred edges. Certain edges are solid. Inferred edges are dashed, dimmer, and their tooltip says `inferred`.
 
 Node colour follows the kind (function, method, type, module). A type shows its `typeKind` (struct, enum, trait, class, interface). A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
 
@@ -134,7 +208,7 @@ Not read yet: macro expansion, `include!`, full type inference, the standard lib
 - **1.3 TypeScript analyzer** (done): the TypeScript compiler API reads `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, and `.cts` files into the shared graph. A worker thread does the analysis.
 - **1.4 Rust analyzer** (done): tree-sitter-rust (WASM) and cargo metadata fill the same graph. rust-analyzer, when it is already running, upgrades calls for the symbol under the cursor. See [Rust](#rust).
 - **1.5 Diagram webview** (done): React Flow and ELK.js draw the graph. See [Diagram](#diagram).
-- **1.6 Editor integration**: CodeLens and tighter editor sync. Saving and editing already refresh the graph.
+- **1.6 Editor integration** (done): context menus, callers and callees, file and folder dependencies, click-to-open in the editor column, cursor highlight, save and git refresh, and the status bar. See [Commands](#commands). CodeLens is phase 2.
 
 ## License
 
