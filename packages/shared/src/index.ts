@@ -1,8 +1,87 @@
-export { isDiagramWebviewToExtensionMessage, isExtensionToDiagramWebviewMessage } from './messages';
+export {
+  FILE_MODULE_QUALIFIED_NAME,
+  LANGUAGES,
+  NODE_ID_SEPARATOR,
+  GraphModelError,
+  asNodeId,
+  hashContent,
+  isLanguage,
+  nodeId,
+  normalizeUri,
+  parseNodeId,
+} from './ids';
+export {
+  CONFIDENCE,
+  EDGE_KINDS,
+  NODE_KINDS,
+  TYPE_KINDS,
+  applyDelta,
+  createEdge,
+  createNode,
+  edgeId,
+  emptyGraph,
+  isConfidence,
+  isEdgeKind,
+  isNodeKind,
+  isTypeKind,
+} from './graph';
+export {
+  GRAPH_STORE_VERSION,
+  createFileFragment,
+  createGraphStore,
+  deserializeGraphStore,
+  parseGraphStore,
+  serializeGraphStore,
+} from './store';
+export {
+  DIAGRAM_ERROR_CODES,
+  DIAGRAM_THEMES,
+  PROTOCOL_MAX_DEPTH,
+  isDiagramWebviewToExtensionMessage,
+  isExtensionToDiagramWebviewMessage,
+} from './messages';
 
+export type { EdgeId, Language, NodeId, SymbolRef } from './ids';
+export type {
+  CodeEdge,
+  CodeGraph,
+  CodeNode,
+  Confidence,
+  CreateNodeInput,
+  EdgeKind,
+  FileFragment,
+  GraphDelta,
+  NodeKind,
+  ParseResult,
+  Position,
+  SourceLocation,
+  SourceRange,
+  TypeKind,
+} from './graph';
+export type {
+  CacheEntry,
+  CodeNeighbour,
+  GraphStore,
+  IngestResult,
+  NeighbourDirection,
+  NeighbourQuery,
+  NeighbourResult,
+  SerializedGraphStore,
+  SubgraphQuery,
+} from './store';
 export type {
   AckMessage,
+  ConfigMessage,
+  DiagramErrorCode,
+  DiagramTheme,
   DiagramWebviewToExtensionMessage,
+  ErrorMessage,
+  ExpandNodeMessage,
   ExtensionToDiagramWebviewMessage,
+  FocusNodeMessage,
+  GraphDeltaMessage,
+  GraphSnapshotMessage,
   ReadyMessage,
+  RequestGraphMessage,
+  RevealLocationMessage,
 } from './messages';
