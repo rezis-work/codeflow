@@ -55,6 +55,9 @@ export function nodeText(node: CodeNode, collapsedFileName?: string): NodeText {
     return { title, qualified: title, detail: 'file' };
   }
   const parts: string[] = [];
+  if (node.note) {
+    parts.push(node.note);
+  }
   if (node.qualifiedName !== node.name) {
     parts.push(node.qualifiedName);
   }

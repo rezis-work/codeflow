@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { OPEN_DIAGRAM_COMMAND } from './constants';
+import { OPEN_DIAGRAM_COMMAND, SHOW_TRAIT_MAP_COMMAND } from './constants';
 import { renderSidebarHtml } from './html';
 import { createNonce } from './nonce';
 import { isSidebarToExtensionMessage } from './sidebarMessage';
@@ -19,7 +19,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (!isSidebarToExtensionMessage(message)) {
         return;
       }
-      void vscode.commands.executeCommand(OPEN_DIAGRAM_COMMAND);
+      void vscode.commands.executeCommand(
+        message.type === 'showTraitMap' ? SHOW_TRAIT_MAP_COMMAND : OPEN_DIAGRAM_COMMAND,
+      );
     });
 
     webviewView.onDidDispose(() => {

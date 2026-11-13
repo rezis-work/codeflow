@@ -7,7 +7,14 @@ import {
   useNodesState,
   useReactFlow,
 } from '@xyflow/react';
-import type { CodeGraph, DiagramTheme, EdgeKind, NodeId, SourceLocation } from '@codeflow/shared';
+import type {
+  CodeGraph,
+  DiagramTheme,
+  DiagramViewMode,
+  EdgeKind,
+  NodeId,
+  SourceLocation,
+} from '@codeflow/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collapseRustModules, representativeId } from './collapse';
 import { elkEngine } from './elkLayout';
@@ -36,7 +43,7 @@ export interface DiagramCanvasProps {
   readonly hiddenEdgeKinds: ReadonlySet<EdgeKind>;
   readonly query: string;
   readonly maxNodes: number;
-  readonly viewMode: 'focus' | 'workspace';
+  readonly viewMode: DiagramViewMode;
   readonly reducedMotion: boolean;
   readonly showMinimap: boolean;
   readonly layoutRevision: LayoutRevision;
@@ -209,9 +216,9 @@ function DiagramSurface({
 
   const capNotice =
     filtered.hiddenByCap > 0
-      ? viewMode === 'focus'
-        ? `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Hide edge kinds or search to narrow this neighbourhood.`
-        : `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Switch to focus mode to see the neighbourhood of a symbol.`
+      ? viewMode === 'workspace'
+        ? `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Switch to focus mode to see the neighbourhood of a symbol.`
+        : `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Hide edge kinds or search to narrow this neighbourhood.`
       : undefined;
 
   return (
@@ -325,6 +332,8 @@ function minimapColor(node: { data?: { kind?: string } }): string {
       return '#d18616';
     case 'module':
       return '#89d185';
+    case 'impl':
+      return '#d18616';
     default:
       return '#888888';
   }

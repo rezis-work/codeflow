@@ -42,8 +42,11 @@ export const PROTOCOL_MAX_DEPTH = 32;
 export const DIAGRAM_THEMES = ['light', 'dark', 'high-contrast', 'high-contrast-light'] as const;
 export type DiagramTheme = (typeof DIAGRAM_THEMES)[number];
 
-/** How much of the workspace graph the diagram is showing. */
-export const DIAGRAM_VIEW_MODES = ['focus', 'workspace'] as const;
+/**
+ * How much of the workspace graph the diagram is showing.
+ * `traits` is the Rust trait and impl map around the focused symbol.
+ */
+export const DIAGRAM_VIEW_MODES = ['focus', 'workspace', 'traits'] as const;
 export type DiagramViewMode = (typeof DIAGRAM_VIEW_MODES)[number];
 
 /** Largest node cap the webview will accept from config. */

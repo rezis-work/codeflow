@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Trait and impl map
+
+- **CodeFlow: Show Trait Map** draws a Rust trait, the types that implement it, and the methods each impl overrides or inherits. The same command on a type draws the traits that type implements. It is in the Command Palette, the Rust editor context menu, the side panel, and the diagram's Trait map switch.
+- Trait definitions keep supertraits, generic traits, and required versus default methods. Impls include generic impls, blanket impls, inherent impls, impls of traits defined outside the workspace, and one derived impl per name in `#[derive(...)]`.
+- A trait-method call on a concrete type is a certain edge to that impl, or to the inherited default. A call through `&dyn Trait`, `Box<dyn Trait>`, `Arc<dyn Trait>`, a generic bound, or `impl Trait`, and `Trait::method` / `<T as Trait>::method` when the receiver is not a concrete type, fans out to every workspace impl. Those edges are dashed and marked uncertain. The fan-out stops at `codeflow.view.maxNodes` and shows an overflow node.
+- On a TypeScript or JavaScript file the command says the view is Rust only.
+- Tree-sitter does this on its own. rust-analyzer, when it is already running, still replaces the focused symbol's inferred calls with certain ones.
+
 ### Control flow
 
 - **CodeFlow: Show Control Flow for Function at Cursor** draws a flowchart for the TypeScript, JavaScript, or Rust function at the cursor. It is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust.

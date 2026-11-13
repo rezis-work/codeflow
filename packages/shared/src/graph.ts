@@ -3,9 +3,14 @@
  *
  * Edges point from the source of the relationship to its target:
  * caller to callee, importer to the imported file, container to member,
- * implementing type to its interface or trait, and subtype to its base.
+ * implementing type or impl block to its interface or trait, subtype to its
+ * base, trait to its supertrait, impl method to the trait method it overrides,
+ * and impl block to a default method it inherits.
  * A `certain` edge was read off the syntax. An `inferred` edge is a guess
- * a later analyzer was not willing to treat as fact.
+ * a later analyzer was not willing to treat as fact. `uncertain` marks a
+ * call whose receiver could be any impl (dyn Trait, a generic bound, impl
+ * Trait, or a receiver syntax could not name). It is not part of the edge id.
+ * `detail` is a short reason the diagram can show. Older graphs omit both.
  *
  * An edge whose endpoint is not in the store yet is pending. It resolves
  * when that node arrives. Analyzers should emit a cross-file edge only when
@@ -25,14 +30,26 @@ import {
 } from './ids';
 import type { EdgeId, Language, NodeId } from './ids';
 
-export const NODE_KINDS = ['function', 'method', 'type', 'module'] as const;
+export const NODE_KINDS = ['function', 'method', 'type', 'module', 'impl'] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
 export const TYPE_KINDS = ['class', 'interface', 'struct', 'enum', 'trait'] as const;
 export type TypeKind = (typeof TYPE_KINDS)[number];
 
-export const EDGE_KINDS = ['call', 'import', 'contains', 'implements', 'extends'] as const;
+export const EDGE_KINDS = [
+  'call',
+  'import',
+  'contains',
+  'implements',
+  'extends',
+  'supertrait',
+  'overrides',
+  'provides',
+] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
+
+/** Longest `note` or edge `detail` the parser accepts. */
+const ANNOTATION_LIMIT = 160;
 
 export const CONFIDENCE = ['certain', 'inferred'] as const;
 export type Confidence = (typeof CONFIDENCE)[number];
@@ -59,10 +76,12 @@ interface CodeNodeBase {
   readonly language: Language;
   readonly uri: string;
   readonly location: SourceLocation;
+  /** Short role such as `default`, `derived impl`, or `blanket impl`. Omitted when absent. */
+  readonly note?: string;
 }
 
 export type CodeNode =
-  | (CodeNodeBase & { readonly kind: 'function' | 'method' | 'module' })
+  | (CodeNodeBase & { readonly kind: 'function' | 'method' | 'module' | 'impl' })
   | (CodeNodeBase & { readonly kind: 'type'; readonly typeKind: TypeKind });
 
 export interface CodeEdge {
@@ -72,6 +91,13 @@ export interface CodeEdge {
   readonly to: NodeId;
   readonly confidence: Confidence;
   readonly location?: SourceLocation;
+  /**
+   * The receiver could be more than one impl. Dashed like `inferred`.
+   * Omitted when the edge is not uncertain, so older graphs stay valid.
+   */
+  readonly uncertain?: boolean;
+  /** Why the edge is uncertain, or `inherited default`. Omitted when absent. */
+  readonly detail?: string;
 }
 
 /** The merged view: resolved edges have both endpoints, pending edges do not. */
@@ -109,11 +135,12 @@ interface CreateNodeBase {
   readonly language: Language;
   readonly uri: string;
   readonly range: SourceRange;
+  readonly note?: string;
 }
 
 export type CreateNodeInput =
   | (CreateNodeBase & {
-      readonly kind: 'function' | 'method' | 'module';
+      readonly kind: 'function' | 'method' | 'module' | 'impl';
       readonly typeKind?: undefined;
     })
   | (CreateNodeBase & { readonly kind: 'type'; readonly typeKind: TypeKind });
@@ -163,6 +190,7 @@ export function createNode(input: CreateNodeInput): CodeNode {
   if (!isNonEmptyString(input.name) || !isNonEmptyString(input.qualifiedName)) {
     throw new GraphModelError('A node needs a name and a qualified name.');
   }
+  const note = readAnnotation(input.note, 'note');
   if (input.kind === 'type') {
     if (!isTypeKind(input.typeKind)) {
       throw new GraphModelError('A type node needs a typeKind.');
@@ -187,6 +215,7 @@ export function createNode(input: CreateNodeInput): CodeNode {
     language: input.language,
     uri: location.value.uri,
     location: location.value,
+    ...(note ? { note } : {}),
   };
   if (input.kind === 'type') {
     return { ...base, kind: 'type', typeKind: input.typeKind };
@@ -200,6 +229,8 @@ export function createEdge(input: {
   readonly to: NodeId;
   readonly confidence: Confidence;
   readonly location?: SourceLocation;
+  readonly uncertain?: boolean;
+  readonly detail?: string;
 }): CodeEdge {
   if (!isEdgeKind(input.kind) || !isConfidence(input.confidence)) {
     throw new GraphModelError('Edge kind or confidence is not supported.');
@@ -207,6 +238,10 @@ export function createEdge(input: {
   if (!asNodeId(input.from) || !asNodeId(input.to)) {
     throw new GraphModelError('An edge needs valid node ids.');
   }
+  if (input.uncertain !== undefined && typeof input.uncertain !== 'boolean') {
+    throw new GraphModelError('uncertain must be a boolean.');
+  }
+  const detail = readAnnotation(input.detail, 'detail');
   let location: SourceLocation | undefined;
   if (input.location !== undefined) {
     const parsedLocation = parseSourceLocation(input.location);
@@ -221,16 +256,16 @@ export function createEdge(input: {
     to: input.to,
     ...(location ? { location } : {}),
   });
-  return location
-    ? {
-        id,
-        kind: input.kind,
-        from: input.from,
-        to: input.to,
-        confidence: input.confidence,
-        location,
-      }
-    : { id, kind: input.kind, from: input.from, to: input.to, confidence: input.confidence };
+  return {
+    id,
+    kind: input.kind,
+    from: input.from,
+    to: input.to,
+    confidence: input.confidence,
+    ...(location ? { location } : {}),
+    ...(input.uncertain === true ? { uncertain: true } : {}),
+    ...(detail ? { detail } : {}),
+  };
 }
 
 /**
@@ -339,6 +374,10 @@ export function parseCodeNode(value: unknown): ParseResult<CodeNode> {
   if (value.id !== id) {
     return rejected('Node id does not match its language, file, and qualified name.');
   }
+  const note = parseAnnotation(value.note, 'note');
+  if (!note.ok) {
+    return note;
+  }
   const base = {
     id,
     name: value.name,
@@ -346,6 +385,7 @@ export function parseCodeNode(value: unknown): ParseResult<CodeNode> {
     language: value.language,
     uri,
     location: location.value,
+    ...(note.value ? { note: note.value } : {}),
   };
   if (value.kind === 'type') {
     if (!isTypeKind(value.typeKind)) {
@@ -379,15 +419,27 @@ export function parseCodeEdge(value: unknown): ParseResult<CodeEdge> {
     }
     location = parsedLocation.value;
   }
+  if (value.uncertain !== undefined && typeof value.uncertain !== 'boolean') {
+    return rejected('uncertain must be a boolean.');
+  }
+  const detail = parseAnnotation(value.detail, 'detail');
+  if (!detail.ok) {
+    return detail;
+  }
   const id = edgeId({ kind: value.kind, from, to, ...(location ? { location } : {}) });
   if (value.id !== id) {
     return rejected('Edge id does not match its endpoints.');
   }
-  return parsed(
-    location
-      ? { id, kind: value.kind, from, to, confidence: value.confidence, location }
-      : { id, kind: value.kind, from, to, confidence: value.confidence },
-  );
+  return parsed({
+    id,
+    kind: value.kind,
+    from,
+    to,
+    confidence: value.confidence,
+    ...(location ? { location } : {}),
+    ...(value.uncertain === true ? { uncertain: true } : {}),
+    ...(detail.value ? { detail: detail.value } : {}),
+  });
 }
 
 export function parseCodeGraph(value: unknown): ParseResult<CodeGraph> {
@@ -539,6 +591,7 @@ export function nodeEquals(left: CodeNode, right: CodeNode): boolean {
     left.qualifiedName !== right.qualifiedName ||
     left.language !== right.language ||
     left.uri !== right.uri ||
+    left.note !== right.note ||
     !locationEquals(left.location, right.location)
   ) {
     return false;
@@ -556,6 +609,8 @@ export function edgeEquals(left: CodeEdge, right: CodeEdge): boolean {
     left.from === right.from &&
     left.to === right.to &&
     left.confidence === right.confidence &&
+    left.uncertain === right.uncertain &&
+    left.detail === right.detail &&
     locationEquals(left.location, right.location)
   );
 }
@@ -635,4 +690,28 @@ function parseEdgeLocationToken(value: unknown): SourceLocation | null | undefin
 
 function isMember<T extends string>(values: readonly T[], value: unknown): value is T {
   return typeof value === 'string' && (values as readonly string[]).includes(value);
+}
+
+function readAnnotation(value: string | undefined, label: 'note' | 'detail'): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const parsedNote = parseAnnotation(value, label);
+  if (!parsedNote.ok) {
+    throw new GraphModelError(parsedNote.error);
+  }
+  return parsedNote.value;
+}
+
+function parseAnnotation(
+  value: unknown,
+  label: 'note' | 'detail',
+): ParseResult<string | undefined> {
+  if (value === undefined) {
+    return parsed(undefined);
+  }
+  if (typeof value !== 'string' || value.trim().length === 0 || value.length > ANNOTATION_LIMIT) {
+    return rejected(`${label} must be a short non-empty string.`);
+  }
+  return parsed(value);
 }

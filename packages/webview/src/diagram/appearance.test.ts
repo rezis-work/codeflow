@@ -11,14 +11,31 @@ describe('edge appearance', () => {
     expect(inferred.dashed).toBe(true);
     expect(inferred.opacity).toBeLessThan(1);
     expect(inferred.tooltip).toBe('inferred');
+    const uncertain = edgeAppearance({
+      kind: 'call',
+      confidence: 'inferred',
+      uncertain: true,
+      detail: 'uncertain: dyn Trait',
+    });
+    expect(uncertain.dashed).toBe(true);
+    expect(uncertain.tooltip).toBe('uncertain: dyn Trait');
   });
 
   it('gives each edge kind its own color', () => {
     const colors = new Set(
-      (['call', 'import', 'contains', 'implements', 'extends'] as const).map(
-        (kind) => edgeAppearance({ kind, confidence: 'certain' }).color,
-      ),
+      (
+        [
+          'call',
+          'import',
+          'contains',
+          'implements',
+          'extends',
+          'supertrait',
+          'overrides',
+          'provides',
+        ] as const
+      ).map((kind) => edgeAppearance({ kind, confidence: 'certain' }).color),
     );
-    expect(colors.size).toBe(5);
+    expect(colors.size).toBe(8);
   });
 });

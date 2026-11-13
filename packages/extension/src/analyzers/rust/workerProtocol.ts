@@ -10,6 +10,8 @@ export interface IndexRoot {
   readonly rootDir: string;
   readonly excludeGlobs: readonly string[];
   readonly maxFiles: number;
+  /** `codeflow.view.maxNodes`. Trait-call fan-out stops here. */
+  readonly maxNodes?: number;
 }
 
 export type HostToWorkerMessage =

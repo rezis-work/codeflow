@@ -17,7 +17,7 @@ import { combineExcludeGlobs } from './analyzers/typescript/globs';
 import { pathToFileUri } from './analyzers/typescript/uri';
 import { trackAnalysis } from './analysisStatus';
 import { DiagramPanel } from './diagramPanel';
-import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES } from './constants';
+import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES, DEFAULT_MAX_NODES } from './constants';
 import { createPathBurst } from './pathBurst';
 import type { PathBurst, PathUpdate } from './pathBurst';
 import { getWorkspaceGraph } from './workspaceGraph';
@@ -536,9 +536,20 @@ function readRoots(): IndexRoot[] {
       rootDir: folder.uri.fsPath,
       excludeGlobs: exclude,
       maxFiles: readMaxFiles(folder.uri),
+      maxNodes: readMaxNodes(folder.uri),
     });
   }
   return roots;
+}
+
+function readMaxNodes(folder: vscode.Uri): number {
+  const value = vscode.workspace
+    .getConfiguration('codeflow', folder)
+    .get<number>('view.maxNodes', DEFAULT_MAX_NODES);
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return DEFAULT_MAX_NODES;
+  }
+  return Math.max(1, Math.floor(value));
 }
 
 function readMaxFiles(folder: vscode.Uri): number {

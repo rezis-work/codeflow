@@ -9,6 +9,7 @@ import {
   SHOW_FILE_DEPENDENCIES_COMMAND,
   SHOW_CONTROL_FLOW_COMMAND,
   SHOW_FLOW_COMMAND,
+  SHOW_TRAIT_MAP_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -20,6 +21,7 @@ import {
   showDependencies,
   showFileDependencies,
   showFlowAtCursor,
+  showTraitMapAtCursor,
 } from './showFlow';
 import { showControlFlowAtCursor } from './showControlFlow';
 import { SidebarProvider } from './sidebar';
@@ -68,6 +70,9 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     }),
     vscode.commands.registerCommand(SHOW_CONTROL_FLOW_COMMAND, () => {
       void showControlFlowAtCursor(context, typescript, rust);
+    }),
+    vscode.commands.registerCommand(SHOW_TRAIT_MAP_COMMAND, () => {
+      void showTraitMapAtCursor(context, typescript, rust);
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {
       DiagramPanel.refreshControlFlow(document);

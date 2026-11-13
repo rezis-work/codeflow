@@ -4,7 +4,7 @@ export interface EdgeAppearance {
   readonly kind: EdgeKind;
   readonly dashed: boolean;
   readonly opacity: number;
-  readonly tooltip?: 'inferred';
+  readonly tooltip?: string;
   readonly color: string;
 }
 
@@ -14,24 +14,34 @@ const EDGE_COLOR: Record<EdgeKind, string> = {
   contains: 'var(--vscode-descriptionForeground, #8b8b8b)',
   implements: 'var(--vscode-charts-orange, var(--vscode-symbolIcon-interfaceForeground, #d18616))',
   extends: 'var(--vscode-charts-purple, var(--vscode-symbolIcon-classForeground, #c586c0))',
+  supertrait: 'var(--vscode-charts-yellow, var(--vscode-symbolIcon-interfaceForeground, #dcdcaa))',
+  overrides: 'var(--vscode-errorForeground, #f14c4c)',
+  provides: 'var(--vscode-charts-foreground, #4ec9b0)',
 };
 
 export function edgeColor(kind: EdgeKind): string {
   return EDGE_COLOR[kind];
 }
 
-/** Certain edges are solid. Inferred edges are dashed, faded, and labelled. */
+/**
+ * Certain edges are solid. Inferred edges, and edges marked uncertain
+ * (dyn Trait, a generic bound, impl Trait, an unresolved receiver), are
+ * dashed and faded. `detail` is the tooltip when the analyzer explained why.
+ */
 export function edgeAppearance(edge: {
   readonly kind: EdgeKind;
   readonly confidence: Confidence;
+  readonly uncertain?: boolean;
+  readonly detail?: string;
 }): EdgeAppearance {
-  const inferred = edge.confidence === 'inferred';
+  const dashed = edge.confidence === 'inferred' || edge.uncertain === true;
+  const tooltip = edge.detail ?? (edge.uncertain ? 'uncertain' : dashed ? 'inferred' : undefined);
   return {
     kind: edge.kind,
-    dashed: inferred,
-    opacity: inferred ? 0.55 : 1,
+    dashed,
+    opacity: dashed ? 0.55 : 1,
     color: EDGE_COLOR[edge.kind],
-    ...(inferred ? { tooltip: 'inferred' as const } : {}),
+    ...(tooltip ? { tooltip } : {}),
   };
 }
 
@@ -41,4 +51,7 @@ export const EDGE_KIND_LABEL: Record<EdgeKind, string> = {
   contains: 'Contains',
   implements: 'Implements',
   extends: 'Extends',
+  supertrait: 'Supertrait',
+  overrides: 'Overrides',
+  provides: 'Provides',
 };

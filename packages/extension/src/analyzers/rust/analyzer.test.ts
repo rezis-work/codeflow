@@ -138,11 +138,14 @@ describe('Rust workspace', () => {
       'core::Dog::new',
       'core::Dog::speak',
       'core::Speak',
+      'core::Speak for Cat',
+      'core::Speak for Dog',
       'core::Speak::speak',
       'core::cfg_branch',
       'core::extra',
       'core::generated',
       'core::identity',
+      'core::impl Dog',
       'core::inline',
       'core::inline::Inner',
       'core::inline::nested',
@@ -156,6 +159,7 @@ describe('Rust workspace', () => {
       'core::models::Widget::ping',
       'core::models::alias_new',
       'core::models::check',
+      'core::models::impl Widget',
     ]);
     expect(names(fragment(fragments, '/crates/core/src/generated.rs'))).toEqual([
       '.',
@@ -262,6 +266,20 @@ describe('Rust workspace', () => {
       {
         kind: 'implements',
         from: 'core::Dog',
+        to: 'core::Speak',
+        toFile: 'crates/core/src/lib.rs',
+        confidence: 'certain',
+      },
+      {
+        kind: 'implements',
+        from: 'core::Speak for Cat',
+        to: 'core::Speak',
+        toFile: 'crates/core/src/lib.rs',
+        confidence: 'certain',
+      },
+      {
+        kind: 'implements',
+        from: 'core::Speak for Dog',
         to: 'core::Speak',
         toFile: 'crates/core/src/lib.rs',
         confidence: 'certain',

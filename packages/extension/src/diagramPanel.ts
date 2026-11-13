@@ -66,9 +66,14 @@ export class DiagramPanel {
     DiagramPanel.current?.showSymbol(nodeId);
   }
 
-  /** Opens a callers, callees, import, or folder view. */
+  /** Opens a callers, callees, import, folder, or trait-map view. */
   public static showSpec(spec: FocusSpec): void {
     DiagramPanel.current?.showSpec(spec);
+  }
+
+  /** Reports a command that does not change the graph, such as a trait map in a TypeScript file. */
+  public static showMessage(message: string): void {
+    DiagramPanel.current?.showMessage(message);
   }
 
   /**
@@ -106,6 +111,7 @@ export class DiagramPanel {
   private rememberedColumn: vscode.ViewColumn | undefined;
   private flowSession: FlowSession | undefined;
   private pendingFlow: ControlFlowMessage | undefined;
+  private pendingNotice: string | undefined;
   private flowGeneration = 0;
 
   public static open(context: vscode.ExtensionContext): void {
@@ -201,14 +207,24 @@ export class DiagramPanel {
     }
   }
 
+  public showMessage(message: string): void {
+    this.pendingNotice = message;
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post({ type: 'error', message });
+  }
+
   public showSymbol(nodeId: NodeId): void {
     this.showSpec({ kind: 'flow', nodeId, depth: SYMBOL_FLOW_DEPTH });
   }
 
   public showSpec(spec: FocusSpec): void {
-    this.spec = spec;
+    this.pendingNotice = undefined;
+    this.spec =
+      spec.kind === 'traits' ? { ...spec, maxNodes: spec.maxNodes ?? readMaxNodes() } : spec;
     this.focusId = spec.nodeId;
-    this.viewMode = 'focus';
+    this.viewMode = spec.kind === 'traits' ? 'traits' : 'focus';
     if (!this.webviewReady || this.disposed) {
       return;
     }
@@ -232,12 +248,16 @@ export class DiagramPanel {
       return;
     }
     if (
-      this.viewMode === 'focus' &&
+      (this.viewMode === 'focus' || this.viewMode === 'traits') &&
       readRefocusOnCursor() &&
       this.spec &&
       this.spec.kind !== 'folder'
     ) {
-      this.showSpec({ ...this.spec, nodeId });
+      this.showSpec(
+        this.viewMode === 'traits'
+          ? { kind: 'traits', nodeId, depth: this.spec.depth, maxNodes: readMaxNodes() }
+          : { ...this.spec, nodeId },
+      );
       return;
     }
     this.post({ type: 'cursorHint', message: NOT_IN_DIAGRAM });
@@ -247,7 +267,7 @@ export class DiagramPanel {
     if (!this.webviewReady || this.disposed || isEmptyDelta(delta)) {
       return;
     }
-    if (this.viewMode === 'focus' && this.spec) {
+    if ((this.viewMode === 'focus' || this.viewMode === 'traits') && this.spec) {
       this.scheduleFocusRefresh();
       return;
     }
@@ -336,6 +356,9 @@ export class DiagramPanel {
     if (ready && this.pendingFlow) {
       this.post(this.pendingFlow);
     }
+    if (ready && this.pendingNotice) {
+      this.post({ type: 'error', message: this.pendingNotice });
+    }
   }
 
   private scheduleFocusRefresh(): void {
@@ -354,7 +377,7 @@ export class DiagramPanel {
    */
   private publishFocusDelta(): void {
     const spec = this.spec;
-    if (!spec || this.viewMode !== 'focus') {
+    if (!spec || (this.viewMode !== 'focus' && this.viewMode !== 'traits')) {
       return;
     }
     const next = graphForFocus(getWorkspaceGraph(), spec);
@@ -397,6 +420,14 @@ export class DiagramPanel {
       },
       setViewMode: (mode) => {
         this.viewMode = mode;
+        if (mode === 'traits' && this.focusId) {
+          const depth = this.spec && 'depth' in this.spec ? this.spec.depth : 2;
+          this.spec = { kind: 'traits', nodeId: this.focusId, depth, maxNodes: readMaxNodes() };
+          return;
+        }
+        if (mode === 'focus' && this.spec?.kind === 'traits' && this.focusId) {
+          this.spec = { kind: 'flow', nodeId: this.focusId, depth: 2 };
+        }
       },
       post: (message) => {
         this.post(message);

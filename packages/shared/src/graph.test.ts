@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asEdgeId, createEdge, createNode } from './graph';
+import { asEdgeId, createEdge, createNode, parseCodeEdge, parseCodeNode } from './graph';
 import {
   FILE_MODULE_QUALIFIED_NAME,
   GraphModelError,
@@ -154,5 +154,88 @@ describe('nodes and edges', () => {
     expect(asEdgeId(first.id)).toBe(first.id);
     expect(first.confidence).toBe('certain');
     expect(inferred.confidence).toBe('inferred');
+  });
+
+  it('keeps impl nodes, trait edges, and uncertain call details backward compatible', () => {
+    const trait = createNode({
+      kind: 'type',
+      typeKind: 'trait',
+      name: 'Draw',
+      qualifiedName: 'shapes::Draw',
+      language: 'rust',
+      uri: URI,
+      range: range(),
+      note: 'generic trait',
+    });
+    const impl = createNode({
+      kind: 'impl',
+      name: 'Draw for Circle',
+      qualifiedName: 'shapes::impl Draw for Circle',
+      language: 'rust',
+      uri: URI,
+      range: range(4),
+      note: 'trait impl',
+    });
+    const method = createNode({
+      kind: 'method',
+      name: 'draw',
+      qualifiedName: 'shapes::Circle::draw',
+      language: 'rust',
+      uri: URI,
+      range: range(5),
+      note: 'override',
+    });
+    expect(parseCodeNode(trait).ok).toBe(true);
+    expect(parseCodeNode(impl).ok).toBe(true);
+    const legacy = createNode({
+      kind: 'function',
+      name: 'main',
+      qualifiedName: 'main',
+      language: 'ts',
+      uri: URI,
+      range: range(1),
+    });
+    expect(parseCodeNode(JSON.parse(JSON.stringify(legacy))).ok).toBe(true);
+
+    const provides = createEdge({
+      kind: 'provides',
+      from: impl.id,
+      to: method.id,
+      confidence: 'inferred',
+      uncertain: true,
+      detail: 'inherited default',
+      location: impl.location,
+    });
+    const certain = createEdge({
+      kind: 'overrides',
+      from: method.id,
+      to: trait.id,
+      confidence: 'certain',
+      location: method.location,
+    });
+    const supertrait = createEdge({
+      kind: 'supertrait',
+      from: trait.id,
+      to: trait.id,
+      confidence: 'certain',
+    });
+    expect(provides.uncertain).toBe(true);
+    expect(provides.detail).toBe('inherited default');
+    expect(provides.id).toBe(
+      createEdge({
+        kind: 'provides',
+        from: impl.id,
+        to: method.id,
+        confidence: 'certain',
+        location: impl.location,
+      }).id,
+    );
+    expect(parseCodeEdge(provides).ok).toBe(true);
+    expect(parseCodeEdge(certain).ok).toBe(true);
+    expect(parseCodeEdge(supertrait).ok).toBe(true);
+    const stored = JSON.parse(JSON.stringify(certain)) as { uncertain?: boolean; detail?: string };
+    expect(stored.uncertain).toBeUndefined();
+    expect(stored.detail).toBeUndefined();
+    expect(parseCodeEdge(stored).ok).toBe(true);
   });
 });

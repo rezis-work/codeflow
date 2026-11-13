@@ -67,6 +67,7 @@ function indexWorkspace(id: number, nextRoots: readonly IndexRoot[]): void {
     rootDir: path.resolve(root.rootDir),
     excludeGlobs: [...root.excludeGlobs],
     maxFiles: root.maxFiles,
+    ...(root.maxNodes !== undefined ? { maxNodes: root.maxNodes } : {}),
   }));
   const warnings: string[] = [];
   let fileCount = 0;
@@ -81,7 +82,9 @@ function indexWorkspace(id: number, nextRoots: readonly IndexRoot[]): void {
     if (discovered.files.length === 0 && discovered.crates.length === 0) {
       continue;
     }
-    const session = openRustSession(discovered);
+    const session = openRustSession(discovered, {
+      ...(root.maxNodes !== undefined ? { maxFanout: root.maxNodes } : {}),
+    });
     sessions.set(session.key, session);
     try {
       const fragments = session.analyze();

@@ -6,11 +6,50 @@ import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { SYMBOL_FLOW_DEPTH } from './constants';
 import { DiagramPanel } from './diagramPanel';
 import { readCallDepth } from './editorSettings';
+import { readMaxNodes } from './viewSettings';
 import { fileModuleNode, graphForFocus, nodesInFile } from './focusQuery';
 import type { FocusSpec } from './focusQuery';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { getWorkspaceGraph } from './workspaceGraph';
+
+const RUST_TRAIT_MAP =
+  'Trait maps are a Rust view. Open a Rust trait, impl, or type to see every impl and the possible targets of a trait-method call.';
+
+export async function showTraitMapAtCursor(
+  context: vscode.ExtensionContext,
+  typescript: TypeScriptIndexer,
+  rust: RustIndexer,
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.uri.scheme !== 'file' || !isRustDocument(editor.document)) {
+    void vscode.window.showInformationMessage(RUST_TRAIT_MAP);
+    DiagramPanel.open(context);
+    DiagramPanel.showMessage(RUST_TRAIT_MAP);
+    return;
+  }
+  const prepared = await prepareEditor(typescript, rust, true);
+  if (!prepared) {
+    return;
+  }
+  const symbol = symbolAtCursor(prepared);
+  if (!symbol || !isTraitMapSymbol(symbol)) {
+    void vscode.window.showInformationMessage(
+      'Put the cursor on a Rust trait, impl, or type to show its trait map.',
+    );
+    return;
+  }
+  openSpec(context, {
+    kind: 'traits',
+    nodeId: symbol.id,
+    depth: SYMBOL_FLOW_DEPTH,
+    maxNodes: readMaxNodes(),
+  });
+}
+
+function isTraitMapSymbol(node: { readonly kind: string }): boolean {
+  return node.kind === 'type' || node.kind === 'impl' || node.kind === 'method';
+}
 
 export async function showFlowAtCursor(
   context: vscode.ExtensionContext,

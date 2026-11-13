@@ -37,6 +37,7 @@
     "onCommand:codeflow.openDiagram",
     "onCommand:codeflow.showFlowAtCursor",
     "onCommand:codeflow.showControlFlowAtCursor",
+    "onCommand:codeflow.showTraitMap",
     "onCommand:codeflow.showCallers",
     "onCommand:codeflow.showCallees",
     "onCommand:codeflow.showFileDependencies",
@@ -60,6 +61,11 @@
         "command": "codeflow.showControlFlowAtCursor",
         "title": "CodeFlow: Show Control Flow for Function at Cursor",
         "icon": "$(symbol-method)"
+      },
+      {
+        "command": "codeflow.showTraitMap",
+        "title": "CodeFlow: Show Trait Map",
+        "icon": "$(symbol-interface)"
       },
       {
         "command": "codeflow.showCallers",
@@ -124,6 +130,9 @@
           "command": "codeflow.showControlFlowAtCursor"
         },
         {
+          "command": "codeflow.showTraitMap"
+        },
+        {
           "command": "codeflow.showCallers"
         },
         {
@@ -149,6 +158,11 @@
           "command": "codeflow.showControlFlowAtCursor",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
           "group": "navigation@5"
+        },
+        {
+          "command": "codeflow.showTraitMap",
+          "when": "editorLangId == rust",
+          "group": "navigation@6"
         },
         {
           "command": "codeflow.showCallers",

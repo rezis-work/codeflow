@@ -13,9 +13,14 @@ export function Legend() {
         ))}
         <li>
           <span className="legend-swatch legend-swatch-dashed" />
-          Inferred
+          Inferred or uncertain
         </li>
       </ul>
+      <p className="legend-note">
+        A dashed edge is inferred, or uncertain because the receiver is dyn Trait, a generic bound,
+        impl Trait, or could not be named. Hover the edge for the reason. An inherited default is
+        dashed too.
+      </p>
     </footer>
   );
 }

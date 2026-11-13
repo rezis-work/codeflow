@@ -3,10 +3,13 @@
  *
  * Qualified names join the crate, modules, type, and item with `::`
  * (`core::models::Widget::new`). The file itself is the module node `.`.
- * Contains, imports, and implements are read off the syntax. A call is
- * `certain` when one workspace item matches, and `inferred` when the receiver
- * type was only guessed (for example `Widget::new()`) or several items match.
- * Macros are already gone: the parser never turns them into items or calls.
+ * Contains, imports, and implements are read off the syntax. Trait impls,
+ * inherent impls, blanket and generic impls, and `#[derive]` names become
+ * impl nodes. A call is `certain` when one workspace item matches, and
+ * `inferred` when the receiver type was only guessed or several items match.
+ * A trait-method call on `dyn Trait`, a generic bound, `impl Trait`, or an
+ * unnamed receiver is `uncertain` and points at every workspace impl, up to
+ * `maxFanout`. Macros are not expanded. Derive lists only the trait names.
  */
 
 import { existsSync } from 'node:fs';
@@ -42,11 +45,14 @@ export function buildRustFragments(input: {
   readonly parsed: ReadonlyMap<string, ParsedRustFile>;
   readonly files: ReadonlyMap<string, FileText>;
   readonly allowed: (filePath: string) => boolean;
+  /** Call-target fan-out cap. One slot is kept for an overflow node. */
+  readonly maxFanout?: number;
 }): FileFragment[] {
+  const maxFanout = normalizeFanout(input.maxFanout);
   const index = buildIndex(input.crates, input.parsed, input.allowed);
   const fragments: FileFragment[] = [];
   for (const [filePath, text] of input.files) {
-    const fragment = emitFile(index, filePath, text);
+    const fragment = emitFile(index, filePath, text, maxFanout);
     if (fragment) {
       fragments.push(fragment);
     }
@@ -89,7 +95,7 @@ interface ModuleModel {
 interface SymbolModel {
   readonly name: string;
   readonly qualifiedName: string;
-  readonly kind: 'function' | 'method' | 'type' | 'module';
+  readonly kind: 'function' | 'method' | 'type' | 'module' | 'impl';
   readonly typeKind?: TypeKind;
   readonly filePath: string;
   readonly range: SourceRange;
@@ -99,6 +105,11 @@ interface SymbolModel {
   readonly nested: SymbolModel[];
   readonly ownerType?: string;
   readonly childModule?: ModuleModel;
+  readonly note?: string;
+  readonly hasBody?: boolean;
+  readonly onTrait?: boolean;
+  readonly supertraits?: readonly (readonly string[])[];
+  readonly derives?: readonly (readonly string[])[];
 }
 
 interface ResolvedImport {
@@ -117,9 +128,24 @@ interface PendingImpl {
   readonly range: SourceRange;
   readonly module: ModuleModel;
   readonly typeSegments: readonly string[];
+  readonly typeLabel: string;
   readonly traitSegments?: readonly string[];
   readonly negative: boolean;
+  readonly generic: boolean;
+  readonly blanket: boolean;
   readonly methods: readonly ParsedFunction[];
+  readonly methodSymbols: SymbolModel[];
+}
+
+interface LinkedImpl {
+  readonly symbol: SymbolModel;
+  readonly filePath: string;
+  readonly range: SourceRange;
+  readonly module: ModuleModel;
+  readonly typeSymbol?: SymbolModel;
+  readonly traitSymbol?: SymbolModel;
+  readonly methods: readonly SymbolModel[];
+  readonly note: string;
 }
 
 interface PendingUse {
@@ -136,6 +162,10 @@ interface RustIndex {
   readonly symbolsByFile: ReadonlyMap<string, readonly SymbolModel[]>;
   readonly imports: readonly ResolvedImport[];
   readonly impls: readonly PendingImpl[];
+  readonly linked: readonly LinkedImpl[];
+  readonly implsByTrait: ReadonlyMap<string, readonly LinkedImpl[]>;
+  readonly implsByType: ReadonlyMap<string, readonly LinkedImpl[]>;
+  readonly supertraits: ReadonlyMap<string, readonly SymbolModel[]>;
   readonly ranges: ReadonlyMap<string, SourceRange>;
 }
 
@@ -153,6 +183,7 @@ function buildIndex(
   const modulesByFile = new Map<string, ModuleModel>();
   const impls: PendingImpl[] = [];
   const uses: PendingUse[] = [];
+  const supertraitTargets = new Map<string, SymbolModel[]>();
   const ctx: BuildContext = { crates: [], methods: new Map() };
   const crateModels: CrateModel[] = crates.map((crate) => {
     const model: CrateModel = {
@@ -217,27 +248,7 @@ function buildIndex(
   }
 
   resolveUses(uses);
-
-  for (const pending of impls) {
-    const typeSymbol = resolveType(pending.typeSegments, pending.module);
-    const owner =
-      typeSymbol?.qualifiedName ??
-      `${pending.module.qualifiedName}::${pending.typeSegments[pending.typeSegments.length - 1] ?? 'Type'}`;
-    const traitName = pending.traitSegments?.[pending.traitSegments.length - 1];
-    for (const method of pending.methods) {
-      const plain = `${owner}::${method.name}`;
-      const qualified =
-        traitName !== undefined && taken.has(`${pending.filePath}\0${plain}`)
-          ? `${owner}::${traitName}::${method.name}`
-          : plain;
-      addFunction(pending.module, method, {
-        kind: 'method',
-        owner,
-        qualifiedName: qualified,
-      });
-    }
-  }
-
+  const linked = linkImpls();
   resolveUses(uses);
 
   const ranges = new Map<string, SourceRange>();
@@ -252,6 +263,10 @@ function buildIndex(
       item.module.imports.filter((entry) => entry.range === item.range),
     ),
     impls,
+    linked,
+    implsByTrait: groupImpls(linked, (item) => item.traitSymbol?.qualifiedName),
+    implsByType: groupImpls(linked, (item) => item.typeSymbol?.qualifiedName),
+    supertraits: supertraitTargets,
     ranges,
   };
 
@@ -270,6 +285,9 @@ function buildIndex(
           range: item.type.range,
           public: item.type.public,
           module,
+          ...(item.type.kind === 'trait' && item.type.generic ? { note: 'generic trait' } : {}),
+          ...(item.type.supertraits.length > 0 ? { supertraits: item.type.supertraits } : {}),
+          ...(item.type.derives.length > 0 ? { derives: item.type.derives } : {}),
         });
         module.symbols.push(symbol);
         remember(symbol);
@@ -278,6 +296,9 @@ function buildIndex(
             kind: 'method',
             owner: qualified,
             public: item.type.public,
+            hasBody: method.hasBody,
+            onTrait: item.type.kind === 'trait',
+            note: method.hasBody ? 'default' : 'required',
           });
         }
       } else if (item.kind === 'module') {
@@ -304,9 +325,13 @@ function buildIndex(
           range: item.impl.range,
           module,
           typeSegments: item.impl.typeSegments,
+          typeLabel: item.impl.typeLabel,
           ...(item.impl.traitSegments ? { traitSegments: item.impl.traitSegments } : {}),
           negative: item.impl.negative,
+          generic: item.impl.generic,
+          blanket: item.impl.blanket,
           methods: item.impl.methods,
+          methodSymbols: [],
         });
       } else if (item.kind === 'use') {
         for (const spec of item.use.imports) {
@@ -332,6 +357,9 @@ function buildIndex(
       readonly parent?: SymbolModel;
       readonly public?: boolean;
       readonly qualifiedName?: string;
+      readonly note?: string;
+      readonly hasBody?: boolean;
+      readonly onTrait?: boolean;
     },
   ): SymbolModel {
     const base =
@@ -352,6 +380,9 @@ function buildIndex(
       module,
       calls: fn.calls,
       ...(link.owner ? { ownerType: link.owner } : {}),
+      ...(link.note ? { note: link.note } : {}),
+      ...(link.hasBody !== undefined ? { hasBody: link.hasBody } : {}),
+      ...(link.onTrait ? { onTrait: true } : {}),
     });
     if (link.parent) {
       link.parent.nested.push(symbol);
@@ -417,9 +448,216 @@ function buildIndex(
     }
     return child;
   }
+
+  function linkImpls(): LinkedImpl[] {
+    const linked: LinkedImpl[] = [];
+    const externs = new Map<string, SymbolModel>();
+    const types = [...fileSymbols.values()].flat().filter((symbol) => symbol.kind === 'type');
+    for (const symbol of types) {
+      if (symbol.typeKind !== 'trait') {
+        continue;
+      }
+      const targets: SymbolModel[] = [];
+      for (const path of symbol.supertraits ?? []) {
+        const resolved = resolveType(path, symbol.module);
+        targets.push(
+          resolved && resolved.typeKind === 'trait'
+            ? resolved
+            : ensureExtern(
+                externs,
+                `trait:${path.join('::')}`,
+                symbol,
+                'trait',
+                'external trait',
+                path[path.length - 1] ?? 'Trait',
+              ),
+        );
+      }
+      if (targets.length > 0) {
+        supertraitTargets.set(symbol.qualifiedName, targets);
+      }
+    }
+    for (const pending of impls) {
+      if (!pending.negative) {
+        linked.push(linkPending(pending, externs));
+      }
+    }
+    for (const symbol of types) {
+      for (const path of symbol.derives ?? []) {
+        linked.push(linkDerived(symbol, path, externs));
+      }
+    }
+    return linked;
+  }
+
+  function linkPending(pending: PendingImpl, externs: Map<string, SymbolModel>): LinkedImpl {
+    const typeSymbol = resolveType(pending.typeSegments, pending.module);
+    const traitSymbol = pending.traitSegments
+      ? resolveType(pending.traitSegments, pending.module)
+      : undefined;
+    const syntheticType = typeSymbol
+      ? undefined
+      : ensureExtern(
+          externs,
+          pending.blanket
+            ? `blanket:${pending.filePath}:${pending.range.start.line}:${pending.typeLabel}`
+            : `type:${pending.typeLabel}`,
+          pending,
+          'struct',
+          pending.blanket ? 'type parameter' : 'external type',
+          pending.typeLabel,
+        );
+    const syntheticTrait =
+      pending.traitSegments && (!traitSymbol || traitSymbol.typeKind !== 'trait')
+        ? ensureExtern(
+            externs,
+            `trait:${pending.traitSegments.join('::')}`,
+            pending,
+            'trait',
+            'external trait',
+            pending.traitSegments[pending.traitSegments.length - 1] ?? 'Trait',
+          )
+        : undefined;
+    const note = implNote(pending);
+    const traitLabel = pending.traitSegments?.[pending.traitSegments.length - 1];
+    const name = traitLabel
+      ? `${traitLabel} for ${pending.typeLabel}`
+      : `impl ${pending.typeLabel}`;
+    const owner =
+      typeSymbol?.qualifiedName ??
+      syntheticType?.qualifiedName ??
+      `${pending.module.qualifiedName}::${pending.typeLabel}`;
+    const implSymbol = addImplSymbol(pending, name, note, typeSymbol?.qualifiedName);
+    const traitMethods =
+      traitSymbol && traitSymbol.typeKind === 'trait'
+        ? (pending.module.crate.ctx.methods.get(traitSymbol.qualifiedName) ?? [])
+        : [];
+    for (const method of pending.methods) {
+      const plain = `${owner}::${method.name}`;
+      const qualified =
+        traitLabel !== undefined && taken.has(`${pending.filePath}\0${plain}`)
+          ? `${owner}::${traitLabel}::${method.name}`
+          : plain;
+      const matches = traitMethods.some((item) => item.name === method.name);
+      const symbol = addFunction(pending.module, method, {
+        kind: 'method',
+        owner,
+        qualifiedName: qualified,
+        hasBody: method.hasBody,
+        ...(pending.traitSegments && (matches || traitMethods.length === 0)
+          ? { note: 'override' }
+          : {}),
+      });
+      pending.methodSymbols.push(symbol);
+    }
+    return {
+      symbol: implSymbol,
+      filePath: pending.filePath,
+      range: pending.range,
+      module: pending.module,
+      ...(typeSymbol ? { typeSymbol } : syntheticType ? { typeSymbol: syntheticType } : {}),
+      ...(traitSymbol && traitSymbol.typeKind === 'trait'
+        ? { traitSymbol }
+        : syntheticTrait
+          ? { traitSymbol: syntheticTrait }
+          : {}),
+      methods: pending.methodSymbols,
+      note,
+    };
+  }
+
+  function linkDerived(
+    typeSymbol: SymbolModel,
+    path: readonly string[],
+    externs: Map<string, SymbolModel>,
+  ): LinkedImpl {
+    const resolved = resolveType(path, typeSymbol.module);
+    const traitName = path[path.length - 1] ?? 'Trait';
+    const traitSymbol =
+      resolved && resolved.typeKind === 'trait'
+        ? resolved
+        : ensureExtern(
+            externs,
+            `trait:${path.join('::')}`,
+            typeSymbol,
+            'trait',
+            'external trait',
+            traitName,
+          );
+    const symbol = addImplSymbol(
+      { filePath: typeSymbol.filePath, module: typeSymbol.module, range: typeSymbol.range },
+      `derive ${traitName} for ${typeSymbol.name}`,
+      'derived impl',
+      typeSymbol.qualifiedName,
+    );
+    return {
+      symbol,
+      filePath: typeSymbol.filePath,
+      range: typeSymbol.range,
+      module: typeSymbol.module,
+      typeSymbol,
+      traitSymbol,
+      methods: [],
+      note: 'derived impl',
+    };
+  }
+
+  function ensureExtern(
+    externs: Map<string, SymbolModel>,
+    key: string,
+    owner: { readonly filePath: string; readonly range: SourceRange; readonly module: ModuleModel },
+    typeKind: TypeKind,
+    note: string,
+    name: string,
+  ): SymbolModel {
+    const existing = externs.get(key);
+    if (existing) {
+      return existing;
+    }
+    const symbol = makeSymbol({
+      name,
+      qualifiedName: claimName(owner.filePath, `${owner.module.qualifiedName}::${note} ${name}`),
+      kind: 'type',
+      typeKind,
+      filePath: owner.filePath,
+      range: owner.range,
+      public: false,
+      module: owner.module,
+      note,
+    });
+    remember(symbol);
+    externs.set(key, symbol);
+    return symbol;
+  }
+
+  function addImplSymbol(
+    owner: { readonly filePath: string; readonly range: SourceRange; readonly module: ModuleModel },
+    name: string,
+    note: string,
+    ownerType: string | undefined,
+  ): SymbolModel {
+    const symbol = makeSymbol({
+      name,
+      qualifiedName: claimName(owner.filePath, `${owner.module.qualifiedName}::${name}`),
+      kind: 'impl',
+      filePath: owner.filePath,
+      range: owner.range,
+      public: false,
+      module: owner.module,
+      note,
+      ...(ownerType ? { ownerType } : {}),
+    });
+    remember(symbol);
+    return symbol;
+  }
 }
 
-function emitFile(index: RustIndex, filePath: string, text: FileText): FileFragment | undefined {
+function emitFile(
+  index: RustIndex,
+  filePath: string,
+  text: FileText,
+  maxFanout: number,
+): FileFragment | undefined {
   const resolved = path.resolve(filePath);
   const range = index.ranges.get(resolved);
   if (!range) {
@@ -484,7 +722,34 @@ function emitFile(index: RustIndex, filePath: string, text: FileText): FileFragm
       );
     }
     for (const call of symbol.calls) {
-      for (const target of resolveCall(symbol, call)) {
+      for (const target of resolveCall(symbol, call, index, maxFanout)) {
+        if (target.overflow) {
+          const overflow = createNode({
+            kind: 'impl',
+            name: `+${target.overflow.hidden} more impls`,
+            qualifiedName: `${symbol.qualifiedName}::more ${call.method ?? call.path.at(-1) ?? 'call'}@${call.range.start.line}:${call.range.start.character}`,
+            language: 'rust',
+            uri,
+            range: call.range,
+            note: 'overflow',
+          });
+          addNode(overflow);
+          addEdge(
+            createEdge({
+              kind: 'call',
+              from: symbolId(symbol),
+              to: overflow.id,
+              confidence: 'inferred',
+              uncertain: true,
+              detail: 'uncertain: fan-out capped by codeflow.view.maxNodes',
+              location: location(symbol.filePath, call.range),
+            }),
+          );
+          continue;
+        }
+        if (!target.symbol) {
+          continue;
+        }
         addEdge(
           createEdge({
             kind: 'call',
@@ -492,6 +757,8 @@ function emitFile(index: RustIndex, filePath: string, text: FileText): FileFragm
             to: symbolId(target.symbol),
             confidence: target.confidence,
             location: location(symbol.filePath, call.range),
+            ...(target.uncertain ? { uncertain: true } : {}),
+            ...(target.detail ? { detail: target.detail } : {}),
           }),
         );
       }
@@ -544,6 +811,94 @@ function emitFile(index: RustIndex, filePath: string, text: FileText): FileFragm
     );
   }
 
+  for (const impl of index.linked) {
+    if (path.resolve(impl.filePath) !== resolved) {
+      continue;
+    }
+    if (impl.traitSymbol && impl.note !== 'inherent impl') {
+      addEdge(
+        createEdge({
+          kind: 'implements',
+          from: symbolId(impl.symbol),
+          to: symbolId(impl.traitSymbol),
+          confidence: 'certain',
+          location: location(impl.filePath, impl.range),
+        }),
+      );
+      if (impl.typeSymbol) {
+        addEdge(
+          createEdge({
+            kind: 'implements',
+            from: symbolId(impl.typeSymbol),
+            to: symbolId(impl.traitSymbol),
+            confidence: 'certain',
+            location: location(impl.filePath, impl.range),
+          }),
+        );
+      }
+    }
+    for (const method of impl.methods) {
+      addEdge(
+        createEdge({
+          kind: 'contains',
+          from: symbolId(impl.symbol),
+          to: symbolId(method),
+          confidence: 'certain',
+          location: location(method.filePath, method.range),
+        }),
+      );
+      const traitMethod = traitMethodNamed(impl.traitSymbol, method.name);
+      if (traitMethod) {
+        addEdge(
+          createEdge({
+            kind: 'overrides',
+            from: symbolId(method),
+            to: symbolId(traitMethod),
+            confidence: 'certain',
+            location: location(method.filePath, method.range),
+          }),
+        );
+      }
+    }
+    if (impl.traitSymbol && impl.note !== 'derived impl' && impl.note !== 'inherent impl') {
+      for (const traitMethod of impl.traitSymbol.module.crate.ctx.methods.get(
+        impl.traitSymbol.qualifiedName,
+      ) ?? []) {
+        if (!traitMethod.onTrait || !traitMethod.hasBody) {
+          continue;
+        }
+        if (impl.methods.some((method) => method.name === traitMethod.name)) {
+          continue;
+        }
+        addEdge(
+          createEdge({
+            kind: 'provides',
+            from: symbolId(impl.symbol),
+            to: symbolId(traitMethod),
+            confidence: 'inferred',
+            uncertain: true,
+            detail: 'inherited default',
+            location: location(impl.filePath, impl.range),
+          }),
+        );
+      }
+    }
+  }
+
+  for (const symbol of index.symbolsByFile.get(resolved) ?? []) {
+    for (const target of index.supertraits.get(symbol.qualifiedName) ?? []) {
+      addEdge(
+        createEdge({
+          kind: 'supertrait',
+          from: symbolId(symbol),
+          to: symbolId(target),
+          confidence: 'certain',
+          location: location(symbol.filePath, symbol.range),
+        }),
+      );
+    }
+  }
+
   return createFileFragment({
     uri,
     language: 'rust',
@@ -554,10 +909,30 @@ function emitFile(index: RustIndex, filePath: string, text: FileText): FileFragm
   });
 }
 
+interface CallTarget {
+  readonly symbol?: SymbolModel;
+  readonly confidence: Confidence;
+  readonly uncertain?: boolean;
+  readonly detail?: string;
+  readonly overflow?: { readonly hidden: number };
+}
+
+const FANOUT_DETAIL: Record<'dyn' | 'generic' | 'impl-trait' | 'unknown', string> = {
+  dyn: 'uncertain: dyn Trait',
+  generic: 'uncertain: generic bound',
+  'impl-trait': 'uncertain: impl Trait',
+  unknown: 'uncertain: unresolved receiver',
+};
+
 function resolveCall(
   caller: SymbolModel,
   call: ParsedCall,
-): { symbol: SymbolModel; confidence: Confidence }[] {
+  index: RustIndex,
+  maxFanout: number,
+): CallTarget[] {
+  if (call.ufcs) {
+    return resolveUfcs(caller, call, index, maxFanout);
+  }
   if (call.kind === 'path') {
     if (call.path.length === 1) {
       const nested = caller.nested.find((symbol) => symbol.name === call.path[0]);
@@ -567,25 +942,339 @@ function resolveCall(
     }
     const resolved = resolvePath(call.path, caller.module, 'expr');
     const targets = callables(resolved).slice(0, 8);
+    if (targets.length === 1 && targets[0]?.onTrait) {
+      return resolveTraitMethod(caller, targets[0], call, index, maxFanout);
+    }
     const confidence: Confidence = targets.length === 1 ? 'certain' : 'inferred';
     return targets.map((symbol) => ({ symbol, confidence }));
   }
-  if (!call.method || !call.receiver) {
+  if (!call.method) {
+    return [];
+  }
+  if (call.traitPaths && call.traitPaths.length > 0 && isOpenDispatch(call.dispatch)) {
+    return fanoutTraits(
+      caller,
+      call.traitPaths,
+      call.method,
+      call.dispatch ?? 'unknown',
+      index,
+      maxFanout,
+    );
+  }
+  if (!call.receiver) {
     return [];
   }
   const typeSymbol = resolveType(call.receiver.segments, caller.module);
+  if (typeSymbol?.typeKind === 'trait') {
+    return fanoutTraits(caller, [call.receiver.segments], call.method, 'generic', index, maxFanout);
+  }
   if (!typeSymbol) {
     return [];
   }
-  const methods = (caller.module.crate.ctx.methods.get(typeSymbol.qualifiedName) ?? [])
-    .filter((symbol) => symbol.name === call.method)
-    .slice(0, 8);
+  const methods = concreteMethods(typeSymbol, call.method, index).slice(0, 8);
   if (methods.length === 0) {
     return [];
   }
   const confidence: Confidence =
     methods.length === 1 && call.receiver.source !== 'constructor' ? 'certain' : 'inferred';
   return methods.map((symbol) => ({ symbol, confidence }));
+}
+
+function resolveUfcs(
+  caller: SymbolModel,
+  call: ParsedCall,
+  index: RustIndex,
+  maxFanout: number,
+): CallTarget[] {
+  const ufcs = call.ufcs;
+  if (!ufcs) {
+    return [];
+  }
+  const traitSymbol = resolveType(ufcs.traitSegments, caller.module);
+  if (!traitSymbol || traitSymbol.typeKind !== 'trait') {
+    return [];
+  }
+  const method = (caller.module.crate.ctx.methods.get(traitSymbol.qualifiedName) ?? []).find(
+    (item) => item.onTrait && item.name === ufcs.method,
+  );
+  if (ufcs.dispatch === 'concrete' && ufcs.typeSegments) {
+    const typeSymbol = resolveType(ufcs.typeSegments, caller.module);
+    if (typeSymbol && typeSymbol.kind === 'type' && typeSymbol.typeKind !== 'trait') {
+      const methods = concreteMethods(typeSymbol, ufcs.method, index);
+      if (methods.length > 0) {
+        const confidence: Confidence = methods.length === 1 ? 'certain' : 'inferred';
+        return methods.slice(0, 8).map((symbol) => ({ symbol, confidence }));
+      }
+    }
+  }
+  if (method) {
+    return resolveTraitMethod(caller, method, call, index, maxFanout);
+  }
+  return fanoutTraits(
+    caller,
+    [ufcs.traitSegments],
+    ufcs.method,
+    isOpenDispatch(ufcs.dispatch) ? ufcs.dispatch : 'unknown',
+    index,
+    maxFanout,
+  );
+}
+
+function resolveTraitMethod(
+  caller: SymbolModel,
+  traitMethod: SymbolModel,
+  call: ParsedCall,
+  index: RustIndex,
+  maxFanout: number,
+): CallTarget[] {
+  const typeSegments = call.receiverType ?? call.ufcs?.typeSegments;
+  if ((!call.dispatch || call.dispatch === 'concrete') && typeSegments) {
+    const typeSymbol = resolveType(typeSegments, caller.module);
+    if (typeSymbol && typeSymbol.kind === 'type' && typeSymbol.typeKind !== 'trait') {
+      const methods = concreteMethods(typeSymbol, traitMethod.name, index);
+      if (methods.length === 1) {
+        return [{ symbol: methods[0], confidence: 'certain' }];
+      }
+      if (methods.length > 1) {
+        return methods.slice(0, 8).map((symbol) => ({ symbol, confidence: 'inferred' }));
+      }
+    }
+  }
+  const traitSymbol = traitMethod.ownerType
+    ? findTypeAnywhere(traitMethod.ownerType, caller.module)
+    : undefined;
+  const paths = traitSymbol ? [[traitSymbol.name]] : (call.traitPaths ?? []);
+  const dispatch = isOpenDispatch(call.dispatch) ? call.dispatch : 'unknown';
+  if (traitSymbol) {
+    return capFanout(
+      collectTraitTargets(traitSymbol, traitMethod.name, index),
+      dispatch,
+      maxFanout,
+    );
+  }
+  return fanoutTraits(caller, paths, traitMethod.name, dispatch, index, maxFanout);
+}
+
+function fanoutTraits(
+  caller: SymbolModel,
+  traitPaths: readonly (readonly string[])[],
+  methodName: string,
+  dispatch: 'dyn' | 'generic' | 'impl-trait' | 'unknown',
+  index: RustIndex,
+  maxFanout: number,
+): CallTarget[] {
+  const targets: SymbolModel[] = [];
+  const seen = new Set<string>();
+  for (const path of traitPaths) {
+    const traitSymbol = resolveType(path, caller.module);
+    if (!traitSymbol || traitSymbol.typeKind !== 'trait') {
+      continue;
+    }
+    for (const target of collectTraitTargets(traitSymbol, methodName, index)) {
+      pushUnique(targets, seen, target);
+    }
+  }
+  return capFanout(targets, dispatch, maxFanout);
+}
+
+function collectTraitTargets(
+  traitSymbol: SymbolModel,
+  methodName: string,
+  index: RustIndex,
+): SymbolModel[] {
+  const targets: SymbolModel[] = [];
+  const seen = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (trait: SymbolModel): void => {
+    if (visited.has(trait.qualifiedName)) {
+      return;
+    }
+    visited.add(trait.qualifiedName);
+    const impls = index.implsByTrait.get(trait.qualifiedName) ?? [];
+    const fallback = (trait.module.crate.ctx.methods.get(trait.qualifiedName) ?? []).find(
+      (method) => method.onTrait && method.hasBody && method.name === methodName,
+    );
+    let inherited = false;
+    for (const impl of impls) {
+      if (impl.note === 'derived impl' || impl.note === 'inherent impl') {
+        continue;
+      }
+      const method = impl.methods.find((item) => item.name === methodName);
+      if (method) {
+        pushUnique(targets, seen, method);
+      } else if (fallback) {
+        inherited = true;
+      }
+    }
+    if ((inherited || impls.length === 0) && fallback) {
+      pushUnique(targets, seen, fallback);
+    }
+    for (const path of trait.supertraits ?? []) {
+      const next = resolveType(path, trait.module);
+      if (next?.typeKind === 'trait') {
+        visit(next);
+      }
+    }
+  };
+  visit(traitSymbol);
+  return targets;
+}
+
+function concreteMethods(typeSymbol: SymbolModel, name: string, index: RustIndex): SymbolModel[] {
+  const direct = (typeSymbol.module.crate.ctx.methods.get(typeSymbol.qualifiedName) ?? []).filter(
+    (method) => method.name === name,
+  );
+  if (direct.length > 0) {
+    return uniqueSymbols(direct);
+  }
+  const found: SymbolModel[] = [];
+  const seenTraits = new Set<string>();
+  const queue: SymbolModel[] = [];
+  for (const impl of index.implsByType.get(typeSymbol.qualifiedName) ?? []) {
+    if (impl.traitSymbol && impl.note !== 'derived impl') {
+      queue.push(impl.traitSymbol);
+    }
+  }
+  while (queue.length > 0) {
+    const trait = queue.shift();
+    if (!trait || seenTraits.has(trait.qualifiedName)) {
+      continue;
+    }
+    seenTraits.add(trait.qualifiedName);
+    for (const method of trait.module.crate.ctx.methods.get(trait.qualifiedName) ?? []) {
+      if (method.onTrait && method.name === name && method.hasBody) {
+        found.push(method);
+      }
+    }
+    for (const path of trait.supertraits ?? []) {
+      const next = resolveType(path, trait.module);
+      if (next?.typeKind === 'trait') {
+        queue.push(next);
+      }
+    }
+  }
+  return uniqueSymbols(found);
+}
+
+function capFanout(
+  targets: readonly SymbolModel[],
+  dispatch: 'dyn' | 'generic' | 'impl-trait' | 'unknown',
+  maxFanout: number,
+): CallTarget[] {
+  const detail = FANOUT_DETAIL[dispatch];
+  const marked = (symbol: SymbolModel): CallTarget => ({
+    symbol,
+    confidence: 'inferred',
+    uncertain: true,
+    detail,
+  });
+  if (targets.length <= maxFanout) {
+    return targets.map(marked);
+  }
+  const shown = targets.slice(0, Math.max(0, maxFanout - 1));
+  return [
+    ...shown.map(marked),
+    {
+      confidence: 'inferred',
+      uncertain: true,
+      detail: 'uncertain: fan-out capped by codeflow.view.maxNodes',
+      overflow: { hidden: targets.length - shown.length },
+    },
+  ];
+}
+
+function isOpenDispatch(
+  dispatch: ParsedCall['dispatch'],
+): dispatch is 'dyn' | 'generic' | 'impl-trait' | 'unknown' {
+  return (
+    dispatch === 'dyn' ||
+    dispatch === 'generic' ||
+    dispatch === 'impl-trait' ||
+    dispatch === 'unknown'
+  );
+}
+
+function pushUnique(targets: SymbolModel[], seen: Set<string>, symbol: SymbolModel): void {
+  const key = `${symbol.filePath}\0${symbol.qualifiedName}`;
+  if (seen.has(key)) {
+    return;
+  }
+  seen.add(key);
+  targets.push(symbol);
+}
+
+function uniqueSymbols(symbols: readonly SymbolModel[]): SymbolModel[] {
+  const targets: SymbolModel[] = [];
+  pushUniqueTargets(targets, symbols);
+  return targets;
+}
+
+function pushUniqueTargets(targets: SymbolModel[], symbols: readonly SymbolModel[]): void {
+  const seen = new Set<string>(
+    targets.map((symbol) => `${symbol.filePath}\0${symbol.qualifiedName}`),
+  );
+  for (const symbol of symbols) {
+    pushUnique(targets, seen, symbol);
+  }
+}
+
+function traitMethodNamed(
+  traitSymbol: SymbolModel | undefined,
+  name: string,
+): SymbolModel | undefined {
+  if (!traitSymbol) {
+    return undefined;
+  }
+  return (traitSymbol.module.crate.ctx.methods.get(traitSymbol.qualifiedName) ?? []).find(
+    (method) => method.onTrait && method.name === name,
+  );
+}
+
+function implNote(pending: PendingImpl): string {
+  if (!pending.traitSegments) {
+    return 'inherent impl';
+  }
+  if (pending.blanket) {
+    return 'blanket impl';
+  }
+  if (pending.generic) {
+    return 'generic impl';
+  }
+  return 'trait impl';
+}
+
+function groupImpls(
+  linked: readonly LinkedImpl[],
+  key: (item: LinkedImpl) => string | undefined,
+): Map<string, LinkedImpl[]> {
+  const map = new Map<string, LinkedImpl[]>();
+  for (const item of linked) {
+    const name = key(item);
+    if (!name) {
+      continue;
+    }
+    const list = map.get(name) ?? [];
+    list.push(item);
+    map.set(name, list);
+  }
+  return map;
+}
+
+function normalizeFanout(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return 300;
+  }
+  return Math.max(1, Math.floor(value));
+}
+
+function findTypeAnywhere(qualifiedName: string, from: ModuleModel): SymbolModel | undefined {
+  for (const crate of from.crate.ctx.crates) {
+    const found = findTypeSymbol(crate.root, qualifiedName, new Set());
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
 }
 
 function resolveUses(uses: readonly PendingUse[]): void {
@@ -821,7 +1510,7 @@ function externRoot(name: string, from: ModuleModel): ModuleModel | undefined {
 }
 
 function containerOf(symbol: SymbolModel): { filePath: string; qualifiedName: string } {
-  if (symbol.kind === 'method' && symbol.ownerType) {
+  if ((symbol.kind === 'method' || symbol.kind === 'impl') && symbol.ownerType) {
     const typeSymbol = findType(symbol.ownerType, symbol.module);
     if (typeSymbol) {
       return { filePath: typeSymbol.filePath, qualifiedName: typeSymbol.qualifiedName };
@@ -905,6 +1594,11 @@ function makeSymbol(input: {
   readonly calls?: readonly ParsedCall[];
   readonly ownerType?: string;
   readonly childModule?: ModuleModel;
+  readonly note?: string;
+  readonly hasBody?: boolean;
+  readonly onTrait?: boolean;
+  readonly supertraits?: readonly (readonly string[])[];
+  readonly derives?: readonly (readonly string[])[];
 }): SymbolModel {
   return {
     name: input.name,
@@ -919,6 +1613,11 @@ function makeSymbol(input: {
     nested: [],
     ...(input.ownerType ? { ownerType: input.ownerType } : {}),
     ...(input.childModule ? { childModule: input.childModule } : {}),
+    ...(input.note ? { note: input.note } : {}),
+    ...(input.hasBody !== undefined ? { hasBody: input.hasBody } : {}),
+    ...(input.onTrait ? { onTrait: true } : {}),
+    ...(input.supertraits ? { supertraits: input.supertraits } : {}),
+    ...(input.derives ? { derives: input.derives } : {}),
   };
 }
 
@@ -1008,9 +1707,13 @@ function symbolNode(symbol: SymbolModel): CodeNode {
     language: 'rust' as const,
     uri: pathToFileUri(symbol.filePath),
     range: symbol.range,
+    ...(symbol.note ? { note: symbol.note } : {}),
   };
   if (symbol.kind === 'type' && symbol.typeKind) {
     return createNode({ ...base, kind: 'type', typeKind: symbol.typeKind });
+  }
+  if (symbol.kind === 'impl') {
+    return createNode({ ...base, kind: 'impl' });
   }
   const kind = symbol.kind === 'type' ? 'module' : symbol.kind;
   return createNode({ ...base, kind });
