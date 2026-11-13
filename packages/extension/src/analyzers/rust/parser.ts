@@ -54,16 +54,24 @@ export function initRustParser(files: RustParserFiles): Promise<void> {
 }
 
 export function parseRustFile(source: string): ParsedRustFile {
+  return withRustTree(source, (root) => ({
+    range: rangeOf(root),
+    items: parseItems(root),
+    hasError: root.hasError,
+  }));
+}
+
+/** Parses `source`, visits the root, and deletes the tree. The parser must already be initialized. */
+export function withRustTree<T>(source: string, visit: (root: SyntaxNode) => T): T {
   if (!parser) {
     throw new Error('The Rust parser is not initialized.');
   }
   const tree = parser.parse(source);
+  if (!tree) {
+    throw new Error('CodeFlow could not parse that Rust file.');
+  }
   try {
-    return {
-      range: rangeOf(tree.rootNode),
-      items: parseItems(tree.rootNode),
-      hasError: tree.rootNode.hasError,
-    };
+    return visit(tree.rootNode);
   } finally {
     tree.delete();
   }

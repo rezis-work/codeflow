@@ -13,6 +13,7 @@ export interface ControlBlockData {
   readonly label: string;
   readonly kind: ControlFlowNode['kind'];
   readonly unreachable: boolean;
+  readonly uncertain: boolean;
   readonly active: boolean;
   readonly nested: readonly { readonly name: string; readonly range: SourceRange }[];
   readonly onReveal: () => void;
@@ -69,6 +70,7 @@ export function controlFlowToFlow(input: {
         label: node.label,
         kind: node.kind,
         unreachable: node.unreachable === true,
+        uncertain: node.uncertain === true,
         active: input.activeId === node.id,
         nested: node.nested ?? [],
         onReveal: () => {
@@ -125,7 +127,7 @@ function edgeCaption(edge: ControlFlowEdge): string | undefined {
     case 'default':
     case 'exception':
     case 'fallthrough':
-      return edge.kind;
+      return edge.label ?? edge.kind;
     case 'case':
       return edge.label ?? 'case';
     case 'loop-body':

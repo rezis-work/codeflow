@@ -1,50 +1,63 @@
 /**
  * Turns an editor position or a call-graph symbol into a control-flow message.
- * The TypeScript worker builds the graph. This module does not import the
- * compiler.
+ * The TypeScript or Rust worker builds the graph. This module does not import
+ * the compiler or the Rust parser.
  */
 
 import { CONTROL_FLOW_VERSION, parseControlFlowGraph, parseNodeId } from '@codeflow/shared';
-import type { ControlFlowMessage, RequestControlFlowMessage, SourceRange } from '@codeflow/shared';
+import type {
+  ControlFlowGraph,
+  ControlFlowMessage,
+  RequestControlFlowMessage,
+  SourceRange,
+} from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { languageForPath } from './analyzers/typescript/extensions';
+import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { getWorkspaceGraph } from './workspaceGraph';
 
-export const RUST_CONTROL_FLOW_LATER = 'Rust control flow is coming in 2.2.';
 export const CONTROL_FLOW_MISSING = 'Place the cursor inside a function to show its control flow.';
 export const CONTROL_FLOW_GONE = 'This function is no longer in the file.';
 export const CONTROL_FLOW_NOT_A_FUNCTION = 'Control flow is drawn for a function or a method.';
+const CONTROL_FLOW_OPEN = 'Open a TypeScript, JavaScript, or Rust file first.';
+const CONTROL_FLOW_LANGUAGE = 'Control flow is available for TypeScript, JavaScript, and Rust.';
+
+export interface FlowEngines {
+  readonly typescript: TypeScriptIndexer;
+  readonly rust: RustIndexer;
+}
 
 export interface FlowSession {
   readonly uri: string;
-  readonly language: 'ts' | 'js';
+  readonly language: 'ts' | 'js' | 'rust';
   readonly functionId: string;
   readonly qualifiedName: string;
   readonly range: SourceRange;
 }
 
+type FlowResult =
+  | { readonly ok: true; readonly graph: ControlFlowGraph }
+  | { readonly ok: false; readonly code: 'not-found' | 'internal'; readonly message: string };
+
 export async function controlFlowForCursor(
-  indexer: TypeScriptIndexer,
+  engines: FlowEngines,
   document: vscode.TextDocument,
   position: vscode.Position,
 ): Promise<ControlFlowMessage> {
-  if (isRustDocument(document)) {
-    return flowError('unsupported-language', RUST_CONTROL_FLOW_LATER);
-  }
-  return build(indexer, document, {
+  return build(engines, document, {
     position: { line: position.line, character: position.character },
     missingMessage: CONTROL_FLOW_MISSING,
   });
 }
 
 export async function controlFlowForRequest(
-  indexer: TypeScriptIndexer,
+  engines: FlowEngines,
   message: RequestControlFlowMessage,
 ): Promise<ControlFlowMessage> {
   if (message.nodeId) {
-    return controlFlowForNode(indexer, message.nodeId);
+    return controlFlowForNode(engines, message.nodeId);
   }
   if (!message.uri || !message.position) {
     return flowError('not-found', CONTROL_FLOW_MISSING);
@@ -55,17 +68,14 @@ export async function controlFlowForRequest(
   } catch {
     return flowError('not-found', CONTROL_FLOW_GONE);
   }
-  if (isRustDocument(document)) {
-    return flowError('unsupported-language', RUST_CONTROL_FLOW_LATER);
-  }
-  return build(indexer, document, {
+  return build(engines, document, {
     position: message.position,
     missingMessage: CONTROL_FLOW_GONE,
   });
 }
 
 export async function controlFlowForRefresh(
-  indexer: TypeScriptIndexer,
+  engines: FlowEngines,
   document: vscode.TextDocument,
   session: FlowSession,
 ): Promise<ControlFlowMessage> {
@@ -74,7 +84,7 @@ export async function controlFlowForRefresh(
         .snapshot()
         .nodes.find((item) => item.id === session.functionId)
     : undefined;
-  return build(indexer, document, {
+  return build(engines, document, {
     ...(node && (node.kind === 'function' || node.kind === 'method')
       ? {
           range: node.location.range,
@@ -91,7 +101,7 @@ export async function controlFlowForRefresh(
 }
 
 async function controlFlowForNode(
-  indexer: TypeScriptIndexer,
+  engines: FlowEngines,
   id: RequestControlFlowMessage['nodeId'],
 ): Promise<ControlFlowMessage> {
   if (!id) {
@@ -103,9 +113,6 @@ async function controlFlowForNode(
   if (!node) {
     return flowError('not-found', 'That symbol is not in the graph.', id);
   }
-  if (node.language === 'rust') {
-    return flowError('unsupported-language', RUST_CONTROL_FLOW_LATER, id);
-  }
   if (node.kind !== 'function' && node.kind !== 'method') {
     return flowError('not-a-function', CONTROL_FLOW_NOT_A_FUNCTION, id);
   }
@@ -115,7 +122,7 @@ async function controlFlowForNode(
   } catch {
     return flowError('not-found', CONTROL_FLOW_GONE, id);
   }
-  return build(indexer, document, {
+  return build(engines, document, {
     range: node.location.range,
     functionId: node.id,
     qualifiedName: node.qualifiedName,
@@ -124,7 +131,7 @@ async function controlFlowForNode(
 }
 
 async function build(
-  indexer: TypeScriptIndexer,
+  engines: FlowEngines,
   document: vscode.TextDocument,
   input: {
     readonly position?: { readonly line: number; readonly character: number };
@@ -134,25 +141,12 @@ async function build(
     readonly missingMessage: string;
   },
 ): Promise<ControlFlowMessage> {
-  const language = languageForPath(document.uri.fsPath);
-  if (language !== 'ts' && language !== 'js') {
-    return flowError(
-      'unsupported-language',
-      'Control flow is available for TypeScript and JavaScript.',
-      input.functionId,
-    );
+  const language = flowLanguage(document);
+  if (!language) {
+    return flowError('unsupported-language', CONTROL_FLOW_LANGUAGE, input.functionId);
   }
   try {
-    const result = await indexer.controlFlow({
-      filePath: document.uri.fsPath,
-      content: document.getText(),
-      uri: document.uri.toString(),
-      language,
-      ...(input.position ? { position: input.position } : {}),
-      ...(input.range ? { range: input.range } : {}),
-      ...(input.functionId ? { functionId: input.functionId } : {}),
-      ...(input.qualifiedName ? { qualifiedName: input.qualifiedName } : {}),
-    });
+    const result = await requestFlow(engines, document, language, input);
     if (!result.ok) {
       return flowError(
         result.code === 'internal' ? 'internal' : 'not-found',
@@ -190,13 +184,46 @@ function flowError(
   };
 }
 
-function isRustDocument(document: vscode.TextDocument): boolean {
-  return document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath);
+function flowLanguage(document: vscode.TextDocument): 'ts' | 'js' | 'rust' | undefined {
+  if (document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath)) {
+    return 'rust';
+  }
+  const language = languageForPath(document.uri.fsPath);
+  if (language === 'ts' || language === 'js') {
+    return language;
+  }
+  return undefined;
+}
+
+async function requestFlow(
+  engines: FlowEngines,
+  document: vscode.TextDocument,
+  language: 'ts' | 'js' | 'rust',
+  input: {
+    readonly position?: { readonly line: number; readonly character: number };
+    readonly range?: SourceRange;
+    readonly functionId?: string;
+    readonly qualifiedName?: string;
+  },
+): Promise<FlowResult> {
+  const query = {
+    filePath: document.uri.fsPath,
+    content: document.getText(),
+    uri: document.uri.toString(),
+    ...(input.position ? { position: input.position } : {}),
+    ...(input.range ? { range: input.range } : {}),
+    ...(input.functionId ? { functionId: input.functionId } : {}),
+    ...(input.qualifiedName ? { qualifiedName: input.qualifiedName } : {}),
+  };
+  if (language === 'rust') {
+    return engines.rust.controlFlow({ ...query, language: 'rust' });
+  }
+  return engines.typescript.controlFlow({ ...query, language });
 }
 
 export function sessionFrom(message: ControlFlowMessage): FlowSession | undefined {
   const graph = message.graph;
-  if (!graph || (graph.language !== 'ts' && graph.language !== 'js')) {
+  if (!graph || (graph.language !== 'ts' && graph.language !== 'js' && graph.language !== 'rust')) {
     return undefined;
   }
   return {
@@ -207,3 +234,5 @@ export function sessionFrom(message: ControlFlowMessage): FlowSession | undefine
     range: graph.range,
   };
 }
+
+export const CONTROL_FLOW_FILE_HINT = CONTROL_FLOW_OPEN;

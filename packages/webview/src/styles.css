@@ -512,6 +512,11 @@ body {
   border-style: dotted;
 }
 
+.flow-block[data-uncertain='true'] {
+  border-style: dotted;
+  border-color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
 .flow-block[data-unreachable='true'] {
   opacity: 0.4;
 }

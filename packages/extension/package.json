@@ -147,7 +147,7 @@
         },
         {
           "command": "codeflow.showControlFlowAtCursor",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
           "group": "navigation@5"
         },
         {

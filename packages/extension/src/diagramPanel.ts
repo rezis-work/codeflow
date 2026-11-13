@@ -24,15 +24,14 @@ import { createNonce } from './nonce';
 import { noteDiagramReveal } from './revealGuard';
 import { readMaxNodes, readViewMode } from './viewSettings';
 import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './controlFlowHost';
-import type { FlowSession } from './controlFlowHost';
-import type { TypeScriptIndexer } from './typescriptIndexer';
+import type { FlowEngines, FlowSession } from './controlFlowHost';
 import { getWorkspaceGraph } from './workspaceGraph';
 
-let flowIndexer: TypeScriptIndexer | undefined;
+let flowEngines: FlowEngines | undefined;
 
-/** The panel asks this indexer for flowcharts. Set once from activate. */
-export function bindControlFlowIndexer(indexer: TypeScriptIndexer): void {
-  flowIndexer = indexer;
+/** The panel asks these analyzers for flowcharts. Set once from activate. */
+export function bindControlFlowEngines(engines: FlowEngines): void {
+  flowEngines = engines;
 }
 
 const FOCUS_REFRESH_MS = 80;
@@ -303,12 +302,12 @@ export class DiagramPanel {
 
   public async refreshControlFlow(document: vscode.TextDocument): Promise<void> {
     const session = this.flowSession;
-    const indexer = flowIndexer;
-    if (!session || !indexer || document.uri.toString() !== session.uri) {
+    const engines = flowEngines;
+    if (!session || !engines || document.uri.toString() !== session.uri) {
       return;
     }
     const generation = this.flowGeneration;
-    const message = await controlFlowForRefresh(indexer, document, session);
+    const message = await controlFlowForRefresh(engines, document, session);
     if (this.disposed || this.flowSession !== session || generation !== this.flowGeneration) {
       return;
     }
@@ -418,13 +417,13 @@ export class DiagramPanel {
   private async answerControlFlow(
     message: Parameters<NonNullable<DiagramHost['requestControlFlow']>>[0],
   ): Promise<void> {
-    const indexer = flowIndexer;
-    if (!indexer) {
+    const engines = flowEngines;
+    if (!engines) {
       return;
     }
     this.flowGeneration += 1;
     const generation = this.flowGeneration;
-    const flow = await controlFlowForRequest(indexer, message);
+    const flow = await controlFlowForRequest(engines, message);
     if (this.disposed || generation !== this.flowGeneration) {
       return;
     }

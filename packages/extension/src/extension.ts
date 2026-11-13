@@ -11,7 +11,7 @@ import {
   SHOW_FLOW_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
-import { bindControlFlowIndexer, DiagramPanel } from './diagramPanel';
+import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
 import { startEditorSync } from './editorSync';
 import { watchGitChanges } from './gitWatch';
 import {
@@ -50,7 +50,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   });
   typescript.start();
   rust.start();
-  bindControlFlowIndexer(typescript);
+  bindControlFlowEngines({ typescript, rust });
 
   context.subscriptions.push(
     typescript,
@@ -67,7 +67,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       void showFlowAtCursor(context, typescript, rust);
     }),
     vscode.commands.registerCommand(SHOW_CONTROL_FLOW_COMMAND, () => {
-      void showControlFlowAtCursor(context, typescript);
+      void showControlFlowAtCursor(context, typescript, rust);
     }),
     vscode.workspace.onDidSaveTextDocument((document) => {
       DiagramPanel.refreshControlFlow(document);

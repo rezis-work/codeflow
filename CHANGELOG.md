@@ -4,11 +4,13 @@
 
 ### Control flow
 
-- **CodeFlow: Show Control Flow for Function at Cursor** draws a flowchart for the TypeScript or JavaScript function at the cursor. It is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, and JSX.
-- A function or method node in the call diagram has a Flow button that opens the same view. Rust answers “Rust control flow is coming in 2.2.”
+- **CodeFlow: Show Control Flow for Function at Cursor** draws a flowchart for the TypeScript, JavaScript, or Rust function at the cursor. It is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust.
+- A function or method node in the call diagram has a Flow button that opens the same view, including Rust impl methods and trait default methods.
 - The flowchart runs top to bottom: decisions, switches, loops with back edges, try/catch/finally, returns, throws, await, and yield. Clicking a block selects its source. The cursor highlights the block that contains it. Saving the file rebuilds the flowchart. A missing function is reported in the panel. The breadcrumb returns to the call graph.
 - A nested function stays one collapsed block, with a control that opens its own flowchart. `?.`, `??`, `&&`, and `||` stay in the block label. A function with more than 500 blocks shows the first 500 and a notice.
-- The graph is the shared `ControlFlowGraph` (`version` 1), so a later Rust builder can emit the same shape.
+- The graph is the shared `ControlFlowGraph` (`version` 1). Rust uses the same blocks. `loop` is a loop kind, and a throw may be marked `uncertain` for `unwrap` and `expect`.
+- Rust covers `if` / `else if` / `else`, `if let`, let-else, `match` (including guards and `_`), `loop` / `while` / `while let` / `for`, labeled `break` and `continue`, `break` with a value, explicit and tail returns, `?`, `panic!` / `unreachable!` / `todo!` / `unimplemented!`, `assert!` / `assert_eq!` / `assert_ne!`, `.await`, and collapsed closures and nested functions. Code after a return, break, continue, or panic is dimmed.
+- Rust does not expand macros. `?` inside a `try` block is drawn as a function return. `unwrap` and `expect` are uncertain and matched by name. A block that ends in `;` falls through to exit. Cursor names are syntactic and omit the cargo crate prefix.
 
 ## 0.1.0
 

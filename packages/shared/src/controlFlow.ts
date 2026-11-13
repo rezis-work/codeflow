@@ -1,8 +1,8 @@
 /**
  * Language-neutral control-flow graph for one function.
  *
- * TypeScript builds this from the syntax tree. A later Rust builder can emit
- * the same nodes and edges. The webview lays the graph out top to bottom.
+ * TypeScript and Rust build this from the syntax tree. The webview lays the
+ * graph out top to bottom.
  *
  * Straight-line statements share one block. A decision is an `if` or a
  * ternary. `&&`, `||`, `??`, and `?.` stay inside the block label so a chain
@@ -44,7 +44,7 @@ export const CFG_NODE_KINDS = [
 ] as const;
 export type CfgNodeKind = (typeof CFG_NODE_KINDS)[number];
 
-export const CFG_LOOP_KINDS = ['for', 'for-of', 'for-in', 'while', 'do-while'] as const;
+export const CFG_LOOP_KINDS = ['for', 'for-of', 'for-in', 'while', 'do-while', 'loop'] as const;
 export type CfgLoopKind = (typeof CFG_LOOP_KINDS)[number];
 
 /** `and` and `or` are short-circuit decisions. The TS builder does not emit them. */
@@ -85,10 +85,15 @@ export interface ControlFlowNode {
   readonly kind: CfgNodeKind;
   readonly label: string;
   readonly range: SourceRange;
-  /** Code after `return` or `throw` in the same block. The diagram dims it. */
+  /** Code after `return`, `throw`, `break`, `continue`, or a panic. The diagram dims it. */
   readonly unreachable?: boolean;
   /** `await` or `yield`. The function pauses here. */
   readonly suspension?: boolean;
+  /**
+   * A panic edge that syntax cannot prove. Rust `unwrap` and `expect` set this.
+   * The success path is the ordinary edge; the panic edge may not be taken.
+   */
+  readonly uncertain?: boolean;
   readonly loopKind?: CfgLoopKind;
   readonly decisionKind?: CfgDecisionKind;
   /** Target of a labeled `break` or `continue`. */
@@ -219,6 +224,7 @@ export function formatControlFlow(graph: ControlFlowGraph): string {
       node.loopKind,
       node.decisionKind,
       node.suspension ? 'suspension' : undefined,
+      node.uncertain ? 'uncertain' : undefined,
       node.unreachable ? 'unreachable' : undefined,
       node.jumpLabel ? `jump=${node.jumpLabel}` : undefined,
     ]
@@ -281,6 +287,9 @@ function parseNode(value: unknown): ParseResult<ControlFlowNode> {
   if (value.suspension !== undefined && typeof value.suspension !== 'boolean') {
     return rejected('suspension must be a boolean.');
   }
+  if (value.uncertain !== undefined && typeof value.uncertain !== 'boolean') {
+    return rejected('uncertain must be a boolean.');
+  }
   if (value.loopKind !== undefined && !isCfgLoopKind(value.loopKind)) {
     return rejected('Unknown loop kind.');
   }
@@ -308,6 +317,7 @@ function parseNode(value: unknown): ParseResult<ControlFlowNode> {
     range: range.value,
     ...(value.unreachable === true ? { unreachable: true } : {}),
     ...(value.suspension === true ? { suspension: true } : {}),
+    ...(value.uncertain === true ? { uncertain: true } : {}),
     ...(isCfgLoopKind(value.loopKind) ? { loopKind: value.loopKind } : {}),
     ...(isCfgDecisionKind(value.decisionKind) ? { decisionKind: value.decisionKind } : {}),
     ...(isNonEmptyString(value.jumpLabel) ? { jumpLabel: value.jumpLabel } : {}),

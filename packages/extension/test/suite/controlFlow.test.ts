@@ -13,6 +13,8 @@ interface FlowNode {
 
 interface FlowMessage {
   readonly type: string;
+  readonly error?: { readonly message?: string };
+  readonly nodeId?: string;
   readonly graph?: {
     readonly qualifiedName?: string;
     readonly uri?: string;
@@ -27,6 +29,11 @@ interface CodeFlowApi {
 }
 
 const fixture = path.resolve(__dirname, '../../test-fixtures/control-flow/functions.ts');
+const rustFixture = path.resolve(__dirname, '../../test-fixtures/control-flow/functions.rs');
+const rustLib = path.resolve(
+  __dirname,
+  '../../test-fixtures/rust-workspace/crates/core/src/lib.rs',
+);
 
 async function extensionApi(): Promise<CodeFlowApi> {
   const extension = vscode.extensions.getExtension('codeflow.codeflow');
@@ -124,4 +131,187 @@ suite('CodeFlow control flow', () => {
     assert.ok(landed);
     assert.ok(landed.document.lineAt(landed.selection.start.line).text.includes('if'));
   });
+
+  test('the command draws a Rust function and follows the cursor', async function () {
+    this.timeout(60_000);
+    const api = await extensionApi();
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(rustFixture));
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.One,
+      preview: false,
+    });
+    const offset = document.getText().indexOf('fn branch');
+    assert.ok(offset >= 0);
+    const position = document.positionAt(offset);
+    editor.selection = new vscode.Selection(position, position);
+
+    api.clearDiagramMessages();
+    await vscode.commands.executeCommand('codeflow.showControlFlowAtCursor');
+    await waitFor(
+      () =>
+        api
+          .diagramMessages()
+          .some(
+            (message) =>
+              message.type === 'controlFlow' && message.graph?.qualifiedName === 'branch',
+          ),
+      () =>
+        api
+          .diagramMessages()
+          .map((message) => `${message.type}:${message.error?.message ?? ''}`)
+          .join(','),
+      25_000,
+    );
+
+    const flow = [...api.diagramMessages()]
+      .reverse()
+      .find(
+        (message) => message.type === 'controlFlow' && message.graph?.qualifiedName === 'branch',
+      );
+    const decision = flow?.graph?.nodes?.find((node) => node.kind === 'decision');
+    assert.ok(flow?.graph?.uri);
+    assert.ok(decision);
+    api.postFromWebview({
+      type: 'revealLocation',
+      location: { uri: flow.graph.uri, range: decision.range },
+    });
+    await waitFor(
+      () => {
+        const current = vscode.window.activeTextEditor;
+        return (
+          current?.document.uri.fsPath === rustFixture &&
+          current.selection.start.line === decision.range.start.line
+        );
+      },
+      () => 'reveal did not land on the Rust decision',
+      10_000,
+    );
+    const landed = vscode.window.activeTextEditor;
+    assert.ok(landed);
+    assert.ok(landed.document.lineAt(landed.selection.start.line).text.includes('if'));
+
+    const before = api.diagramMessages().length;
+    const inside = document.positionAt(document.getText().indexOf('if user.is_none()'));
+    landed.selection = new vscode.Selection(inside, inside);
+    await waitFor(
+      () =>
+        api
+          .diagramMessages()
+          .slice(before)
+          .some((message) => message.type === 'controlFlowCursor'),
+      () => 'cursor follow did not highlight the Rust block',
+      10_000,
+    );
+  });
+
+  test('the command draws an impl method and a trait default', async function () {
+    this.timeout(60_000);
+    const api = await extensionApi();
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(rustFixture));
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.One,
+      preview: false,
+    });
+
+    for (const name of ['Widget::area', 'Shape::area'] as const) {
+      const marker = name.startsWith('Widget') ? 'impl Widget' : 'trait Shape';
+      const markerAt = document.getText().indexOf(marker);
+      assert.ok(markerAt >= 0, marker);
+      const offset = document.getText().indexOf('fn area', markerAt);
+      assert.ok(offset >= 0, name);
+      const position = document.positionAt(offset);
+      editor.selection = new vscode.Selection(position, position);
+      api.clearDiagramMessages();
+      await vscode.commands.executeCommand('codeflow.showControlFlowAtCursor');
+      await waitFor(
+        () =>
+          api
+            .diagramMessages()
+            .some(
+              (message) => message.type === 'controlFlow' && message.graph?.qualifiedName === name,
+            ),
+        () =>
+          api
+            .diagramMessages()
+            .map(
+              (message) =>
+                `${message.type}:${message.graph?.qualifiedName ?? message.error?.message ?? ''}`,
+            )
+            .join(','),
+        25_000,
+      );
+    }
+  });
+
+  test('the Flow button opens a Rust method from the call graph', async function () {
+    this.timeout(60_000);
+    const api = await extensionApi();
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(rustLib));
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.One,
+      preview: false,
+    });
+    const offset = document.getText().indexOf('fn bark');
+    assert.ok(offset >= 0);
+    const position = document.positionAt(offset);
+    editor.selection = new vscode.Selection(position, position);
+    api.clearDiagramMessages();
+    await vscode.commands.executeCommand('codeflow.showFlowAtCursor');
+    await waitFor(
+      () => {
+        const nodes = lastGraphNodes(api.diagramMessages());
+        return Boolean(nodes?.some((node) => node.qualifiedName.endsWith('Dog::bark')));
+      },
+      () =>
+        api
+          .diagramMessages()
+          .map((message) => message.type)
+          .join(','),
+      30_000,
+    );
+    const bark = lastGraphNodes(api.diagramMessages())?.find((node) =>
+      node.qualifiedName.endsWith('Dog::bark'),
+    );
+    assert.ok(bark);
+    api.clearDiagramMessages();
+    api.postFromWebview({ type: 'requestControlFlow', nodeId: bark.id });
+    await waitFor(
+      () =>
+        api.diagramMessages().some((message) => {
+          if (message.type !== 'controlFlow' || message.error) {
+            return false;
+          }
+          return (
+            message.graph?.qualifiedName?.endsWith('Dog::bark') === true &&
+            (message.graph.nodes?.length ?? 0) >= 2
+          );
+        }),
+      () =>
+        api
+          .diagramMessages()
+          .map(
+            (message) =>
+              `${message.type}:${message.graph?.qualifiedName ?? message.error?.message ?? ''}`,
+          )
+          .join(','),
+      25_000,
+    );
+  });
 });
+
+function lastGraphNodes(
+  messages: readonly FlowMessage[],
+): readonly { readonly id: string; readonly qualifiedName: string }[] | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const nodes = message?.graph?.nodes as
+      readonly { readonly id?: string; readonly qualifiedName?: string }[] | undefined;
+    if (message?.type !== 'graphSnapshot' || !nodes) {
+      continue;
+    }
+    return nodes.flatMap((node) =>
+      node.id && node.qualifiedName ? [{ id: node.id, qualifiedName: node.qualifiedName }] : [],
+    );
+  }
+  return undefined;
+}

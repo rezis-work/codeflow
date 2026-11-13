@@ -1,0 +1,372 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Rust control flow > branches if / else-if / else 1`] = `
+"branch [rust] /* cf:branch */
+  entry entry "entry" @2:0-2:51
+    next -> n0
+  n0 decision if "if user.is_none()" @4:4-4:22 calls is_none
+    true -> n1
+    false -> n2
+  n1 return "return \\"missing\\"" @5:8-5:24
+    next -> exit
+  n2 decision if "if admin" @6:11-6:20
+    true -> n3
+    false -> n4
+  n3 return "return \\"admin\\"" @7:8-7:22
+    next -> exit
+  n4 return "return user.unwrap_or(\\"guest\\")" @9:8-9:38 calls unwrap_or
+    next -> exit
+  exit exit "exit" @11:0-11:1
+"
+`;
+
+exports[`Rust control flow > branches if let / else and returns the tail 1`] = `
+"if_let_value [rust] /* cf:ifLet */
+  entry entry "entry" @24:0-24:43
+    next -> n0
+  n0 decision if "if let Some(n) = value" @26:4-26:27
+    true -> n1
+    false -> n2
+  n1 return "return n" @27:8-27:9
+    next -> exit
+  n2 return "return 0" @29:8-29:9
+    next -> exit
+  exit exit "exit" @31:0-31:1
+"
+`;
+
+exports[`Rust control flow > breaks and continues labeled loops 1`] = `
+"labeled [rust] /* cf:labeled */
+  entry entry "entry" @74:0-74:33
+    next -> n0
+  n0 statement "let mut total = 0;" @76:4-76:22
+    next -> n1
+  n1 loop loop "loop 'outer" @77:4-77:17
+    loop-body -> n2
+  n2 loop for "for item in items" @78:8-78:26
+    loop-body -> n3
+    loop-exit -> n8
+  n3 decision if "if *item < 0" @79:12-79:25
+    true -> n4
+    false -> n5
+  n4 break jump='outer "break 'outer" @80:16-80:28
+    loop-exit "break 'outer" -> n9
+  n5 decision if "if *item == 0" @82:12-82:26
+    true -> n6
+    false -> n7
+  n6 continue "continue" @83:16-83:24
+    back -> n2
+  n7 statement "total += item" @85:12-85:25
+    back -> n2
+  n8 break "break" @87:8-87:13
+    loop-exit -> n9
+  n9 return "return total" @89:4-89:9
+    next -> exit
+  exit exit "exit" @90:0-90:1
+"
+`;
+
+exports[`Rust control flow > collapses a closure instead of inlining it 1`] = `
+"project [rust] /* cf:closure */
+  entry entry "entry" @152:0-152:35
+    next -> n0
+  n0 return "return items .iter() .map(|item| { if *item < 0…" @154:4-162:16 nested closure@156:13 calls count,map,iter
+    next -> exit
+  exit exit "exit" @163:0-163:1
+"
+`;
+
+exports[`Rust control flow > collapses a nested function and opens it as its own flow 1`] = `
+"outer [rust] /* cf:nestedFn */
+  entry entry "entry" @165:0-165:18
+    next -> n0
+  n0 statement "fn inner()" @167:4-169:5 nested inner
+    next -> n1
+  n1 return "return inner(1)" @170:4-170:12 calls inner
+    next -> exit
+  exit exit "exit" @171:0-171:1
+"
+`;
+
+exports[`Rust control flow > covers loop, while, while let, and for, with break-with-value 1`] = `
+"loops [rust] /* cf:loops */
+  entry entry "entry" @51:0-51:31
+    next -> n0
+  n0 statement "let mut total = 0;" @53:4-53:22
+    next -> n1
+  n1 statement "let mut guard = Some(1);" @54:4-54:28 calls Some
+    next -> n2
+  n2 loop loop "loop" @55:4-55:9
+    loop-body -> n3
+  n3 statement "total += 1" @56:8-56:18
+    next -> n4
+  n4 decision if "if total > 2" @57:8-57:21
+    true -> n5
+    back "false" -> n2
+  n5 break "break total" @58:12-58:23
+    loop-exit "break total" -> n6
+  n6 loop while "while total < 4" @61:4-61:20
+    loop-body -> n7
+    loop-exit -> n8
+  n7 statement "total += 1" @62:8-62:18
+    back -> n6
+  n8 loop while "while let Some(n) = guard" @64:4-64:30
+    loop-body -> n9
+    loop-exit -> n11
+  n9 statement "guard = None" @65:8-65:20
+    next -> n10
+  n10 statement "total += n" @66:8-66:18
+    back -> n8
+  n11 loop for "for item in items" @68:4-68:22
+    loop-body -> n12
+    loop-exit -> n13
+  n12 statement "total += item" @69:8-69:21
+    back -> n11
+  n13 return "return total" @71:4-71:9
+    next -> exit
+  exit exit "exit" @72:0-72:1
+"
+`;
+
+exports[`Rust control flow > dims code after return 1`] = `
+"dead [rust] /* cf:dead */
+  entry entry "entry" @173:0-173:27
+    next -> n0
+  n0 decision if "if flag" @175:4-175:12
+    true -> n1
+    false -> n3
+  n1 return "return 1" @176:8-176:16
+    next -> exit
+    next -> n2
+  n2 statement unreachable "let _never = 2;" @177:8-177:23
+  n3 call "break_later()" @179:4-179:17 calls break_later
+    next -> n4
+  n4 return "return 3" @180:4-180:5
+    next -> exit
+  exit exit "exit" @181:0-181:1
+"
+`;
+
+exports[`Rust control flow > diverges on let-else 1`] = `
+"let_else [rust] /* cf:letElse */
+  entry entry "entry" @33:0-33:39
+    next -> n0
+  n0 decision if "let Some(n) = value else" @35:4-35:29
+    false -> n1
+    true -> n2
+  n1 return "return 0" @36:8-36:16
+    next -> exit
+  n2 return "return n + 1" @38:4-38:9
+    next -> exit
+  exit exit "exit" @39:0-39:1
+"
+`;
+
+exports[`Rust control flow > ends on panic and unreachable, and dims the code after them 1`] = `
+"give_up [rust] /* cf:panic */
+  entry entry "entry" @111:0-111:30
+    next -> n0
+  n0 decision if "if flag" @113:4-113:12
+    true -> n1
+    false -> n2
+  n1 throw "panic!(\\"no\\")" @114:8-114:20 calls panic
+    exception "panic" -> exit
+  n2 throw "unreachable!()" @116:4-116:18 calls unreachable
+    exception "panic" -> exit
+    next -> n3
+  n3 return unreachable "return 0" @117:4-117:5
+  exit exit "exit" @118:0-118:1
+"
+`;
+
+exports[`Rust control flow > ends on panic and unreachable, and dims the code after them 2`] = `
+"later [rust] /* cf:todo */
+  entry entry "entry" @120:0-120:28
+    next -> n0
+  n0 decision if "if flag" @122:4-122:12
+    true -> n1
+    false -> n2
+  n1 throw "todo!(\\"later\\")" @123:8-123:22 calls todo
+    exception "panic" -> exit
+  n2 throw "unimplemented!()" @125:4-125:20 calls unimplemented
+    exception "panic" -> exit
+  exit exit "exit" @126:0-126:1
+"
+`;
+
+exports[`Rust control flow > gives assert a conditional panic edge 1`] = `
+"checked [rust] /* cf:assert */
+  entry entry "entry" @128:0-128:26
+    next -> n0
+  n0 decision if "assert!(n > 0)" @130:4-130:18 calls assert
+    false "panic" -> n1
+    true -> n2
+  n1 throw "panic" @130:4-130:18
+    exception "panic" -> exit
+  n2 decision if "assert_eq!(n, n)" @131:4-131:20 calls assert_eq
+    false "panic" -> n3
+    true -> n4
+  n3 throw "panic" @131:4-131:20
+    exception "panic" -> exit
+  n4 decision if "assert_ne!(n, 0)" @132:4-132:20 calls assert_ne
+    false "panic" -> n5
+    true -> n6
+  n5 throw "panic" @132:4-132:20
+    exception "panic" -> exit
+  n6 return "return n" @133:4-133:5
+    next -> exit
+  exit exit "exit" @134:0-134:1
+"
+`;
+
+exports[`Rust control flow > marks unwrap and expect as uncertain panics 1`] = `
+"uncertain [rust] /* cf:unwrap */
+  entry entry "entry" @136:0-136:40
+    next -> n0
+  n0 return "return value.unwrap()" @138:4-138:18 calls unwrap
+    exception "panic?" -> n1
+    next -> exit
+  n1 throw uncertain "unwrap()" @138:4-138:18
+    exception "panic?" -> exit
+  exit exit "exit" @139:0-139:1
+"
+`;
+
+exports[`Rust control flow > marks unwrap and expect as uncertain panics 2`] = `
+"expected [rust] /* cf:expect */
+  entry entry "entry" @141:0-141:39
+    next -> n0
+  n0 return "return value.expect(\\"present\\")" @143:4-143:27 calls expect
+    exception "panic?" -> n1
+    next -> exit
+  n1 throw uncertain "expect()" @143:4-143:27
+    exception "panic?" -> exit
+  exit exit "exit" @144:0-144:1
+"
+`;
+
+exports[`Rust control flow > matches one arm per pattern, including a guard and a wildcard 1`] = `
+"classify [rust] /* cf:match */
+  entry entry "entry" @41:0-41:39
+    next -> n0
+  n0 switch "match value" @43:4-43:16
+    case "Some(n) if n > 0" -> n1
+    case "Some(_)" -> n2
+    case "None" -> n3
+    default "_" -> n4
+  n1 return "return n" @44:28-44:29
+    next -> exit
+  n2 return "return 0" @45:19-45:20
+    next -> exit
+  n3 return "return 1" @46:16-46:17
+    next -> exit
+  n4 return "return 2" @47:13-47:14
+    next -> exit
+  exit exit "exit" @49:0-49:1
+"
+`;
+
+exports[`Rust control flow > nests ifs and joins after the outer one 1`] = `
+"nested_ifs [rust] /* cf:nestedIfs */
+  entry entry "entry" @13:0-13:32
+    next -> n0
+  n0 decision if "if a" @15:4-15:9
+    true -> n1
+    false -> n4
+  n1 decision if "if b" @16:8-16:13
+    true -> n2
+    false -> n3
+  n2 call "left()" @17:12-17:18 calls left
+    next -> n3
+  n3 call "mid()" @19:8-19:13 calls mid
+    next -> n4
+  n4 call "end()" @21:4-21:9 calls end
+    next -> exit
+  exit exit "exit" @22:0-22:1
+"
+`;
+
+exports[`Rust control flow > reads an impl method and a trait default 1`] = `
+"Widget::area [rust] /* cf:area */
+  entry entry "entry" @197:4-197:26
+    next -> n0
+  n0 decision if "if self.w > 0" @199:8-199:22
+    true -> n1
+    false -> n2
+  n1 return "return self.w * self.h" @199:24-199:39
+    next -> exit
+  n2 return "return 0" @199:49-199:50
+    next -> exit
+  exit exit "exit" @200:4-200:5
+"
+`;
+
+exports[`Rust control flow > reads an impl method and a trait default 2`] = `
+"Shape::area [rust] /* cf:traitArea */
+  entry entry "entry" @204:4-204:26
+    next -> n0
+  n0 decision if "if self.area() > 0" @206:8-206:27 calls area
+    true -> n1
+    false -> n2
+  n1 return "return 1" @206:29-206:30
+    next -> exit
+  n2 return "return 0" @206:40-206:41
+    next -> exit
+  exit exit "exit" @207:4-207:5
+"
+`;
+
+exports[`Rust control flow > returns explicitly and by tail expression 1`] = `
+"explicit_return [rust] /* cf:explicit */
+  entry entry "entry" @92:0-92:38
+    next -> n0
+  n0 decision if "if flag" @94:4-94:12
+    true -> n1
+    false -> n2
+  n1 return "return 1" @95:8-95:16
+    next -> exit
+  n2 return "return 2" @97:4-97:5
+    next -> exit
+  exit exit "exit" @98:0-98:1
+"
+`;
+
+exports[`Rust control flow > returns explicitly and by tail expression 2`] = `
+"tail_value [rust] /* cf:tail */
+  entry entry "entry" @100:0-100:29
+    next -> n0
+  n0 return "return n + 1" @102:4-102:9
+    next -> exit
+  exit exit "exit" @103:0-103:1
+"
+`;
+
+exports[`Rust control flow > suspends at await and still returns through ? 1`] = `
+"load [rust] /* cf:await */
+  entry entry "entry" @146:0-146:42
+    next -> n0
+  n0 await suspension "let body = fetch(id).await?;" @148:4-148:32 calls fetch
+    exception "?" -> n1
+    next -> n2
+  n1 return "?" @148:15-148:31
+    next -> exit
+  n2 return "return body" @149:4-149:8
+    next -> exit
+  exit exit "exit" @150:0-150:1
+"
+`;
+
+exports[`Rust control flow > turns ? into an early-return edge 1`] = `
+"try_op [rust] /* cf:try */
+  entry entry "entry" @105:0-105:53
+    next -> n0
+  n0 statement "let n = value?;" @107:4-107:19
+    exception "?" -> n1
+    next -> n2
+  n1 return "?" @107:12-107:18
+    next -> exit
+  n2 return "return Ok(n + 1)" @108:4-108:13 calls Ok
+    next -> exit
+  exit exit "exit" @109:0-109:1
+"
+`;
