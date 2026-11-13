@@ -54,18 +54,38 @@ const workerOptions = {
   plugins: [workerModuleUrl()],
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const rustWorkerOptions = {
+  absWorkingDir: here,
+  entryPoints: ['src/analyzers/rust/worker.ts'],
+  bundle: true,
+  outfile: 'dist/rust-worker.js',
+  format: 'cjs',
+  platform: 'node',
+  target: 'node18',
+  sourcemap: true,
+  minify: false,
+  legalComments: 'eof',
+  logLevel: 'info',
+};
+
 rmSync(path.join(here, 'dist', 'analyzer-worker.mjs'), { force: true });
 copyTypescriptLibs();
+copyTreeSitterWasm();
 
 if (watch) {
   const extension = await esbuild.context(extensionOptions);
   const worker = await esbuild.context(workerOptions);
-  await Promise.all([extension.watch(), worker.watch()]);
+  const rustWorker = await esbuild.context(rustWorkerOptions);
+  await Promise.all([extension.watch(), worker.watch(), rustWorker.watch()]);
 } else {
   await esbuild.build(extensionOptions);
   await esbuild.build(workerOptions);
+  await esbuild.build(rustWorkerOptions);
   assertCompilerStaysInWorker();
+  assertTreeSitterStaysInWorker();
   await smokeTestWorker();
+  await smokeTestRustWorker();
 }
 
 function workerModuleUrl() {
@@ -98,10 +118,28 @@ function copyTypescriptLibs() {
   }
 }
 
+function copyTreeSitterWasm() {
+  const runtime = require.resolve('web-tree-sitter/tree-sitter.wasm');
+  const grammar = require.resolve('tree-sitter-rust/tree-sitter-rust.wasm');
+  const destination = path.join(here, 'dist');
+  mkdirSync(destination, { recursive: true });
+  cpSync(runtime, path.join(destination, 'tree-sitter.wasm'));
+  cpSync(grammar, path.join(destination, 'tree-sitter-rust.wasm'));
+}
+
 function assertCompilerStaysInWorker() {
   const extension = readFileSync(path.join(here, 'dist', 'extension.js'), 'utf8');
   if (extension.includes('getDefaultLibFileName') || extension.includes('createProgram')) {
     throw new Error('dist/extension.js bundled the TypeScript compiler. Keep it in the worker.');
+  }
+}
+
+function assertTreeSitterStaysInWorker() {
+  const extension = readFileSync(path.join(here, 'dist', 'extension.js'), 'utf8');
+  if (extension.includes('tree-sitter.wasm') || extension.includes('Language.load')) {
+    throw new Error(
+      'dist/extension.js bundled tree-sitter. Keep the WASM parser in the Rust worker.',
+    );
   }
 }
 
@@ -143,6 +181,65 @@ async function smokeTestWorker() {
         }
         if (message?.type === 'done') {
           finish(reject, new Error('Worker smoke test did not find a main function.'));
+        }
+      });
+      worker.postMessage({
+        type: 'index',
+        id: 1,
+        roots: [{ rootDir: directory, excludeGlobs: [], maxFiles: 10 }],
+      });
+    });
+  } finally {
+    try {
+      worker.postMessage({ type: 'shutdown' });
+    } catch {
+      // The worker may already have stopped.
+    }
+    await worker.terminate();
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+async function smokeTestRustWorker() {
+  const directory = mkdtempSync(path.join(tmpdir(), 'codeflow-rust-worker-'));
+  const worker = new Worker(path.join(here, 'dist', 'rust-worker.js'));
+  try {
+    mkdirSync(path.join(directory, 'src'));
+    writeFileSync(
+      path.join(directory, 'Cargo.toml'),
+      '[package]\nname = "smoke"\nversion = "0.1.0"\nedition = "2021"\n',
+    );
+    writeFileSync(path.join(directory, 'src', 'lib.rs'), 'pub fn answer() -> i32 {\n    1\n}\n');
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (settle, value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        settle(value);
+      };
+      const timer = setTimeout(() => {
+        finish(reject, new Error('Rust analyzer worker smoke test timed out.'));
+      }, 30_000);
+      worker.on('error', (error) => {
+        finish(reject, error);
+      });
+      worker.on('message', (message) => {
+        if (message?.type === 'fragments') {
+          const found = message.fragments?.some((fragment) =>
+            fragment.nodes?.some((node) => node.qualifiedName === 'smoke::answer'),
+          );
+          if (found) {
+            finish(resolve, undefined);
+          }
+        }
+        if (message?.type === 'failed') {
+          finish(reject, new Error(message.message ?? 'Rust analyzer worker failed.'));
+        }
+        if (message?.type === 'done') {
+          finish(reject, new Error('Rust worker smoke test did not find smoke::answer.'));
         }
       });
       worker.postMessage({

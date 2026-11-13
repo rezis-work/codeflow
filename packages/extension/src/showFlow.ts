@@ -1,25 +1,30 @@
 import * as vscode from 'vscode';
+import { isRustSourcePath } from './analyzers/rust/extensions';
+import { upgradeFocusedRustSymbol } from './analyzers/rust/rustAnalyzer';
 import { findSymbolAt } from './analyzers/typescript/findSymbol';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { fileUriToPath, sameFilePath } from './analyzers/typescript/uri';
 import { DiagramPanel } from './diagramPanel';
+import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 export async function showFlowAtCursor(
   context: vscode.ExtensionContext,
-  indexer: TypeScriptIndexer,
+  typescript: TypeScriptIndexer,
+  rust: RustIndexer,
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
     void vscode.window.showInformationMessage(
-      'Open a TypeScript or JavaScript file to show its flow.',
+      'Open a TypeScript, JavaScript, or Rust file to show its flow.',
     );
     return;
   }
-  if (!isSupportedSourcePath(editor.document.uri.fsPath)) {
+  const rustFile = isRustDocument(editor.document);
+  if (!rustFile && !isSupportedSourcePath(editor.document.uri.fsPath)) {
     void vscode.window.showInformationMessage(
-      'CodeFlow shows flow for TypeScript and JavaScript files.',
+      'CodeFlow shows flow for TypeScript, JavaScript, and Rust files.',
     );
     return;
   }
@@ -30,7 +35,17 @@ export async function showFlowAtCursor(
         location: vscode.ProgressLocation.Window,
         title: 'CodeFlow: Reading symbol',
       },
-      () => indexer.syncDocument(editor.document),
+      async () => {
+        await (rustFile ? rust : typescript).syncDocument(editor.document);
+        if (!rustFile) {
+          return;
+        }
+        try {
+          await upgradeFocusedRustSymbol(editor.document, editor.selection.active);
+        } catch {
+          // The tree-sitter graph is already in the store.
+        }
+      },
     );
   } catch (error) {
     const message =
@@ -55,4 +70,8 @@ export async function showFlowAtCursor(
 
   DiagramPanel.open(context);
   DiagramPanel.showSymbol(symbol.id);
+}
+
+function isRustDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath);
 }
