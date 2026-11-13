@@ -1,0 +1,89 @@
+{
+  "name": "codeflow",
+  "displayName": "CodeFlow",
+  "description": "Interactive diagrams of how your code flows, shown beside the code.",
+  "version": "0.1.0",
+  "publisher": "codeflow",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rezis-work/codeflow.git"
+  },
+  "homepage": "https://github.com/rezis-work/codeflow",
+  "bugs": {
+    "url": "https://github.com/rezis-work/codeflow/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "keywords": [
+    "diagram",
+    "call-graph",
+    "dependency-graph",
+    "visualization"
+  ],
+  "activationEvents": [
+    "onCommand:codeflow.openDiagram",
+    "onView:codeflow.sidebar"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeflow.openDiagram",
+        "title": "Open Diagram",
+        "category": "CodeFlow",
+        "icon": "$(open-preview)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codeflow",
+          "title": "CodeFlow",
+          "icon": "media/codeflow.svg"
+        }
+      ]
+    },
+    "views": {
+      "codeflow": [
+        {
+          "id": "codeflow.sidebar",
+          "name": "Diagrams",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codeflow.openDiagram",
+          "when": "view == codeflow.sidebar",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:integration": "tsc -p tsconfig.test.json && node ./out/runTest.js"
+  },
+  "devDependencies": {
+    "@codeflow/shared": "*",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.6",
+    "@types/vscode": "1.85.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "mocha": "^12.0.3",
+    "vitest": "^5.1.0"
+  }
+}

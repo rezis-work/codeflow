@@ -1,0 +1,14 @@
+.vscode/**
+src/**
+test/**
+test-fixtures/**
+out/**
+node_modules/**
+**/*.map
+**/*.ts
+tsconfig.json
+tsconfig.test.json
+esbuild.mjs
+vitest.config.mts
+coverage/**
+**/.gitkeep

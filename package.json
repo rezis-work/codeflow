@@ -1,0 +1,35 @@
+{
+  "name": "codeflow-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodeFlow — interactive diagrams of how code flows, beside the code.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @codeflow/webview && npm run build -w codeflow",
+    "watch": "concurrently -n webview,extension -c cyan,magenta \"npm run watch -w @codeflow/webview\" \"npm run watch -w codeflow\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:integration": "npm run test:integration -w codeflow",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "package": "npm run build && node scripts/package-vsix.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.7",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2"
+  }
+}
