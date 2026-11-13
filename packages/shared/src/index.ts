@@ -76,6 +76,7 @@ export type {
 export type {
   AckMessage,
   ConfigMessage,
+  CursorHintMessage,
   DiagramErrorCode,
   DiagramTheme,
   DiagramViewMode,

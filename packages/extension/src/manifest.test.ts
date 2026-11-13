@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   OPEN_DIAGRAM_COMMAND,
+  SHOW_CALLEES_COMMAND,
+  SHOW_CALLERS_COMMAND,
+  SHOW_DEPENDENCIES_COMMAND,
+  SHOW_FILE_DEPENDENCIES_COMMAND,
   SHOW_FLOW_COMMAND,
   SIDEBAR_VIEW_ID,
   VIEW_CONTAINER_ID,
@@ -15,7 +19,12 @@ interface Manifest {
     commands?: Array<{ command?: string }>;
     viewsContainers?: { activitybar?: Array<{ id?: string; icon?: string }> };
     views?: Record<string, Array<{ id?: string; type?: string }>>;
-    menus?: { 'editor/context'?: Array<{ command?: string; when?: string }> };
+    menus?: {
+      'editor/context'?: Array<{ command?: string; when?: string }>;
+      'explorer/context'?: Array<{ command?: string; when?: string }>;
+      commandPalette?: Array<{ command?: string }>;
+    };
+    keybindings?: Array<{ command?: string; key?: string; mac?: string; when?: string }>;
     configuration?: {
       properties?: Record<string, { type?: string; default?: unknown }>;
     };
@@ -50,8 +59,26 @@ describe('extension manifest', () => {
       ]),
     );
     const commands = manifest.contributes?.commands?.map((command) => command.command) ?? [];
-    expect(commands).toContain(OPEN_DIAGRAM_COMMAND);
-    expect(commands).toContain(SHOW_FLOW_COMMAND);
+    expect(commands).toEqual(
+      expect.arrayContaining([
+        OPEN_DIAGRAM_COMMAND,
+        SHOW_FLOW_COMMAND,
+        SHOW_CALLERS_COMMAND,
+        SHOW_CALLEES_COMMAND,
+        SHOW_FILE_DEPENDENCIES_COMMAND,
+        SHOW_DEPENDENCIES_COMMAND,
+      ]),
+    );
+    const palette = manifest.contributes?.menus?.commandPalette?.map((item) => item.command) ?? [];
+    expect(palette).toEqual(
+      expect.arrayContaining([
+        SHOW_FLOW_COMMAND,
+        SHOW_CALLERS_COMMAND,
+        SHOW_CALLEES_COMMAND,
+        SHOW_FILE_DEPENDENCIES_COMMAND,
+        SHOW_DEPENDENCIES_COMMAND,
+      ]),
+    );
     const containers = manifest.contributes?.viewsContainers?.activitybar ?? [];
     expect(containers.map((container) => container.id)).toContain(VIEW_CONTAINER_ID);
     expect(containers.some((container) => container.icon === 'media/codeflow.svg')).toBe(true);
@@ -73,5 +100,33 @@ describe('extension manifest', () => {
     expect(mode).toMatchObject({ type: 'string', default: 'focus' });
     const maxNodes = manifest.contributes?.configuration?.properties?.['codeflow.view.maxNodes'];
     expect(maxNodes).toMatchObject({ type: 'number', default: 300 });
+    const editorWhen = manifest.contributes?.menus?.['editor/context']?.map((item) => item.command);
+    expect(editorWhen).toEqual(
+      expect.arrayContaining([
+        SHOW_FLOW_COMMAND,
+        SHOW_CALLERS_COMMAND,
+        SHOW_CALLEES_COMMAND,
+        SHOW_FILE_DEPENDENCIES_COMMAND,
+      ]),
+    );
+    const explorer = manifest.contributes?.menus?.['explorer/context']?.find(
+      (item) => item.command === SHOW_DEPENDENCIES_COMMAND,
+    );
+    expect(explorer?.when).toContain('explorerResourceIsFolder');
+    expect(explorer?.when).toContain('resourceLangId == rust');
+    const binding = manifest.contributes?.keybindings?.find(
+      (item) => item.command === SHOW_FLOW_COMMAND,
+    );
+    expect(binding).toMatchObject({ key: 'ctrl+alt+f', mac: 'cmd+alt+f' });
+    expect(binding?.when).toContain('editorLangId == typescript');
+    expect(binding?.when).not.toContain('shift+alt+f');
+    const follow =
+      manifest.contributes?.configuration?.properties?.['codeflow.editor.followCursor'];
+    expect(follow).toMatchObject({ type: 'boolean', default: true });
+    const refocus =
+      manifest.contributes?.configuration?.properties?.['codeflow.editor.refocusOnCursor'];
+    expect(refocus).toMatchObject({ type: 'boolean', default: false });
+    const depth = manifest.contributes?.configuration?.properties?.['codeflow.editor.callDepth'];
+    expect(depth).toMatchObject({ type: 'number', default: 2 });
   });
 });

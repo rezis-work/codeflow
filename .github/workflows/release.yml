@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, package, and publish the VSIX
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install extension-host libraries
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          packages=(
+            xvfb
+            libnss3
+            libgbm1
+            libdrm2
+            libxkbcommon0
+            libxcomposite1
+            libxdamage1
+            libxfixes3
+            libxrandr2
+            libpango-1.0-0
+            libcairo2
+            libx11-xcb1
+            libxcb-dri3-0
+          )
+          if apt-cache show libgtk-3-0t64 >/dev/null 2>&1; then
+            packages+=(
+              libgtk-3-0t64
+              libasound2t64
+              libatk1.0-0t64
+              libatk-bridge2.0-0t64
+              libcups2t64
+            )
+          else
+            packages+=(
+              libgtk-3-0
+              libasound2
+              libatk1.0-0
+              libatk-bridge2.0-0
+              libcups2
+            )
+          fi
+          sudo apt-get install -y "${packages[@]}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the tag matches the extension version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./packages/extension/package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match extension version ${version}."
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Integration tests
+        run: xvfb-run -a npm run test:integration
+
+      - name: Package VSIX
+        run: npm run package
+
+      - name: Name the VSIX
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          mv codeflow.vsix "codeflow-${version}.vsix"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          gh release create "${GITHUB_REF_NAME}" \
+            "codeflow-${version}.vsix" \
+            --title "CodeFlow ${GITHUB_REF_NAME}" \
+            --notes "Install \`codeflow-${version}.vsix\` in VS Code or Cursor from Extensions: Install from VSIX. CodeFlow does not publish to the Marketplace or Open VSX from this workflow."

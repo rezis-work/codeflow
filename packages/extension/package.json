@@ -1,10 +1,11 @@
 {
   "name": "codeflow",
   "displayName": "CodeFlow",
-  "description": "Interactive diagrams of how your code flows, shown beside the code.",
+  "description": "Interactive call and dependency diagrams for TypeScript, JavaScript, and Rust, shown beside the code. Works in VS Code and Cursor.",
   "version": "0.1.0",
   "publisher": "codeflow",
   "license": "MIT",
+  "icon": "media/codeflow-icon.png",
   "private": true,
   "repository": {
     "type": "git",
@@ -18,18 +19,27 @@
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Visualization"
+    "Visualization",
+    "Programming Languages"
   ],
   "keywords": [
     "diagram",
     "call-graph",
     "dependency-graph",
-    "visualization"
+    "visualization",
+    "typescript",
+    "javascript",
+    "rust",
+    "code-flow"
   ],
   "activationEvents": [
     "onStartupFinished",
     "onCommand:codeflow.openDiagram",
     "onCommand:codeflow.showFlowAtCursor",
+    "onCommand:codeflow.showCallers",
+    "onCommand:codeflow.showCallees",
+    "onCommand:codeflow.showFileDependencies",
+    "onCommand:codeflow.showDependencies",
     "onView:codeflow.sidebar"
   ],
   "main": "./dist/extension.js",
@@ -37,15 +47,41 @@
     "commands": [
       {
         "command": "codeflow.openDiagram",
-        "title": "Open Diagram",
-        "category": "CodeFlow",
+        "title": "CodeFlow: Open Diagram",
         "icon": "$(open-preview)"
       },
       {
         "command": "codeflow.showFlowAtCursor",
-        "title": "Show Flow for Symbol at Cursor",
-        "category": "CodeFlow",
+        "title": "CodeFlow: Show Flow for Symbol at Cursor",
         "icon": "$(references)"
+      },
+      {
+        "command": "codeflow.showCallers",
+        "title": "CodeFlow: Show Callers",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "codeflow.showCallees",
+        "title": "CodeFlow: Show Callees",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "codeflow.showFileDependencies",
+        "title": "CodeFlow: Show File Dependencies",
+        "icon": "$(file-symlink-file)"
+      },
+      {
+        "command": "codeflow.showDependencies",
+        "title": "CodeFlow: Show Dependencies",
+        "icon": "$(list-tree)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "codeflow.showFlowAtCursor",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "editorTextFocus && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust)"
       }
     ],
     "viewsContainers": {
@@ -74,10 +110,52 @@
           "group": "navigation"
         }
       ],
+      "commandPalette": [
+        {
+          "command": "codeflow.showFlowAtCursor"
+        },
+        {
+          "command": "codeflow.showCallers"
+        },
+        {
+          "command": "codeflow.showCallees"
+        },
+        {
+          "command": "codeflow.showFileDependencies"
+        },
+        {
+          "command": "codeflow.showDependencies"
+        },
+        {
+          "command": "codeflow.openDiagram"
+        }
+      ],
       "editor/context": [
         {
           "command": "codeflow.showFlowAtCursor",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@1"
+        },
+        {
+          "command": "codeflow.showCallers",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codeflow.showCallees",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@3"
+        },
+        {
+          "command": "codeflow.showFileDependencies",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@4"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "codeflow.showDependencies",
+          "when": "explorerResourceIsFolder || resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact || resourceLangId == rust",
           "group": "navigation"
         }
       ]
@@ -120,6 +198,23 @@
           "default": 300,
           "minimum": 1,
           "description": "Maximum number of nodes the diagram draws at once. Larger graphs show a notice and suggest focus mode."
+        },
+        "codeflow.editor.followCursor": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the cursor moves in a TypeScript, JavaScript, or Rust file, highlight that symbol in the open diagram and pan to it. This does not lay the diagram out again."
+        },
+        "codeflow.editor.refocusOnCursor": {
+          "type": "boolean",
+          "default": false,
+          "description": "In focus mode, when the cursor moves to a symbol that is not in the current diagram, replace the diagram with that symbol's neighbourhood. When this is off, CodeFlow shows a not-in-view hint instead."
+        },
+        "codeflow.editor.callDepth": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 32,
+          "description": "How many call steps CodeFlow: Show Callers and CodeFlow: Show Callees walk from the symbol under the cursor."
         },
         "codeflow.rust.useRustAnalyzer": {
           "type": "boolean",

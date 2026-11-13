@@ -14,6 +14,7 @@ import { elkEngine } from './elkLayout';
 import { filterDiagram } from './filters';
 import { nodeText } from './labels';
 import { layoutIncremental, nodeBox } from './layout';
+import { focusPanDuration } from './motion';
 import type { LayoutPoint } from './layout';
 import { RelationEdge } from './RelationEdge';
 import { SymbolNodeView } from './SymbolNode';
@@ -131,7 +132,10 @@ function DiagramSurface({
     return () => {
       cancelled = true;
     };
-  }, [layoutMode, layoutKey, edgeKey, filtered.nodes, filtered.edges, collapsed.fileNames]);
+    // layoutKey and edgeKey already describe the visible graph. A cursor highlight
+    // changes focus without changing those keys, and must not lay the graph out again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutMode, layoutKey, edgeKey, collapsed.fileNames]);
 
   const flow = useMemo(
     () =>
@@ -167,27 +171,41 @@ function DiagramSurface({
   }, [flow.edges, setEdges]);
 
   const reactFlow = useReactFlow();
+  const fittedToken = useRef(0);
   useEffect(() => {
     if (fitToken === 0) {
       return;
     }
-    const duration = reducedMotion ? 0 : 220;
+    const duration = focusPanDuration(reducedMotion);
     const handle = window.setTimeout(() => {
-      if (focusTarget && positionsRef.current.has(focusTarget)) {
-        void reactFlow.fitView({
-          nodes: [{ id: focusTarget }],
-          duration,
-          padding: 0.4,
-          maxZoom: 1.2,
-        });
-        return;
-      }
       void reactFlow.fitView({ duration, padding: 0.16 });
     }, 40);
     return () => {
       window.clearTimeout(handle);
     };
-  }, [fitToken, focusTarget, reducedMotion, reactFlow]);
+  }, [fitToken, reducedMotion, reactFlow]);
+  useEffect(() => {
+    const layoutJustFitted = fittedToken.current !== fitToken;
+    fittedToken.current = fitToken;
+    if (fitToken === 0 || !focusTarget || layoutJustFitted) {
+      return;
+    }
+    if (!positionsRef.current.has(focusTarget)) {
+      return;
+    }
+    const duration = focusPanDuration(reducedMotion);
+    const handle = window.setTimeout(() => {
+      void reactFlow.fitView({
+        nodes: [{ id: focusTarget }],
+        duration,
+        padding: 0.4,
+        maxZoom: 1.2,
+      });
+    }, 40);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [focusTarget, fitToken, reducedMotion, reactFlow]);
 
   const capNotice =
     filtered.hiddenByCap > 0

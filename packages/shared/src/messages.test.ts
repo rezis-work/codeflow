@@ -146,6 +146,11 @@ describe('extension to webview messages', () => {
       }),
     ).toBe(true);
     expect(isExtensionToDiagramWebviewMessage({ type: 'focusNode', nodeId: symbol.id })).toBe(true);
+    expect(isExtensionToDiagramWebviewMessage({ type: 'cursorHint' })).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({ type: 'cursorHint', message: 'Not in this diagram' }),
+    ).toBe(true);
+    expect(isExtensionToDiagramWebviewMessage({ type: 'cursorHint', message: '   ' })).toBe(true);
     expect(
       isExtensionToDiagramWebviewMessage({
         type: 'config',
@@ -203,6 +208,7 @@ describe('extension to webview messages', () => {
       { type: 'graphDelta', delta: { ...emptyDelta(), upsertedNodes: [symbol, symbol] } },
       { type: 'focusNode' },
       { type: 'focusNode', nodeId: 'main' },
+      { type: 'cursorHint', message: 1 },
       { type: 'config', theme: 'blue', showInferredEdges: true },
       { type: 'config', theme: 'dark', showInferredEdges: 'true' },
       { type: 'config', theme: 'dark', showInferredEdges: true, viewMode: 'graph' },

@@ -13,8 +13,11 @@ import { isWorkerToHostMessage } from './analyzers/typescript/workerProtocol';
 import { combineExcludeGlobs } from './analyzers/typescript/globs';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { pathToFileUri } from './analyzers/typescript/uri';
+import { trackAnalysis } from './analysisStatus';
 import { DiagramPanel } from './diagramPanel';
 import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES } from './constants';
+import { createPathBurst } from './pathBurst';
+import type { PathBurst, PathUpdate } from './pathBurst';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 const EDIT_DEBOUNCE_MS = 300;
@@ -39,7 +42,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
   private readonly workerPath: string;
   private worker: Worker | undefined;
   private readonly pending = new Map<number, PendingRequest>();
-  private readonly timers = new Map<string, NodeJS.Timeout>();
+  private readonly burst: PathBurst;
   private indexedUris = new Set<string>();
   private tail: Promise<void> = Promise.resolve();
   private nextId = 1;
@@ -50,6 +53,20 @@ export class TypeScriptIndexer implements vscode.Disposable {
 
   public constructor(context: vscode.ExtensionContext) {
     this.workerPath = path.join(context.extensionUri.fsPath, 'dist', 'analyzer-worker.js');
+    this.burst = createPathBurst({
+      delayMs: EDIT_DEBOUNCE_MS,
+      schedule: (callback, delayMs) => {
+        const timer = setTimeout(callback, delayMs);
+        return { cancel: () => clearTimeout(timer) };
+      },
+      flush: (entries) => {
+        void this.enqueue(() => this.track(() => this.applyEntries(entries))).catch(
+          (error: unknown) => {
+            console.error('[codeflow] could not update files', error);
+          },
+        );
+      },
+    });
     this.openWorker();
     this.watch();
   }
@@ -61,19 +78,33 @@ export class TypeScriptIndexer implements vscode.Disposable {
   }
 
   public reindex(): Promise<void> {
-    return this.enqueue(() => this.runIndex());
+    return this.enqueue(() => this.track(() => this.runIndex()));
+  }
+
+  public whenReady(): Promise<void> {
+    return this.tail;
+  }
+
+  public applyExternal(changes: readonly PathUpdate[]): void {
+    for (const change of changes) {
+      if (change.deleted) {
+        this.scheduleRemove(change.path);
+      } else {
+        this.schedulePath(change.path);
+      }
+    }
   }
 
   public syncDocument(document: vscode.TextDocument): Promise<void> {
-    this.clearTimer(document.uri.fsPath);
+    this.burst.forget(path.resolve(document.uri.fsPath));
     if (document.isDirty) {
-      return this.enqueue(() => this.sendDocument(document));
+      return this.enqueue(() => this.track(() => this.sendDocument(document)));
     }
     return this.whenIdle().then(() => {
       if (this.indexedUris.has(pathToFileUri(document.uri.fsPath))) {
         return undefined;
       }
-      return this.enqueue(() => this.sendDocument(document));
+      return this.enqueue(() => this.track(() => this.sendDocument(document)));
     });
   }
 
@@ -85,10 +116,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
     if (this.reindexTimer) {
       clearTimeout(this.reindexTimer);
     }
-    for (const timer of this.timers.values()) {
-      clearTimeout(timer);
-    }
-    this.timers.clear();
+    this.burst.dispose();
     this.failPending('CodeFlow analyzer stopped.');
     try {
       this.worker?.postMessage({ type: 'shutdown' });
@@ -155,41 +183,49 @@ export class TypeScriptIndexer implements vscode.Disposable {
     if (!isSupportedSourcePath(filePath)) {
       return;
     }
-    const key = path.resolve(filePath);
-    this.clearTimer(key);
-    this.timers.set(
-      key,
-      setTimeout(() => {
-        this.timers.delete(key);
-        const open = vscode.workspace.textDocuments.find(
-          (document) => document.uri.scheme === 'file' && path.resolve(document.uri.fsPath) === key,
-        );
-        const job = open ? this.sendDocument(open) : this.sendDisk(key);
-        void this.enqueue(() => job).catch((error: unknown) => {
-          console.error('[codeflow] could not update', key, error);
-        });
-      }, EDIT_DEBOUNCE_MS),
-    );
+    this.burst.update(path.resolve(filePath));
   }
 
   private scheduleRemove(filePath: string): void {
     if (!isSupportedSourcePath(filePath)) {
       return;
     }
-    const key = path.resolve(filePath);
-    this.clearTimer(key);
-    void this.enqueue(() => this.sendRemove(key)).catch((error: unknown) => {
-      console.error('[codeflow] could not remove', key, error);
-    });
+    this.burst.remove(path.resolve(filePath));
   }
 
-  private clearTimer(filePath: string): void {
-    const key = path.resolve(filePath);
-    const timer = this.timers.get(key);
-    if (timer) {
-      clearTimeout(timer);
-      this.timers.delete(key);
+  private async applyEntries(entries: readonly PathUpdate[]): Promise<void> {
+    let first: unknown;
+    for (const entry of entries) {
+      try {
+        if (entry.deleted) {
+          await this.sendRemove(entry.path);
+        } else {
+          await this.sendOne(entry.path);
+        }
+      } catch (error) {
+        first ??= error;
+        console.error('[codeflow] could not update', entry.path, error);
+      }
     }
+    if (first) {
+      throw first;
+    }
+  }
+
+  private async sendOne(filePath: string): Promise<void> {
+    const open = vscode.workspace.textDocuments.find(
+      (document) =>
+        document.uri.scheme === 'file' && path.resolve(document.uri.fsPath) === filePath,
+    );
+    if (open) {
+      await this.sendDocument(open);
+      return;
+    }
+    await this.sendDisk(filePath);
+  }
+
+  private track<T>(work: () => Promise<T>): Promise<T> {
+    return trackAnalysis('typescript', work);
   }
 
   private async runIndex(): Promise<void> {
