@@ -71,6 +71,10 @@ describe('renderSidebarHtml', () => {
     expect(html).toContain(`<script nonce="${nonce}">`);
     expect(html).toContain("type: 'openDiagram'");
     expect(html).toContain('Open Diagram');
+    expect(html).toContain('Entry Points');
+    expect(html).toContain('No entry points yet');
+    expect(html).toContain("type: 'showRequestFlow'");
+    expect(html).toContain("type: 'revealEntry'");
     expect(html).not.toContain('unsafe-inline');
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');

@@ -38,6 +38,7 @@
     "onCommand:codeflow.showFlowAtCursor",
     "onCommand:codeflow.showControlFlowAtCursor",
     "onCommand:codeflow.showTraitMap",
+    "onCommand:codeflow.showRequestFlow",
     "onCommand:codeflow.showCallers",
     "onCommand:codeflow.showCallees",
     "onCommand:codeflow.showFileDependencies",
@@ -66,6 +67,11 @@
         "command": "codeflow.showTraitMap",
         "title": "CodeFlow: Show Trait Map",
         "icon": "$(symbol-interface)"
+      },
+      {
+        "command": "codeflow.showRequestFlow",
+        "title": "CodeFlow: Show Request Flow",
+        "icon": "$(globe)"
       },
       {
         "command": "codeflow.showCallers",
@@ -133,6 +139,9 @@
           "command": "codeflow.showTraitMap"
         },
         {
+          "command": "codeflow.showRequestFlow"
+        },
+        {
           "command": "codeflow.showCallers"
         },
         {
@@ -163,6 +172,11 @@
           "command": "codeflow.showTraitMap",
           "when": "editorLangId == rust",
           "group": "navigation@6"
+        },
+        {
+          "command": "codeflow.showRequestFlow",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@7"
         },
         {
           "command": "codeflow.showCallers",

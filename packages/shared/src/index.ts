@@ -47,6 +47,18 @@ export {
   formatControlFlow,
   parseControlFlowGraph,
 } from './controlFlow';
+export { DATA_CALL_STYLES, DATA_DETECTORS, DATA_TARGETS, isKnownDetector } from './dataDetectors';
+export {
+  FRAMEWORK_LABEL,
+  FRAMEWORKS,
+  REQUEST_FLOW_VERSION,
+  UNRESOLVED_PATH,
+  dataHitId,
+  entryPointId,
+  parseDataHit,
+  parseEntryFileReport,
+  parseEntryPoint,
+} from './requestFlow';
 export {
   DIAGRAM_ERROR_CODES,
   DIAGRAM_MAX_NODES_LIMIT,
@@ -85,6 +97,8 @@ export type {
   SerializedGraphStore,
   SubgraphQuery,
 } from './store';
+export type { DataCallStyle, DataDetector, DataTarget } from './dataDetectors';
+export type { DataHit, EntryFileReport, EntryKind, EntryPoint, Framework } from './requestFlow';
 export type {
   CfgDecisionKind,
   CfgEdgeKind,

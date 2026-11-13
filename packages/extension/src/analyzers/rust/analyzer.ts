@@ -9,12 +9,13 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { hashContent } from '@codeflow/shared';
-import type { FileFragment } from '@codeflow/shared';
+import type { EntryFileReport, FileFragment } from '@codeflow/shared';
 import { pathToFileUri } from '../typescript/uri';
 import type { RustDiscovery } from './discover';
 import { isAnalyzableRustFile } from './discover';
 import { buildRustFragments } from './emit';
 import { parseRustFile } from './parser';
+import { collectRustReports } from './routes';
 import type { ParsedRustFile } from './syntax';
 
 export interface RustAnalysisSession {
@@ -32,6 +33,7 @@ export interface RustAnalysisSession {
   }): FileFragment | undefined;
   remove(filePath: string): void;
   dispose(): void;
+  entryReports(): readonly EntryFileReport[];
 }
 
 interface FileState {
@@ -57,6 +59,7 @@ class RustSession implements RustAnalysisSession {
   public limitReached: boolean;
   private readonly files = new Map<string, FileState>();
   private readonly parsed = new Map<string, ParsedState>();
+  private reports: readonly EntryFileReport[] = [];
 
   public constructor(
     private readonly discovery: RustDiscovery,
@@ -84,10 +87,16 @@ class RustSession implements RustAnalysisSession {
     return this.files.has(path.resolve(filePath));
   }
 
+  public entryReports(): readonly EntryFileReport[] {
+    return this.reports;
+  }
+
   public analyze(): FileFragment[] {
     this.errors.length = 0;
     try {
-      return this.emitAll();
+      const fragments = this.emitAll();
+      this.refreshReports();
+      return fragments;
     } catch (error) {
       this.errors.push(error instanceof Error ? error.message : 'Could not analyze Rust.');
       return [];
@@ -122,7 +131,9 @@ class RustSession implements RustAnalysisSession {
     this.files.set(filePath, state);
     try {
       const uri = pathToFileUri(filePath);
-      return this.emitAll().find((fragment) => fragment.uri === uri);
+      const fragments = this.emitAll();
+      this.refreshReports();
+      return fragments.find((fragment) => fragment.uri === uri);
     } catch (error) {
       this.errors.push(error instanceof Error ? error.message : `Could not analyze ${filePath}.`);
       return undefined;
@@ -138,6 +149,24 @@ class RustSession implements RustAnalysisSession {
   public dispose(): void {
     this.files.clear();
     this.parsed.clear();
+    this.reports = [];
+  }
+
+  private refreshReports(): void {
+    try {
+      this.reports = collectRustReports(
+        [...this.files.values()].map((state) => ({
+          filePath: state.filePath,
+          content: state.content,
+          packageName: packageNameFor(state.filePath, this.discovery),
+        })),
+      );
+    } catch (error) {
+      this.reports = [];
+      this.errors.push(
+        error instanceof Error ? error.message : 'Could not read Rust entry points.',
+      );
+    }
   }
 
   private readFromDisk(filePath: string): void {
@@ -187,4 +216,18 @@ class RustSession implements RustAnalysisSession {
       ...(this.maxFanout !== undefined ? { maxFanout: this.maxFanout } : {}),
     });
   }
+}
+
+function packageNameFor(filePath: string, discovery: RustDiscovery): string {
+  const resolved = path.resolve(filePath);
+  const crates = [...discovery.crates].sort(
+    (left, right) => right.packageDir.length - left.packageDir.length,
+  );
+  for (const crate of crates) {
+    const directory = path.resolve(crate.packageDir);
+    if (resolved === directory || resolved.startsWith(`${directory}${path.sep}`)) {
+      return crate.packageName;
+    }
+  }
+  return path.basename(discovery.rootDir);
 }

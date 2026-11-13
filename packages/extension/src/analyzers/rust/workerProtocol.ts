@@ -49,6 +49,8 @@ export interface WorkerFragmentsMessage {
   readonly type: 'fragments';
   readonly id: number;
   readonly fragments: readonly FileFragment[];
+  /** Entry points and data hits for the files in this batch. Optional for older workers. */
+  readonly reports?: readonly unknown[];
 }
 
 export interface WorkerDoneMessage {

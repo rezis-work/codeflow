@@ -45,8 +45,9 @@ export type DiagramTheme = (typeof DIAGRAM_THEMES)[number];
 /**
  * How much of the workspace graph the diagram is showing.
  * `traits` is the Rust trait and impl map around the focused symbol.
+ * `request` is one route traced from its entry point to data-layer sinks.
  */
-export const DIAGRAM_VIEW_MODES = ['focus', 'workspace', 'traits'] as const;
+export const DIAGRAM_VIEW_MODES = ['focus', 'workspace', 'traits', 'request'] as const;
 export type DiagramViewMode = (typeof DIAGRAM_VIEW_MODES)[number];
 
 /** Largest node cap the webview will accept from config. */

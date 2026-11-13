@@ -137,6 +137,22 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
 export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramViewMode): void {
   const mode = modeOverride ?? host.viewMode?.() ?? 'focus';
   const focusId = host.focusId?.();
+  if (mode === 'request') {
+    const custom = host.focusView?.();
+    if (!custom?.explicit || !custom.graph || custom.graph.nodes.length === 0) {
+      host.post({
+        type: 'error',
+        message: 'Run CodeFlow: Show Request Flow and pick a route.',
+      });
+      host.post({ type: 'graphSnapshot', graph: { nodes: [], edges: [], pendingEdges: [] } });
+      return;
+    }
+    if (focusId) {
+      host.post({ type: 'focusNode', nodeId: focusId });
+    }
+    host.post({ type: 'graphSnapshot', graph: custom.graph });
+    return;
+  }
   if (mode === 'traits') {
     const custom = host.focusView?.();
     if (!custom?.explicit || !custom.graph) {

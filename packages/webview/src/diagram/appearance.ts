@@ -17,6 +17,7 @@ const EDGE_COLOR: Record<EdgeKind, string> = {
   supertrait: 'var(--vscode-charts-yellow, var(--vscode-symbolIcon-interfaceForeground, #dcdcaa))',
   overrides: 'var(--vscode-errorForeground, #f14c4c)',
   provides: 'var(--vscode-charts-foreground, #4ec9b0)',
+  handles: 'var(--vscode-symbolIcon-fieldForeground, #9cdcfe)',
 };
 
 export function edgeColor(kind: EdgeKind): string {
@@ -25,8 +26,9 @@ export function edgeColor(kind: EdgeKind): string {
 
 /**
  * Certain edges are solid. Inferred edges, and edges marked uncertain
- * (dyn Trait, a generic bound, impl Trait, an unresolved receiver), are
- * dashed and faded. `detail` is the tooltip when the analyzer explained why.
+ * (dyn Trait, a generic bound, impl Trait, dependency injection, a closure,
+ * or an unresolved receiver), are dashed and faded. `detail` is the tooltip
+ * when the analyzer explained why.
  */
 export function edgeAppearance(edge: {
   readonly kind: EdgeKind;
@@ -54,4 +56,5 @@ export const EDGE_KIND_LABEL: Record<EdgeKind, string> = {
   supertrait: 'Supertrait',
   overrides: 'Overrides',
   provides: 'Provides',
+  handles: 'Handles',
 };

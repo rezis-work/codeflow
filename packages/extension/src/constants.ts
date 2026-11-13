@@ -6,6 +6,7 @@ export const SHOW_FILE_DEPENDENCIES_COMMAND = 'codeflow.showFileDependencies';
 export const SHOW_DEPENDENCIES_COMMAND = 'codeflow.showDependencies';
 export const SHOW_CONTROL_FLOW_COMMAND = 'codeflow.showControlFlowAtCursor';
 export const SHOW_TRAIT_MAP_COMMAND = 'codeflow.showTraitMap';
+export const SHOW_REQUEST_FLOW_COMMAND = 'codeflow.showRequestFlow';
 /** Editor languages that have a CodeFlow context menu. */
 export const EDITOR_LANGUAGE_IDS = [
   'typescript',

@@ -94,16 +94,28 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     head: `<style nonce="${nonce}">
     body { margin: 0; padding: 16px; background: var(--vscode-sideBar-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
     h1 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+    h2 { margin: 12px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); }
     p { margin: 0 0 12px; line-height: 1.45; color: var(--vscode-descriptionForeground); }
     button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; padding: 6px 14px; font: inherit; cursor: pointer; margin: 0 8px 8px 0; }
     button:hover { background: var(--vscode-button-hoverBackground); }
     button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+    .count { margin: 8px 0; font-size: 11px; color: var(--vscode-descriptionForeground); }
+    input { width: 100%; box-sizing: border-box; margin: 0 0 8px; padding: 4px 6px; font: inherit; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
+    .entry { display: flex; gap: 4px; align-items: stretch; margin: 0 0 4px; }
+    .entry-open { flex: 1; text-align: left; margin: 0; background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
+    .entry-meta { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); }
+    .entry-source { margin: 0; padding: 4px 8px; background: transparent; color: var(--vscode-textLink-foreground); }
   </style>`,
     body: `<main>
     <h1>CodeFlow</h1>
     <p>Open a diagram panel beside the editor to see how the symbols in this workspace connect.</p>
     <button type="button" id="open">Open Diagram</button>
     <button type="button" id="traits">Show Trait Map</button>
+    <h1>Entry Points</h1>
+    <p id="count" class="count">0 entry points</p>
+    <input id="search" type="search" placeholder="Filter routes" aria-label="Filter entry points" />
+    <p id="empty">No entry points yet. CodeFlow looks for Next.js, NestJS, Axum, and Actix routes.</p>
+    <div id="entries"></div>
   </main>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -115,6 +127,72 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     traits?.addEventListener('click', () => {
       vscode.postMessage({ type: 'showTraitMap' });
     });
+    const list = document.getElementById('entries');
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
+    const search = document.getElementById('search');
+    let entries = [];
+    const labels = { next: 'Next.js', nestjs: 'NestJS', axum: 'Axum', actix: 'Actix' };
+    function render() {
+      const query = String(search && search.value || '').trim().toLowerCase();
+      const filtered = entries.filter((entry) => {
+        const hay = (entry.method + ' ' + entry.path + ' ' + entry.handlerName + ' ' + entry.packageName + ' ' + (labels[entry.framework] || entry.framework)).toLowerCase();
+        return query.length === 0 || hay.indexOf(query) !== -1;
+      });
+      if (count) {
+        count.textContent = String(filtered.length) + (filtered.length === 1 ? ' entry point' : ' entry points');
+      }
+      if (empty) {
+        empty.hidden = filtered.length !== 0;
+      }
+      if (!list) {
+        return;
+      }
+      list.textContent = '';
+      let lastKey = '';
+      for (const entry of filtered) {
+        const key = (labels[entry.framework] || entry.framework) + ' · ' + entry.packageName;
+        if (key !== lastKey) {
+          lastKey = key;
+          const header = document.createElement('h2');
+          header.textContent = key;
+          list.appendChild(header);
+        }
+        const row = document.createElement('div');
+        row.className = 'entry';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'entry-open';
+        open.textContent = entry.method + ' ' + entry.path;
+        const meta = document.createElement('span');
+        meta.className = 'entry-meta';
+        meta.textContent = entry.handlerName + (entry.unresolved ? ' · unresolved path' : '');
+        open.appendChild(meta);
+        open.addEventListener('click', () => {
+          vscode.postMessage({ type: 'showRequestFlow', entryId: entry.id });
+        });
+        const source = document.createElement('button');
+        source.type = 'button';
+        source.className = 'entry-source';
+        source.textContent = 'Source';
+        source.addEventListener('click', () => {
+          vscode.postMessage({ type: 'revealEntry', entryId: entry.id });
+        });
+        row.appendChild(open);
+        row.appendChild(source);
+        list.appendChild(row);
+      }
+    }
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (!message || message.type !== 'entries' || !Array.isArray(message.entries)) {
+        return;
+      }
+      entries = message.entries;
+      render();
+    });
+    search?.addEventListener('input', render);
+    render();
   </script>`,
   });
 }

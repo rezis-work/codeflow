@@ -1,3 +1,11 @@
 {
-  "folders": [{ "path": "workspace" }, { "path": "rust-workspace" }, { "path": "trait-map" }],
+  "folders": [
+    { "path": "workspace" },
+    { "path": "rust-workspace" },
+    { "path": "trait-map" },
+    { "path": "request-flow/next-app" },
+    { "path": "request-flow/nestjs" },
+    { "path": "request-flow/axum-app" },
+    { "path": "request-flow/actix-app" },
+  ],
 }

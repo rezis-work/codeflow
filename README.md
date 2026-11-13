@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a Rust trait and impl map, and file or crate dependency maps. Later phases add request flows, sequence views, and runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a Rust trait and impl map, a request traced from its route to the data layer, and file or crate dependency maps. Later phases add sequence views and runtime traces.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
@@ -17,6 +17,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 - Call neighbourhood for the symbol under the cursor, plus callers-only and callees-only views.
 - Control flow for the function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`, for TypeScript, JavaScript, and Rust.
 - Rust trait map: a trait and every workspace impl, or a type and the traits it implements. `dyn Trait`, generic bounds, and `impl Trait` call targets are drawn dashed and marked uncertain.
+- Request flow: Next.js, NestJS, Axum, and Actix entry points, traced from the route through the handler's calls to a data-layer sink. The side panel lists those entry points.
 - Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
 - Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
 - Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
@@ -27,18 +28,19 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ## Commands
 
-These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** appears in that menu for those languages, and on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map as well.
+These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** and **Show Request Flow** appear in that menu for those languages. Control flow is also on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map. The side panel lists entry points and opens a request flow from one of them.
 
-| Command                                            | What it draws                                                                            |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| CodeFlow: Show Flow for Symbol at Cursor           | Undirected neighbourhood of the symbol, depth 2, every edge kind                         |
-| CodeFlow: Show Callers                             | Incoming call edges, depth `codeflow.editor.callDepth` (default 2)                       |
-| CodeFlow: Show Callees                             | Outgoing call edges, same depth                                                          |
-| CodeFlow: Show File Dependencies                   | Import edges of the current file's module                                                |
-| CodeFlow: Show Dependencies                        | The same import view for a file, or the file modules inside a folder plus one import hop |
-| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)               |
-| CodeFlow: Show Trait Map                           | Rust trait, its impls and methods, or a type and the traits it implements                |
-| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                           |
+| Command                                            | What it draws                                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| CodeFlow: Show Flow for Symbol at Cursor           | Undirected neighbourhood of the symbol, depth 2, every edge kind                          |
+| CodeFlow: Show Callers                             | Incoming call edges, depth `codeflow.editor.callDepth` (default 2)                        |
+| CodeFlow: Show Callees                             | Outgoing call edges, same depth                                                           |
+| CodeFlow: Show File Dependencies                   | Import edges of the current file's module                                                 |
+| CodeFlow: Show Dependencies                        | The same import view for a file, or the file modules inside a folder plus one import hop  |
+| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)                |
+| CodeFlow: Show Trait Map                           | Rust trait, its impls and methods, or a type and the traits it implements                 |
+| CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer calls those functions make |
+| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                            |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
@@ -50,9 +52,9 @@ CodeLens is not in this release. It is planned for phase 2.
 | --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `codeflow.editor.followCursor`    | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
 | `codeflow.editor.refocusOnCursor` | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
-| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers and Show Callees (1–32)                                                                                    |
-| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map is a third mode you open with Show Trait Map                                                         |
-| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps how many impls a trait-method call fans out to                                                          |
+| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers, Show Callees, and a request flow (1–32). The route itself is not a step                                   |
+| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map and request flow are opened by their own commands                                                    |
+| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps trait-method fan-out and a request flow                                                                 |
 | `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
 | `codeflow.exclude`                | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
 | `codeflow.maxFiles`               | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
@@ -86,6 +88,10 @@ ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse it
 - Git worktrees, where `.git` is a file, are not watched for branch switches. A normal checkout's `HEAD` is.
 - The diagram reveal ignores the cursor move it just caused. A later move in that editor is followed.
 - Control flow does not branch on `?.`, `??`, `&&`, or `||`. A ternary is a decision only when it is the whole statement, the arrow body, the return value, or a single binding. Nested functions stay one collapsed block. Implicit exceptions from calls are not drawn. A function with more than 500 blocks is truncated. Anonymous functions are refreshed from the range they had when the flowchart opened.
+- A route whose path is computed, or registered through a callback CodeFlow cannot follow, is listed as `unresolved path`. A handler written as a closure is one collapsed node. NestJS route versioning is ignored. A global prefix is applied only when `setGlobalPrefix` is given a string literal.
+- NestJS constructor injection of a concrete class is a certain call. Injection of an interface, an abstract class, or an `@Inject` token is an uncertain edge to the providers that match. Those edges are stored on the controller file, so they refresh when that file is reanalyzed. A decorator imported from a package that is not part of the program is recognized by the imported name.
+- Drizzle `select` / `insert` / `update` / `delete` match a named receiver such as `db`. A repository call such as `this.usersRepository.delete` is TypeORM. A Mongoose model is a capitalized name; a receiver ending in `Factory` is left alone.
+- Request-flow data sinks are name matches (`prisma.pet.findMany`, `sqlx::query!`, `pets::table.load`, and the other rows in the detector table). The database client itself is not a call-graph node. A `fetch` to an `http` or `https` URL is an external sink.
 
 ## Layout
 
@@ -120,10 +126,10 @@ npm run build
 
 Then:
 
-- Click the CodeFlow icon in the activity bar. The sidebar has an **Open Diagram** button.
+- Click the CodeFlow icon in the activity bar. The sidebar has **Open Diagram**, **Show Trait Map**, and an **Entry Points** list.
 - Run **CodeFlow: Open Diagram** from the Command Palette.
 
-The panel shows the diagram. The React view sends `ready`. The extension answers `ack`, then the current theme and the current view of the graph. Click a node to open that symbol in the editor. The expand button asks for its neighbours. **CodeFlow: Show Flow for Symbol at Cursor** centers a depth-2 neighbourhood of the symbol under the cursor. The toolbar switches that focus view and the whole workspace graph. If the panel says the diagram view is not built, run `npm run build` from the repository root.
+The panel shows the diagram. The React view sends `ready`. The extension answers `ack`, then the current theme and the current view of the graph. Click a node to open that symbol in the editor. The expand button asks for its neighbours. **CodeFlow: Show Flow for Symbol at Cursor** centers a depth-2 neighbourhood of the symbol under the cursor. The toolbar switches that focus view, the whole workspace graph, the trait map, and the request flow. If the panel says the diagram view is not built, run `npm run build` from the repository root.
 
 Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, including `paths`, and a folder with neither uses a plain JavaScript project. Workspace packages are read from `package.json` `workspaces` and from `pnpm-workspace.yaml`. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits, saves, watcher events, and git `HEAD` changes are re-analyzed after a short pause, and a burst of paths is one pass. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists. The status bar shows analyzing, the node count, or an error, and opens the panel when clicked.
 
@@ -159,11 +165,11 @@ Reload the window if the CodeFlow icon does not appear immediately. The installe
 
 `packages/shared` is the model both sides share.
 
-A node is a function, a method, a type, or a module. A type node also says whether it is a class, interface, struct, enum, or trait. A file is a module node whose qualified name is `.`. Nested modules use their own qualified names and still carry the file URI.
+A node is a function, a method, a type, a module, an impl, a route, or a data-layer sink. A type node also says whether it is a class, interface, struct, enum, or trait. A file is a module node whose qualified name is `.`. Nested modules use their own qualified names and still carry the file URI. Route and sink nodes are built for the request-flow view. They are not stored in the workspace graph.
 
 A node id is the language (`ts`, `js`, or `rust`), the file URI, and the qualified name. Build it with `nodeId`. Pass `vscode.Uri.toString()` and keep that form. The store only turns backslashes into slashes and drops a trailing slash. TypeScript and JavaScript qualified names join scopes with `.` (`App.start`). Rust qualified names join them with `::` (`app::App::start`). The store does not parse the name.
 
-An edge is a call, an import, or a contains link. `implements` and `extends` are already valid, so later analyzers can emit them without a protocol change. Edges point from caller to callee, from the importing file to the imported file, from a container to its member, and from a type to the type it implements or extends. Each edge is `certain` or `inferred`. Two call sites between the same symbols stay as two edges. Confidence is not part of the edge id, so a later pass can upgrade `inferred` to `certain` in place.
+An edge is a call, an import, a contains link, an implements or extends link, a provides link, or a handles link from a route to its handler. Edges point from caller to callee, from the importing file to the imported file, from a container to its member, and from a type to the type it implements or extends. Each edge is `certain` or `inferred`. An uncertain edge (a `dyn` or generic fan-out, a NestJS interface or token, a closure, an intercepting route) is drawn dashed. Two call sites between the same symbols stay as two edges. Confidence is not part of the edge id, so a later pass can upgrade `inferred` to `certain` in place.
 
 Analyzers should put each edge in the file where the relationship is written. Emit a cross-file edge only when the target file is known, so the target node id can be built. Skip the edge when the target file is unknown. The store keeps an edge pending until both endpoints exist, then resolves it. Invalidating the target file makes the edge pending again. Invalidating the file that owns the edge deletes it.
 
@@ -186,17 +192,51 @@ The panel is a React Flow canvas. ELK lays the graph out left to right with the 
 
 A snapshot, and any change to the edge filters, lays the visible graph out again and fits every node in view. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas. A later `focusNode` (the cursor moved onto a symbol that is already drawn) pans to that node and does not lay the graph out again. Reduced motion makes that pan instant. `cursorHint` is the short "Not in this diagram" line.
 
-A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, switches for each edge kind and for inferred edges, and Focus, Workspace, and Trait map. Certain edges are solid. Inferred edges, and edges marked uncertain, are dashed and dimmer. The tooltip says `inferred`, or the reason (`uncertain: dyn Trait`, `uncertain: generic bound`, `uncertain: impl Trait`, `uncertain: unresolved receiver`, or an inherited default). The legend says the same.
+A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, switches for each edge kind and for inferred edges, and Focus, Workspace, Trait map, and Request. Certain edges are solid. Inferred edges, and edges marked uncertain, are dashed and dimmer. The tooltip says `inferred`, or the reason (`uncertain: dyn Trait`, `uncertain: generic bound`, `uncertain: impl Trait`, `uncertain: unresolved receiver`, `uncertain: DI interface`, `uncertain: custom provider token`, or an inherited default). The legend says the same.
 
-Node colour follows the kind (function, method, type, impl, module). A type shows its `typeKind` (struct, enum, trait, class, interface). An impl node carries a short note: trait impl, generic impl, blanket impl, inherent impl, derived impl, override, or required. A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
+Node colour follows the kind (function, method, type, impl, module, route, sink). A type shows its `typeKind` (struct, enum, trait, class, interface). An impl node carries a short note: trait impl, generic impl, blanket impl, inherent impl, derived impl, override, or required. A route node is labelled with the method and path. A sink node is labelled with the library and, when a literal was found, the table, model, or URL. A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
 
 A Rust `mod` declaration and the file it points at are two nodes joined by an import. The diagram hides the file node, keeps the module, and retargets the file's edges onto that module. The collapsed file name is shown on the module. TypeScript file modules stay visible.
 
-`codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. Trait map is the third mode, opened by **CodeFlow: Show Trait Map** or the toolbar. It is centred on a trait (the trait, its supertraits, every impl, and the methods those impls override or inherit) or on a type (the type and the traits it implements). Clicking a node and moving the cursor work the same way as the other views. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. A trait map that is larger than `codeflow.view.maxNodes` keeps an overflow node. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
+`codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. Trait map is opened by **CodeFlow: Show Trait Map** or the toolbar. It is centred on a trait (the trait, its supertraits, every impl, and the methods those impls override or inherit) or on a type (the type and the traits it implements). Request flow is opened by **CodeFlow: Show Request Flow**, by a row in the side panel, or by the Request toolbar button once a route has been chosen. Clicking a node and moving the cursor work the same way as the other views. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. A trait map that is larger than `codeflow.view.maxNodes` keeps an overflow node. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
 
 While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
 
 A function or method node has a Flow button. It opens a top-to-bottom flowchart of that function (ELK layered, direction down). Decisions and switches are marked, loops are dashed, entry and exit are rounded, returns and throws use their own borders, and exception edges are dashed. Back edges leave the right side of a block. Clicking a block selects its source range. The breadcrumb returns to the call graph. Saving the file rebuilds the flowchart. If the function is gone, the panel says so. A function with more than 500 blocks shows the first 500 and a notice. The same command is **CodeFlow: Show Control Flow for Function at Cursor**. It works for TypeScript, JavaScript, and Rust.
+
+## Request flow
+
+**CodeFlow: Show Request Flow** draws one entry point. Put the cursor in a handler and the command traces that route. Otherwise it asks you to pick one. The side panel's Entry Points section lists every detected route, grouped by framework and package, with a count and a filter. A row opens the trace. Source jumps to the handler. Saving a route file refreshes that file's entries.
+
+Detection is static. Nothing is executed.
+
+- Next.js App Router: exported `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, and `OPTIONS` from `app/**/route.ts` (and `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`), including under `src/`. A route group `(shop)` is omitted from the path. A parallel slot `@modal` is skipped. A dynamic segment stays in the path (`[id]`, `[...slug]`, `[[...slug]]`). An intercepting segment is kept and marked uncertain. A re-exported handler uses the export name as the method and the resolved function as the handler.
+- Next.js Pages Router: a default export under `pages/api` is method `ALL`. `middleware.ts` is an entry point. A string `config.matcher` becomes the path. A computed matcher is `unresolved path`. With no matcher the path is `*`.
+- Server Actions: a file or function with `'use server'` is an `ACTION` entry point.
+- NestJS: `@Controller(prefix)` methods decorated with `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Head`, `@Options`, or `@All`. `app.setGlobalPrefix('api')` is applied when the argument is a string. A non-literal path is `unresolved path`. A constructor parameter typed as a class is a certain call to that class. An interface, an abstract class, or an `@Inject` token fans out, uncertain, to the matching providers.
+- Axum: `Router::new().route`, method-router chains, `.nest`, `.merge`, and a helper that returns a `Router` and is passed to `.nest`, `.merge`, `axum::serve`, or returned. A handler named as a function is a node. A closure is one collapsed uncertain node. A `State` extractor is noted on the route.
+- Actix: `#[get]` / `#[post]` / `#[put]` / `#[delete]` / `#[patch]` / `#[head]` / `#[route]`, `web::resource(path).route(web::get().to(handler))`, `web::scope`, `App::new().service` / `.route`, and `configure`. An attribute route mounted with `.service(handler)` keeps the scope prefix. An unmounted attribute keeps the path on the attribute.
+
+The trace is the route, a handles edge to the handler, then outgoing calls up to `codeflow.editor.callDepth` (default 2), and a sink on any function in that set that calls a known data client. The route itself does not consume a depth step. The node cap is `codeflow.view.maxNodes`.
+
+The sink table lives in `packages/shared` and is the first match:
+
+| Library                  | What counts as a sink                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Prisma                   | `prisma.<model>.findMany` and the other model methods. The model name is the member before the method.       |
+| Drizzle                  | `db.select` / `insert` / `update` / `delete`, and `db.select().from(table)`, and `db.query.<table>`          |
+| TypeORM                  | repository and `EntityManager` methods, and `getRepository`                                                  |
+| Mongoose                 | `Model.findOne` and the other model methods                                                                  |
+| Kysely, Knex             | `selectFrom`, `insertInto`, `knex(table)`, `knex.from`                                                       |
+| pg, postgres, neon       | `` sql`select …` ``, `pool.query`, `client.query`                                                            |
+| fetch                    | an `http` or `https` URL, marked external. A non-literal URL is external and uncertain                       |
+| sqlx                     | `query!`, `query_as!`, `query_scalar!`, and `sqlx::query`. A `fetch_*` on the same statement is the same hit |
+| diesel                   | `.load`, `.get_result`, `.get_results`, and `.execute` on a `table`                                          |
+| sea-orm                  | `Entity::find` and `ActiveModel` save or insert                                                              |
+| tokio-postgres, deadpool | `client.query`, `execute`, `batch_execute`                                                                   |
+| redis                    | `get`, `set`, `del`, `hget`, `hset`, and `redis::cmd`                                                        |
+
+A workspace package is the longest package directory that contains the file, so a pnpm or npm workspace can list `@sample/web` separately from another package.
 
 ## Control flow
 
@@ -235,6 +275,7 @@ Not read yet: macro expansion, `include!`, full type inference, the bodies of st
 - **2.1 Control flow for TypeScript and JavaScript** (done): a flowchart for one function. See [Control flow](#control-flow).
 - **2.2 Control flow for Rust** (done): the same flowchart for Rust functions, methods, and trait defaults. See [Control flow](#control-flow).
 - **2.3 Trait and impl map** (unreleased): Rust traits, every workspace impl, and the possible targets of a trait-method call. `dyn Trait`, generic bounds, and `impl Trait` are uncertain. See [Rust](#rust).
+- **2.4 Request flow and entry points** (unreleased): Next.js, NestJS, Axum, and Actix routes, a trace from the route to a data-layer sink, and the side-panel entry list. See [Request flow](#request-flow).
 
 ## License
 

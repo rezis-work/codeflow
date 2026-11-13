@@ -334,6 +334,10 @@ function minimapColor(node: { data?: { kind?: string } }): string {
       return '#89d185';
     case 'impl':
       return '#d18616';
+    case 'route':
+      return '#9cdcfe';
+    case 'sink':
+      return '#4fc1ff';
     default:
       return '#888888';
   }

@@ -5,7 +5,8 @@
  * caller to callee, importer to the imported file, container to member,
  * implementing type or impl block to its interface or trait, subtype to its
  * base, trait to its supertrait, impl method to the trait method it overrides,
- * and impl block to a default method it inherits.
+ * impl block to a default method it inherits, and a route to the handler
+ * that serves it (`handles`).
  * A `certain` edge was read off the syntax. An `inferred` edge is a guess
  * a later analyzer was not willing to treat as fact. `uncertain` marks a
  * call whose receiver could be any impl (dyn Trait, a generic bound, impl
@@ -30,7 +31,15 @@ import {
 } from './ids';
 import type { EdgeId, Language, NodeId } from './ids';
 
-export const NODE_KINDS = ['function', 'method', 'type', 'module', 'impl'] as const;
+export const NODE_KINDS = [
+  'function',
+  'method',
+  'type',
+  'module',
+  'impl',
+  'route',
+  'sink',
+] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
 export const TYPE_KINDS = ['class', 'interface', 'struct', 'enum', 'trait'] as const;
@@ -45,6 +54,7 @@ export const EDGE_KINDS = [
   'supertrait',
   'overrides',
   'provides',
+  'handles',
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
@@ -81,7 +91,9 @@ interface CodeNodeBase {
 }
 
 export type CodeNode =
-  | (CodeNodeBase & { readonly kind: 'function' | 'method' | 'module' | 'impl' })
+  | (CodeNodeBase & {
+      readonly kind: 'function' | 'method' | 'module' | 'impl' | 'route' | 'sink';
+    })
   | (CodeNodeBase & { readonly kind: 'type'; readonly typeKind: TypeKind });
 
 export interface CodeEdge {
@@ -140,7 +152,7 @@ interface CreateNodeBase {
 
 export type CreateNodeInput =
   | (CreateNodeBase & {
-      readonly kind: 'function' | 'method' | 'module' | 'impl';
+      readonly kind: 'function' | 'method' | 'module' | 'impl' | 'route' | 'sink';
       readonly typeKind?: undefined;
     })
   | (CreateNodeBase & { readonly kind: 'type'; readonly typeKind: TypeKind });
