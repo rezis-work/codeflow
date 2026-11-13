@@ -263,6 +263,10 @@ body {
   border-left-color: var(--vscode-symbolIcon-moduleForeground, var(--vscode-charts-green, #89d185));
 }
 
+.code-node[data-kind='impl'] {
+  border-left-color: var(--vscode-charts-orange, #d18616);
+}
+
 .code-node[data-focused='true'] {
   outline: 2px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 1px;
@@ -398,6 +402,11 @@ body {
   width: 18px;
   height: 2px;
   background: var(--vscode-foreground, #cccccc);
+}
+
+.legend-note {
+  margin: 6px 0 0;
+  color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .legend-swatch-dashed {

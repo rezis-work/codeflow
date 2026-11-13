@@ -95,7 +95,7 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     body { margin: 0; padding: 16px; background: var(--vscode-sideBar-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
     h1 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
     p { margin: 0 0 12px; line-height: 1.45; color: var(--vscode-descriptionForeground); }
-    button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; padding: 6px 14px; font: inherit; cursor: pointer; }
+    button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 2px; padding: 6px 14px; font: inherit; cursor: pointer; margin: 0 8px 8px 0; }
     button:hover { background: var(--vscode-button-hoverBackground); }
     button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
   </style>`,
@@ -103,12 +103,17 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     <h1>CodeFlow</h1>
     <p>Open a diagram panel beside the editor to see how the symbols in this workspace connect.</p>
     <button type="button" id="open">Open Diagram</button>
+    <button type="button" id="traits">Show Trait Map</button>
   </main>
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
     const button = document.getElementById('open');
     button?.addEventListener('click', () => {
       vscode.postMessage({ type: 'openDiagram' });
+    });
+    const traits = document.getElementById('traits');
+    traits?.addEventListener('click', () => {
+      vscode.postMessage({ type: 'showTraitMap' });
     });
   </script>`,
   });

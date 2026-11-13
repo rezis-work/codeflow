@@ -11,6 +11,7 @@
 import Parser from 'web-tree-sitter';
 import type { SourceRange } from '@codeflow/shared';
 import type {
+  DispatchKind,
   ParsedCall,
   ParsedFunction,
   ParsedImpl,
@@ -21,6 +22,7 @@ import type {
   ParsedReceiver,
   ParsedRustFile,
   ParsedType,
+  ParsedUfcs,
   ParsedUse,
 } from './syntax';
 
@@ -35,6 +37,17 @@ type BindingSource = ParsedReceiver['source'];
 interface Binding {
   readonly segments: readonly string[];
   readonly source: BindingSource;
+  readonly dispatch?: DispatchKind;
+  readonly traitPaths?: readonly (readonly string[])[];
+}
+
+type TraitPaths = readonly (readonly string[])[];
+
+interface TypeShape {
+  readonly segments: readonly string[];
+  readonly label: string;
+  readonly dispatch: DispatchKind;
+  readonly traitPaths: TraitPaths;
 }
 
 let ready: Promise<void> | undefined;
@@ -87,7 +100,11 @@ async function loadParser(files: RustParserFiles): Promise<void> {
   parser = created;
 }
 
-function parseItems(node: SyntaxNode, selfType?: readonly string[]): ParsedItem[] {
+function parseItems(
+  node: SyntaxNode,
+  selfType?: readonly string[],
+  selfDispatch?: 'trait' | 'concrete',
+): ParsedItem[] {
   const items: ParsedItem[] = [];
   let attributes: SyntaxNode[] = [];
   for (const child of node.namedChildren) {
@@ -105,7 +122,7 @@ function parseItems(node: SyntaxNode, selfType?: readonly string[]): ParsedItem[
     }
     const pending = attributes;
     attributes = [];
-    const item = parseItem(child, pending, selfType);
+    const item = parseItem(child, pending, selfType, selfDispatch);
     if (item) {
       items.push(item);
     }
@@ -117,14 +134,15 @@ function parseItem(
   node: SyntaxNode,
   attributes: readonly SyntaxNode[],
   selfType?: readonly string[],
+  selfDispatch?: 'trait' | 'concrete',
 ): ParsedItem | undefined {
   if (node.type === 'function_item' || node.type === 'function_signature_item') {
-    return { kind: 'function', fn: parseFunction(node, selfType) };
+    return { kind: 'function', fn: parseFunction(node, selfType, selfDispatch) };
   }
   if (node.type === 'struct_item' || node.type === 'enum_item' || node.type === 'trait_item') {
     const kind =
       node.type === 'struct_item' ? 'struct' : node.type === 'enum_item' ? 'enum' : 'trait';
-    return { kind: 'type', type: parseType(node, kind) };
+    return { kind: 'type', type: parseType(node, kind, attributes) };
   }
   if (node.type === 'mod_item') {
     return { kind: 'module', module: parseModule(node, attributes) };
@@ -140,43 +158,66 @@ function parseItem(
   return undefined;
 }
 
-function parseFunction(node: SyntaxNode, selfType?: readonly string[]): ParsedFunction {
+function parseFunction(
+  node: SyntaxNode,
+  selfType?: readonly string[],
+  selfDispatch?: 'trait' | 'concrete',
+): ParsedFunction {
   const name = fieldText(node, 'name') ?? 'fn';
+  const bounds = typeParamBounds(node);
   const parameters = field(node, 'parameters');
-  const params = parameters ? parseParams(parameters) : [];
+  const params = parameters ? parseParams(parameters, bounds) : [];
   const scope = new Map<string, Binding>();
   if (selfType && selfType.length > 0 && parameters && hasSelf(parameters)) {
-    scope.set('self', { segments: selfType, source: 'annotation' });
+    scope.set('self', {
+      segments: selfType,
+      source: 'annotation',
+      ...(selfDispatch === 'trait'
+        ? { dispatch: 'generic' as const, traitPaths: [selfType] }
+        : { dispatch: 'concrete' as const }),
+    });
   }
   for (const param of params) {
     if (param.typeSegments && param.typeSegments.length > 0) {
-      scope.set(param.name, { segments: param.typeSegments, source: 'annotation' });
+      scope.set(param.name, {
+        segments: param.typeSegments,
+        source: 'annotation',
+        ...(param.dispatch ? { dispatch: param.dispatch } : {}),
+        ...(param.traitPaths && param.traitPaths.length > 0
+          ? { traitPaths: param.traitPaths }
+          : {}),
+      });
     }
   }
   const calls: ParsedCall[] = [];
   const nested: ParsedFunction[] = [];
   const body = field(node, 'body');
   if (body) {
-    visitNode(body, scope, calls, nested);
+    visitNode(body, scope, calls, nested, bounds);
   }
   return {
     name,
     range: rangeOf(node),
     generic: field(node, 'type_parameters') !== undefined,
     public: isPublic(node),
+    hasBody: body !== undefined,
     params,
     calls,
     nested,
   };
 }
 
-function parseType(node: SyntaxNode, kind: ParsedType['kind']): ParsedType {
+function parseType(
+  node: SyntaxNode,
+  kind: ParsedType['kind'],
+  attributes: readonly SyntaxNode[],
+): ParsedType {
   const name = fieldText(node, 'name') ?? kind;
   const selfType = [name];
   const body = field(node, 'body');
   const methods: ParsedFunction[] = [];
   if (body && kind === 'trait') {
-    for (const item of parseItems(body, selfType)) {
+    for (const item of parseItems(body, selfType, 'trait')) {
       if (item.kind === 'function') {
         methods.push(item.fn);
       }
@@ -187,7 +228,10 @@ function parseType(node: SyntaxNode, kind: ParsedType['kind']): ParsedType {
     name,
     range: rangeOf(node),
     public: isPublic(node),
+    generic: field(node, 'type_parameters') !== undefined,
     methods,
+    supertraits: kind === 'trait' ? boundPaths(field(node, 'bounds')) : [],
+    derives: kind === 'trait' ? [] : derivePaths(attributes),
   };
 }
 
@@ -212,21 +256,26 @@ function parseImpl(node: SyntaxNode): ParsedImpl | undefined {
   if (!typeSegments || typeSegments.length === 0) {
     return undefined;
   }
+  const params = typeParamNames(field(node, 'type_parameters'));
   const traitNode = field(node, 'trait');
   const traitSegments = traitNode ? nominalSegments(traitNode) : undefined;
   const body = field(node, 'body');
   const methods: ParsedFunction[] = [];
   if (body) {
-    for (const item of parseItems(body, typeSegments)) {
+    for (const item of parseItems(body, typeSegments, 'concrete')) {
       if (item.kind === 'function') {
         methods.push(item.fn);
       }
     }
   }
+  const blanket = typeSegments.length === 1 && params.includes(typeSegments[0] ?? '');
   return {
     range: rangeOf(node),
     ...(traitSegments && traitSegments.length > 0 ? { traitSegments } : {}),
     typeSegments,
+    typeLabel: compact(typeNode.text),
+    generic: params.length > 0,
+    blanket,
     negative: isNegativeImpl(node, traitNode),
     methods,
   };
@@ -288,6 +337,7 @@ function visitNode(
   scope: ReadonlyMap<string, Binding>,
   calls: ParsedCall[],
   nested: ParsedFunction[],
+  bounds: ReadonlyMap<string, TraitPaths>,
 ): void {
   if (
     node.type === 'macro_invocation' ||
@@ -303,35 +353,36 @@ function visitNode(
   if (node.type === 'block') {
     const inner = new Map(scope);
     for (const child of node.namedChildren) {
-      visitNode(child, inner, calls, nested);
+      visitNode(child, inner, calls, nested, bounds);
     }
     return;
   }
   if (node.type === 'let_declaration') {
     const value = field(node, 'value');
     if (value) {
-      visitNode(value, scope, calls, nested);
+      visitNode(value, scope, calls, nested, bounds);
     }
-    const binding = bindingFromLet(node, scope);
+    const binding = bindingFromLet(node, scope, bounds);
     if (binding && scope instanceof Map) {
       scope.set(binding.name, binding.binding);
     }
     return;
   }
   if (node.type === 'call_expression') {
-    const call = callFrom(node, scope);
+    const call = callFrom(node, scope, bounds);
     if (call) {
       calls.push(call);
     }
   }
   for (const child of node.namedChildren) {
-    visitNode(child, scope, calls, nested);
+    visitNode(child, scope, calls, nested, bounds);
   }
 }
 
 function bindingFromLet(
   node: SyntaxNode,
   scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
 ): { name: string; binding: Binding } | undefined {
   const pattern = field(node, 'pattern');
   const name = pattern ? bindingName(pattern) : undefined;
@@ -339,19 +390,33 @@ function bindingFromLet(
     return undefined;
   }
   const ascribed = field(node, 'type');
-  const ascribedSegments = ascribed ? nominalSegments(ascribed) : undefined;
-  if (ascribedSegments && ascribedSegments.length > 0) {
-    return { name, binding: { segments: ascribedSegments, source: 'annotation' } };
+  if (ascribed) {
+    const shape = shapeOf(ascribed, bounds);
+    if (shape.segments.length > 0 || shape.traitPaths.length > 0) {
+      return {
+        name,
+        binding: {
+          segments: shape.segments,
+          source: 'annotation',
+          dispatch: shape.dispatch,
+          ...(shape.traitPaths.length > 0 ? { traitPaths: shape.traitPaths } : {}),
+        },
+      };
+    }
   }
   const value = field(node, 'value');
-  const inferred = value ? inferReceiver(value, scope) : undefined;
+  const inferred = value ? inferReceiver(value, scope, bounds) : undefined;
   if (!inferred) {
     return undefined;
   }
   return { name, binding: inferred };
 }
 
-function callFrom(node: SyntaxNode, scope: ReadonlyMap<string, Binding>): ParsedCall | undefined {
+function callFrom(
+  node: SyntaxNode,
+  scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
+): ParsedCall | undefined {
   const callee = unwrapGeneric(field(node, 'function'));
   if (!callee) {
     return undefined;
@@ -362,13 +427,30 @@ function callFrom(node: SyntaxNode, scope: ReadonlyMap<string, Binding>): Parsed
     if (!method || !value) {
       return undefined;
     }
-    const receiver = receiverFrom(value, scope);
+    const receiver = receiverFrom(value, scope, bounds);
     return {
       range: rangeOf(node),
       kind: 'method',
       path: [],
       method,
       ...(receiver ? { receiver } : {}),
+      ...(receiver?.dispatch ? { dispatch: receiver.dispatch } : {}),
+      ...(receiver?.traitPaths && receiver.traitPaths.length > 0
+        ? { traitPaths: receiver.traitPaths }
+        : {}),
+    };
+  }
+  const ufcs = ufcsFrom(callee, scope, bounds);
+  if (ufcs) {
+    return {
+      range: rangeOf(node),
+      kind: 'path',
+      path: [...ufcs.traitSegments, ufcs.method],
+      method: ufcs.method,
+      ufcs,
+      dispatch: ufcs.dispatch,
+      ...(ufcs.traitPaths && ufcs.traitPaths.length > 0 ? { traitPaths: ufcs.traitPaths } : {}),
+      ...(ufcs.typeSegments ? { receiverType: ufcs.typeSegments } : {}),
     };
   }
   const path = pathSegments(callee);
@@ -380,37 +462,58 @@ function callFrom(node: SyntaxNode, scope: ReadonlyMap<string, Binding>): Parsed
   if (path.length === 1 && scope.has(path[0] ?? '')) {
     return undefined;
   }
-  return { range: rangeOf(node), kind: 'path', path };
+  const argument = argumentShape(node, scope, bounds);
+  return {
+    range: rangeOf(node),
+    kind: 'path',
+    path,
+    ...(argument
+      ? {
+          dispatch: argument.dispatch,
+          ...(argument.traitPaths.length > 0 ? { traitPaths: argument.traitPaths } : {}),
+          ...(argument.segments.length > 0 ? { receiverType: argument.segments } : {}),
+        }
+      : {}),
+  };
 }
 
 function receiverFrom(
   node: SyntaxNode,
   scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
 ): ParsedReceiver | undefined {
   const inner = unwrapExpr(node);
   if (inner.type === 'self' || (inner.type === 'identifier' && inner.text === 'self')) {
-    const binding = scope.get('self');
-    return binding ? { segments: binding.segments, source: binding.source } : undefined;
+    return bindingReceiver(scope.get('self'));
   }
   if (inner.type === 'identifier') {
-    const binding = scope.get(inner.text);
-    return binding ? { segments: binding.segments, source: binding.source } : undefined;
+    return bindingReceiver(scope.get(inner.text));
   }
   if (inner.type === 'struct_expression') {
     const name = field(inner, 'name');
     const segments = name ? pathSegments(name) : [];
-    return segments.length > 0 ? { segments, source: 'struct' } : undefined;
+    return segments.length > 0 ? { segments, source: 'struct', dispatch: 'concrete' } : undefined;
   }
-  return inferReceiver(inner, scope);
+  const shape = shapeOfExpression(inner, bounds);
+  if (shape && (shape.dispatch === 'dyn' || shape.dispatch === 'impl-trait')) {
+    return {
+      segments: shape.segments,
+      source: 'annotation',
+      dispatch: shape.dispatch,
+      ...(shape.traitPaths.length > 0 ? { traitPaths: shape.traitPaths } : {}),
+    };
+  }
+  return inferReceiver(inner, scope, bounds);
 }
 
 function inferReceiver(
   node: SyntaxNode,
   scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
 ): ParsedReceiver | undefined {
   const inner = unwrapExpr(node);
   if (inner.type === 'struct_expression') {
-    return receiverFrom(inner, scope);
+    return receiverFrom(inner, scope, bounds);
   }
   if (inner.type !== 'call_expression') {
     return undefined;
@@ -457,7 +560,10 @@ function unwrapGeneric(node: SyntaxNode | undefined): SyntaxNode | undefined {
   return node;
 }
 
-function parseParams(parameters: SyntaxNode): ParsedParam[] {
+function parseParams(
+  parameters: SyntaxNode,
+  bounds: ReadonlyMap<string, TraitPaths>,
+): ParsedParam[] {
   const params: ParsedParam[] = [];
   for (const child of parameters.namedChildren) {
     if (child.type !== 'parameter') {
@@ -469,8 +575,17 @@ function parseParams(parameters: SyntaxNode): ParsedParam[] {
       continue;
     }
     const typeNode = field(child, 'type');
-    const typeSegments = typeNode ? nominalSegments(typeNode) : undefined;
-    params.push(typeSegments ? { name, typeSegments } : { name });
+    if (!typeNode) {
+      params.push({ name });
+      continue;
+    }
+    const shape = shapeOf(typeNode, bounds);
+    params.push({
+      name,
+      ...(shape.segments.length > 0 ? { typeSegments: shape.segments } : {}),
+      dispatch: shape.dispatch,
+      ...(shape.traitPaths.length > 0 ? { traitPaths: shape.traitPaths } : {}),
+    });
   }
   return params;
 }
@@ -490,6 +605,313 @@ function bindingName(node: SyntaxNode): string | undefined {
     return inner ? bindingName(inner) : undefined;
   }
   return undefined;
+}
+
+function typeParamBounds(node: SyntaxNode): Map<string, TraitPaths> {
+  const bounds = new Map<string, TraitPaths>();
+  const parameters = field(node, 'type_parameters');
+  if (parameters) {
+    for (const child of parameters.namedChildren) {
+      if (child.type !== 'type_parameter') {
+        continue;
+      }
+      const name = fieldText(child, 'name');
+      if (!name) {
+        continue;
+      }
+      bounds.set(name, boundPaths(field(child, 'bounds')));
+    }
+  }
+  const where = node.namedChildren.find((child) => child.type === 'where_clause');
+  if (!where) {
+    return bounds;
+  }
+  for (const predicate of where.namedChildren) {
+    if (predicate.type !== 'where_predicate') {
+      continue;
+    }
+    const left = field(predicate, 'left');
+    const name =
+      left && (left.type === 'type_identifier' || left.type === 'identifier')
+        ? left.text
+        : undefined;
+    if (!name) {
+      continue;
+    }
+    bounds.set(name, [...(bounds.get(name) ?? []), ...boundPaths(field(predicate, 'bounds'))]);
+  }
+  return bounds;
+}
+
+function typeParamNames(parameters: SyntaxNode | undefined): string[] {
+  if (!parameters) {
+    return [];
+  }
+  const names: string[] = [];
+  for (const child of parameters.namedChildren) {
+    if (child.type !== 'type_parameter') {
+      continue;
+    }
+    const name = fieldText(child, 'name');
+    if (name) {
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+function boundPaths(bounds: SyntaxNode | undefined): string[][] {
+  if (!bounds) {
+    return [];
+  }
+  const paths: string[][] = [];
+  const visit = (node: SyntaxNode): void => {
+    if (node.type === 'lifetime' || node.type === 'higher_ranked_trait_bound') {
+      return;
+    }
+    if (
+      node.type === 'type_identifier' ||
+      node.type === 'scoped_type_identifier' ||
+      node.type === 'generic_type' ||
+      node.type === 'identifier'
+    ) {
+      const segments = pathSegments(node);
+      if (segments.length > 0) {
+        paths.push(segments);
+      }
+      return;
+    }
+    for (const child of node.namedChildren) {
+      visit(child);
+    }
+  };
+  visit(bounds);
+  return paths;
+}
+
+function derivePaths(attributes: readonly SyntaxNode[]): string[][] {
+  const paths: string[][] = [];
+  for (const item of attributes) {
+    const attribute = item.namedChildren.find((child) => child.type === 'attribute');
+    if (!attribute) {
+      continue;
+    }
+    const pathNode = attribute.namedChildren[0];
+    if (!pathNode || pathNode.text !== 'derive') {
+      continue;
+    }
+    const args =
+      field(attribute, 'arguments') ??
+      attribute.namedChildren.find((child) => child.type === 'token_tree');
+    if (args) {
+      collectDeriveNames(args, paths);
+    }
+  }
+  return paths;
+}
+
+function collectDeriveNames(node: SyntaxNode, paths: string[][]): void {
+  if (
+    node.type === 'identifier' ||
+    node.type === 'type_identifier' ||
+    node.type === 'scoped_identifier' ||
+    node.type === 'scoped_type_identifier'
+  ) {
+    const segments = pathSegments(node);
+    if (segments.length > 0 && segments[segments.length - 1] !== 'derive') {
+      paths.push(segments);
+    }
+    return;
+  }
+  for (const child of node.namedChildren) {
+    collectDeriveNames(child, paths);
+  }
+}
+
+function compact(text: string): string {
+  return text.replaceAll(/\s+/g, ' ').trim();
+}
+
+function shapeOf(node: SyntaxNode, bounds: ReadonlyMap<string, TraitPaths>): TypeShape {
+  let current = node;
+  while (current.type === 'reference_type' || current.type === 'pointer_type') {
+    const inner = field(current, 'type');
+    if (!inner) {
+      break;
+    }
+    current = inner;
+  }
+  const label = compact(node.text);
+  if (current.type === 'dynamic_type') {
+    const trait = field(current, 'trait');
+    const segments = trait ? pathSegments(trait) : [];
+    return {
+      segments,
+      label,
+      dispatch: 'dyn',
+      traitPaths: segments.length > 0 ? [segments] : [],
+    };
+  }
+  if (current.type === 'abstract_type') {
+    const trait = field(current, 'trait');
+    const segments = trait ? pathSegments(trait) : [];
+    return {
+      segments,
+      label,
+      dispatch: 'impl-trait',
+      traitPaths: segments.length > 0 ? [segments] : [],
+    };
+  }
+  if (current.type === 'bounded_type') {
+    const paths = boundPaths(current);
+    const first = paths[0] ?? [];
+    return {
+      segments: first,
+      label,
+      dispatch: paths.length > 0 ? 'dyn' : 'unknown',
+      traitPaths: paths,
+    };
+  }
+  if (current.type === 'generic_type') {
+    const inner = field(current, 'type');
+    const base = inner ? pathSegments(inner) : [];
+    const args = field(current, 'type_arguments');
+    const firstType = args?.namedChildren.find((child) => isTypeLike(child));
+    const baseName = base[base.length - 1];
+    if (firstType && (baseName === 'Box' || baseName === 'Arc' || baseName === 'Rc')) {
+      const innerShape = shapeOf(firstType, bounds);
+      if (innerShape.dispatch === 'dyn' || innerShape.dispatch === 'impl-trait') {
+        return { ...innerShape, label };
+      }
+    }
+    return { segments: base, label, dispatch: 'concrete', traitPaths: [] };
+  }
+  const segments = pathSegments(current);
+  if (segments.length === 1) {
+    const param = bounds.get(segments[0] ?? '');
+    if (param && param.length > 0) {
+      return { segments, label, dispatch: 'generic', traitPaths: param };
+    }
+  }
+  return {
+    segments,
+    label,
+    dispatch: segments.length > 0 ? 'concrete' : 'unknown',
+    traitPaths: [],
+  };
+}
+
+function shapeOfExpression(
+  node: SyntaxNode,
+  bounds: ReadonlyMap<string, TraitPaths>,
+): TypeShape | undefined {
+  if (
+    node.type === 'reference_type' ||
+    node.type === 'dynamic_type' ||
+    node.type === 'abstract_type' ||
+    node.type === 'generic_type'
+  ) {
+    return shapeOf(node, bounds);
+  }
+  return undefined;
+}
+
+function ufcsFrom(
+  callee: SyntaxNode,
+  scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
+): ParsedUfcs | undefined {
+  if (callee.type !== 'scoped_identifier' && callee.type !== 'scoped_type_identifier') {
+    return undefined;
+  }
+  const method = fieldText(callee, 'name');
+  const pathNode = field(callee, 'path');
+  if (!method || !pathNode || pathNode.type !== 'bracketed_type') {
+    return undefined;
+  }
+  const inner = pathNode.namedChildren[0];
+  if (!inner || inner.type !== 'qualified_type') {
+    return undefined;
+  }
+  const typeNode = field(inner, 'type');
+  const alias = field(inner, 'alias');
+  const traitSegments = alias ? pathSegments(alias) : [];
+  if (traitSegments.length === 0) {
+    return undefined;
+  }
+  const shape = typeNode ? shapeOf(typeNode, bounds) : undefined;
+  const binding =
+    shape && shape.segments.length === 1 ? scope.get(shape.segments[0] ?? '') : undefined;
+  const dispatch = binding?.dispatch ?? shape?.dispatch ?? 'unknown';
+  const traitPaths =
+    binding?.traitPaths && binding.traitPaths.length > 0
+      ? binding.traitPaths
+      : shape?.traitPaths && shape.traitPaths.length > 0
+        ? shape.traitPaths
+        : [traitSegments];
+  return {
+    method,
+    traitSegments,
+    ...(shape && shape.segments.length > 0 ? { typeSegments: shape.segments } : {}),
+    dispatch,
+    traitPaths,
+  };
+}
+
+function argumentShape(
+  call: SyntaxNode,
+  scope: ReadonlyMap<string, Binding>,
+  bounds: ReadonlyMap<string, TraitPaths>,
+): TypeShape | undefined {
+  const args = field(call, 'arguments');
+  const first = args?.namedChildren.find(
+    (child) => child.type !== 'attribute_item' && child.type !== ',',
+  );
+  if (!first) {
+    return undefined;
+  }
+  const inner = unwrapExpr(first);
+  if (inner.type === 'identifier' || inner.type === 'self') {
+    const binding = scope.get(inner.type === 'self' ? 'self' : inner.text);
+    if (!binding) {
+      return undefined;
+    }
+    return {
+      segments: binding.segments,
+      label: inner.text,
+      dispatch: binding.dispatch ?? 'concrete',
+      traitPaths: binding.traitPaths ?? [],
+    };
+  }
+  return shapeOfExpression(inner, bounds);
+}
+
+function bindingReceiver(binding: Binding | undefined): ParsedReceiver | undefined {
+  if (!binding) {
+    return undefined;
+  }
+  return {
+    segments: binding.segments,
+    source: binding.source,
+    ...(binding.dispatch ? { dispatch: binding.dispatch } : {}),
+    ...(binding.traitPaths && binding.traitPaths.length > 0
+      ? { traitPaths: binding.traitPaths }
+      : {}),
+  };
+}
+
+function isTypeLike(node: SyntaxNode): boolean {
+  return (
+    node.type === 'type_identifier' ||
+    node.type === 'scoped_type_identifier' ||
+    node.type === 'generic_type' ||
+    node.type === 'reference_type' ||
+    node.type === 'dynamic_type' ||
+    node.type === 'abstract_type' ||
+    node.type === 'tuple_type' ||
+    node.type === 'bounded_type' ||
+    node.type === 'primitive_type'
+  );
 }
 
 function nominalSegments(node: SyntaxNode): readonly string[] | undefined {

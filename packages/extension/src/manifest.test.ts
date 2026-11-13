@@ -8,6 +8,7 @@ import {
   SHOW_FILE_DEPENDENCIES_COMMAND,
   SHOW_CONTROL_FLOW_COMMAND,
   SHOW_FLOW_COMMAND,
+  SHOW_TRAIT_MAP_COMMAND,
   SIDEBAR_VIEW_ID,
   VIEW_CONTAINER_ID,
 } from './constants';
@@ -69,6 +70,7 @@ describe('extension manifest', () => {
         SHOW_FILE_DEPENDENCIES_COMMAND,
         SHOW_DEPENDENCIES_COMMAND,
         SHOW_CONTROL_FLOW_COMMAND,
+        SHOW_TRAIT_MAP_COMMAND,
       ]),
     );
     const palette = manifest.contributes?.menus?.commandPalette?.map((item) => item.command) ?? [];
@@ -80,6 +82,7 @@ describe('extension manifest', () => {
         SHOW_FILE_DEPENDENCIES_COMMAND,
         SHOW_DEPENDENCIES_COMMAND,
         SHOW_CONTROL_FLOW_COMMAND,
+        SHOW_TRAIT_MAP_COMMAND,
       ]),
     );
     const containers = manifest.contributes?.viewsContainers?.activitybar ?? [];
@@ -128,6 +131,11 @@ describe('extension manifest', () => {
     expect(flowWhen).toContain('editorLangId == typescript');
     expect(flowWhen).toContain('editorLangId == rust');
     expect(manifest.activationEvents).toContain(`onCommand:${SHOW_CONTROL_FLOW_COMMAND}`);
+    expect(manifest.activationEvents).toContain(`onCommand:${SHOW_TRAIT_MAP_COMMAND}`);
+    const traitWhen = manifest.contributes?.menus?.['editor/context']?.find(
+      (item) => item.command === SHOW_TRAIT_MAP_COMMAND,
+    )?.when;
+    expect(traitWhen).toBe('editorLangId == rust');
     expect(binding?.when).not.toContain('shift+alt+f');
     const follow =
       manifest.contributes?.configuration?.properties?.['codeflow.editor.followCursor'];

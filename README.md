@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one TypeScript or JavaScript function, and file or crate dependency maps. Later phases add Rust control flow, request flows, trait and impl maps, sequence views, and runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a Rust trait and impl map, and file or crate dependency maps. Later phases add request flows, sequence views, and runtime traces.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
@@ -15,7 +15,8 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 ## Features
 
 - Call neighbourhood for the symbol under the cursor, plus callers-only and callees-only views.
-- Control flow for the TypeScript or JavaScript function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`. Rust control flow comes later.
+- Control flow for the function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`, for TypeScript, JavaScript, and Rust.
+- Rust trait map: a trait and every workspace impl, or a type and the traits it implements. `dyn Trait`, generic bounds, and `impl Trait` call targets are drawn dashed and marked uncertain.
 - Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
 - Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
 - Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
@@ -26,7 +27,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ## Commands
 
-These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** appears in that menu for TypeScript and JavaScript, and on a function or method node in the call diagram. **CodeFlow: Show Dependencies** appears on files and folders in the explorer.
+These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** appears in that menu for those languages, and on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map as well.
 
 | Command                                            | What it draws                                                                            |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -35,7 +36,8 @@ These appear in the Command Palette. The four call and import commands also appe
 | CodeFlow: Show Callees                             | Outgoing call edges, same depth                                                          |
 | CodeFlow: Show File Dependencies                   | Import edges of the current file's module                                                |
 | CodeFlow: Show Dependencies                        | The same import view for a file, or the file modules inside a folder plus one import hop |
-| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript and JavaScript)                      |
+| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)               |
+| CodeFlow: Show Trait Map                           | Rust trait, its impls and methods, or a type and the traits it implements                |
 | CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                           |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
@@ -49,8 +51,8 @@ CodeLens is not in this release. It is planned for phase 2.
 | `codeflow.editor.followCursor`    | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
 | `codeflow.editor.refocusOnCursor` | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
 | `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers and Show Callees (1–32)                                                                                    |
-| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`                                                                                                                 |
-| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once                                                                                                                    |
+| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map is a third mode you open with Show Trait Map                                                         |
+| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps how many impls a trait-method call fans out to                                                          |
 | `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
 | `codeflow.exclude`                | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
 | `codeflow.maxFiles`               | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
@@ -184,13 +186,13 @@ The panel is a React Flow canvas. ELK lays the graph out left to right with the 
 
 A snapshot, and any change to the edge filters, lays the visible graph out again and fits every node in view. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas. A later `focusNode` (the cursor moved onto a symbol that is already drawn) pans to that node and does not lay the graph out again. Reduced motion makes that pan instant. `cursorHint` is the short "Not in this diagram" line.
 
-A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, and switches for each edge kind and for inferred edges. Certain edges are solid. Inferred edges are dashed, dimmer, and their tooltip says `inferred`.
+A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, switches for each edge kind and for inferred edges, and Focus, Workspace, and Trait map. Certain edges are solid. Inferred edges, and edges marked uncertain, are dashed and dimmer. The tooltip says `inferred`, or the reason (`uncertain: dyn Trait`, `uncertain: generic bound`, `uncertain: impl Trait`, `uncertain: unresolved receiver`, or an inherited default). The legend says the same.
 
-Node colour follows the kind (function, method, type, module). A type shows its `typeKind` (struct, enum, trait, class, interface). A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
+Node colour follows the kind (function, method, type, impl, module). A type shows its `typeKind` (struct, enum, trait, class, interface). An impl node carries a short note: trait impl, generic impl, blanket impl, inherent impl, derived impl, override, or required. A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
 
 A Rust `mod` declaration and the file it points at are two nodes joined by an import. The diagram hides the file node, keeps the module, and retargets the file's edges onto that module. The collapsed file name is shown on the module. TypeScript file modules stay visible.
 
-`codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
+`codeflow.view.defaultMode` is `focus` or `workspace` (default `focus`). Focus mode draws the depth-2 neighbourhood. Workspace mode draws the whole graph and still highlights `focusNode`. Trait map is the third mode, opened by **CodeFlow: Show Trait Map** or the toolbar. It is centred on a trait (the trait, its supertraits, every impl, and the methods those impls override or inherit) or on a type (the type and the traits it implements). Clicking a node and moving the cursor work the same way as the other views. When the cap hides nodes, the panel says so and, in workspace mode, suggests focus mode. A trait map that is larger than `codeflow.view.maxNodes` keeps an overflow node. The diagram uses VS Code theme colours, including high contrast, and turns motion off when the user prefers reduced motion. TypeScript and Rust nodes from one workspace are drawn together.
 
 While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
 
@@ -210,13 +212,17 @@ Macros are not expanded, so only those panic and assert names are recognized, an
 
 The Rust adapter parses `.rs` files with the WASM build of tree-sitter-rust, so the vsix does not ship a platform-specific native module. `cargo metadata --no-deps` names the crates. When cargo is not installed, or metadata fails, CodeFlow scans `Cargo.toml` and `src/` instead and shows one warning.
 
-It records free functions, structs, enums, traits, trait methods, impl methods (on the type they belong to), and modules. Module declarations cover inline modules and file modules (`foo.rs` and `foo/mod.rs`, including `#[path]`). Contains edges link a file or type to its members. `use` and `mod` become import edges when the path can be resolved (`crate::`, `self::`, `super::`, and another crate in the workspace). `impl Trait for Type` becomes an implements edge. Calls are read from the syntax: `foo()`, `Type::new()`, and method calls whose receiver type is obvious from an annotation, `self`, or a struct literal. A call is `certain` when one workspace item matches. It is `inferred` when the receiver type was only guessed, as with `let widget = Widget::new()`, or when several items match.
+It records free functions, structs, enums, traits, trait methods, impl blocks, impl methods (on the type they belong to), and modules. A trait keeps its supertraits and whether each method is required or a default. An `impl Trait for Type` records the impl, including a generic impl (`impl<T: Display> Trait for Vec<T>`), a blanket impl (`impl<T: Bound> Trait for T`), an impl of a trait defined outside the workspace (such as `Display`), and each `#[derive(...)]` name as a derived impl. An inherent `impl Type` is recorded too. Methods written in the impl are overrides. A default method the impl does not write is an inherited `provides` edge. Module declarations cover inline modules and file modules (`foo.rs` and `foo/mod.rs`, including `#[path]`). Contains edges link a file, type, or impl to its members. `use` and `mod` become import edges when the path can be resolved (`crate::`, `self::`, `super::`, and another crate in the workspace). `impl Trait for Type` becomes an implements edge from the type and from the impl node. Calls are read from the syntax: `foo()`, `Type::new()`, method calls, and universal function call syntax (`Trait::method(x)` and `<T as Trait>::method`). A call on a concrete type resolves to that type's impl, or to the trait's default method when the impl inherits it, and is `certain` when one workspace item matches. A receiver of `&dyn Trait`, `Box<dyn Trait>`, `Arc<dyn Trait>`, `Rc<dyn Trait>`, a generic bound (`T: Trait`), or `impl Trait` fans out to every workspace impl of that trait. Each of those edges is `inferred`, `uncertain`, and labelled with the reason. The same fan-out is used when the receiver cannot be named. If there are more targets than `codeflow.view.maxNodes`, the extra targets collapse into one overflow node. A call is also `inferred` when the receiver type was only guessed, as with `let widget = Widget::new()`, or when several inherent items match.
 
 Macros are not expanded. A macro invocation is skipped, so tokens inside it are not turned into functions or calls. Attributes such as `#[path]` are read. `#[cfg]` is not evaluated, so both branches are kept when they are real items. `build.rs` is its own crate and is analyzed like any other file.
 
-`codeflow.rust.useRustAnalyzer` (default true) asks rust-analyzer for the outgoing calls of the symbol under the cursor when you run **CodeFlow: Show Flow for Symbol at Cursor**, and only then. The rust-analyzer extension must already be active; CodeFlow does not activate it or index the whole workspace through it. Those calls are stored as `certain`. Without rust-analyzer, the tree-sitter graph is unchanged. The extension-host smoke test launches with `--disable-extensions` and does not install rust-analyzer, so that upgrade is covered by a unit test with a fake client.
+`codeflow.rust.useRustAnalyzer` (default true) asks rust-analyzer for the outgoing calls of the symbol under the cursor when you run **CodeFlow: Show Flow for Symbol at Cursor** or **CodeFlow: Show Trait Map**, and only then. The rust-analyzer extension must already be active; CodeFlow does not activate it or index the whole workspace through it. Those calls are stored as `certain` and replace the overlapping inferred edges, including an uncertain trait-method fan-out from that symbol. Without rust-analyzer, the tree-sitter graph is unchanged. The extension-host smoke test launches with `--disable-extensions` and does not install rust-analyzer, so that upgrade is covered by a unit test with a fake client.
 
-Not read yet: macro expansion, `include!`, full type inference, the standard library and other external crates, `dyn Trait`, universal function call syntax, operator traits, closures as nodes, unions, type aliases, precise visibility inside a crate, and procedural macros.
+**CodeFlow: Show Trait Map** needs a Rust file. On TypeScript or JavaScript it says the view is Rust only. Put the cursor on a trait, an impl, a type, or a method. A method lifts to its impl, then its trait, then its type.
+
+Trait resolution is syntactic. It does not run rustc, so it does not check coherence: a blanket impl and a concrete impl of the same trait are both listed. External traits have no method bodies in the workspace, so inherited defaults are shown only for traits defined in the workspace. Impls that inherit a default share that default method as the call target. A `dyn` or generic call stays uncertain even when the workspace has only one impl, because an external impl could also match. Derived impls name the traits and do not expand the methods the derive would generate. Overlapping blanket and concrete impls are not rejected.
+
+Not read yet: macro expansion, `include!`, full type inference, the bodies of standard-library traits, operator traits, closures as nodes, unions, type aliases, precise visibility inside a crate, and procedural macros.
 
 ## Roadmap
 
@@ -226,8 +232,9 @@ Not read yet: macro expansion, `include!`, full type inference, the standard lib
 - **1.4 Rust analyzer** (done): tree-sitter-rust (WASM) and cargo metadata fill the same graph. rust-analyzer, when it is already running, upgrades calls for the symbol under the cursor. See [Rust](#rust).
 - **1.5 Diagram webview** (done): React Flow and ELK.js draw the graph. See [Diagram](#diagram).
 - **1.6 Editor integration** (done): context menus, callers and callees, file and folder dependencies, click-to-open in the editor column, cursor highlight, save and git refresh, and the status bar. See [Commands](#commands). CodeLens is phase 2.
-- **2.1 Control flow for TypeScript and JavaScript** (unreleased): a flowchart for one function. See [Control flow](#control-flow).
-- **2.2 Control flow for Rust** (unreleased): the same flowchart for Rust functions, methods, and trait defaults. See [Control flow](#control-flow).
+- **2.1 Control flow for TypeScript and JavaScript** (done): a flowchart for one function. See [Control flow](#control-flow).
+- **2.2 Control flow for Rust** (done): the same flowchart for Rust functions, methods, and trait defaults. See [Control flow](#control-flow).
+- **2.3 Trait and impl map** (unreleased): Rust traits, every workspace impl, and the possible targets of a trait-method call. `dyn Trait`, generic bounds, and `impl Trait` are uncertain. See [Rust](#rust).
 
 ## License
 

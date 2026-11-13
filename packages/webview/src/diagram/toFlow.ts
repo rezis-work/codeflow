@@ -27,7 +27,7 @@ export interface SymbolNodeData {
 export interface RelationEdgeData {
   readonly kind: EdgeKind;
   readonly confidence: 'certain' | 'inferred';
-  readonly tooltip?: 'inferred';
+  readonly tooltip?: string;
   readonly incident: boolean;
   readonly dimmed: boolean;
   [key: string]: unknown;
@@ -90,7 +90,12 @@ export function toFlow(input: {
     if (!input.positions.has(edge.from) || !input.positions.has(edge.to)) {
       continue;
     }
-    const appearance = edgeAppearance(edge);
+    const appearance = edgeAppearance({
+      kind: edge.kind,
+      confidence: edge.confidence,
+      ...(edge.uncertain ? { uncertain: true } : {}),
+      ...(edge.detail ? { detail: edge.detail } : {}),
+    });
     const incident =
       input.hoveredId !== undefined &&
       (edge.from === input.hoveredId || edge.to === input.hoveredId);

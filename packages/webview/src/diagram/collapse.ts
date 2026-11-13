@@ -14,6 +14,8 @@ export interface DisplayEdge {
   readonly from: NodeId;
   readonly to: NodeId;
   readonly confidence: Confidence;
+  readonly uncertain?: boolean;
+  readonly detail?: string;
 }
 
 export interface CollapsedView {
@@ -68,7 +70,15 @@ export function collapseRustModules(graph: CodeGraph): CollapsedView {
       continue;
     }
     seen.add(edge.id);
-    edges.push({ id: edge.id, kind: edge.kind, from, to, confidence: edge.confidence });
+    edges.push({
+      id: edge.id,
+      kind: edge.kind,
+      from,
+      to,
+      confidence: edge.confidence,
+      ...(edge.uncertain ? { uncertain: true } : {}),
+      ...(edge.detail ? { detail: edge.detail } : {}),
+    });
   }
 
   return { nodes, edges, collapsedInto, fileNames };

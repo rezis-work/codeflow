@@ -1,9 +1,9 @@
 export interface SidebarToExtensionMessage {
-  readonly type: 'openDiagram';
+  readonly type: 'openDiagram' | 'showTraitMap';
 }
 
 export function isSidebarToExtensionMessage(value: unknown): value is SidebarToExtensionMessage {
-  return isRecord(value) && value.type === 'openDiagram';
+  return isRecord(value) && (value.type === 'openDiagram' || value.type === 'showTraitMap');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

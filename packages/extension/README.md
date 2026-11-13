@@ -2,7 +2,7 @@
 
 Interactive diagrams of how your code flows, shown beside the code.
 
-This build has the CodeFlow activity-bar view, an interactive diagram of the workspace graph, and the shared graph protocol. Click a node to open that symbol. **CodeFlow: Show Flow for Symbol at Cursor** draws the neighbourhood of the symbol under the cursor.
+This build has the CodeFlow activity-bar view, an interactive diagram of the workspace graph, and the shared graph protocol. Click a node to open that symbol. **CodeFlow: Show Flow for Symbol at Cursor** draws the neighbourhood of the symbol under the cursor. **CodeFlow: Show Trait Map** draws a Rust trait and its impls, or a type and the traits it implements.
 
 Open the Command Palette and run **CodeFlow: Open Diagram**.
 

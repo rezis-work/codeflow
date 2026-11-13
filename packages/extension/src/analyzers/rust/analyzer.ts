@@ -45,8 +45,11 @@ interface ParsedState {
   readonly file: ParsedRustFile;
 }
 
-export function openRustSession(discovery: RustDiscovery): RustAnalysisSession {
-  return new RustSession(discovery);
+export function openRustSession(
+  discovery: RustDiscovery,
+  options?: { readonly maxFanout?: number },
+): RustAnalysisSession {
+  return new RustSession(discovery, options?.maxFanout);
 }
 
 class RustSession implements RustAnalysisSession {
@@ -55,7 +58,10 @@ class RustSession implements RustAnalysisSession {
   private readonly files = new Map<string, FileState>();
   private readonly parsed = new Map<string, ParsedState>();
 
-  public constructor(private readonly discovery: RustDiscovery) {
+  public constructor(
+    private readonly discovery: RustDiscovery,
+    private readonly maxFanout?: number,
+  ) {
     this.limitReached = discovery.capped;
     for (const file of discovery.files) {
       this.readFromDisk(path.resolve(file));
@@ -178,6 +184,7 @@ class RustSession implements RustAnalysisSession {
       parsed,
       files: texts,
       allowed: (filePath) => this.allowed(filePath),
+      ...(this.maxFanout !== undefined ? { maxFanout: this.maxFanout } : {}),
     });
   }
 }

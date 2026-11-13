@@ -211,6 +211,16 @@ export function App() {
             >
               Workspace
             </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === 'traits'}
+              onClick={() => {
+                setViewMode('traits');
+                postSetViewMode('traits');
+              }}
+            >
+              Trait map
+            </button>
           </div>
           <label className="search">
             <span className="search-label">Search</span>
@@ -314,9 +324,11 @@ export function App() {
             <div className="empty">
               <p className="empty-title">No diagram yet</p>
               <p className="empty-body">
-                {viewMode === 'focus'
-                  ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
-                  : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
+                {viewMode === 'traits'
+                  ? 'Run CodeFlow: Show Trait Map on a Rust trait, impl, or type.'
+                  : viewMode === 'focus'
+                    ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
+                    : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
               </p>
             </div>
           )}
