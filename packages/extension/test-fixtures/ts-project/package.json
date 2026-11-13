@@ -1,0 +1,7 @@
+{
+  "name": "ts-fixture",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

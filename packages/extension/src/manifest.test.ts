@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OPEN_DIAGRAM_COMMAND, SIDEBAR_VIEW_ID, VIEW_CONTAINER_ID } from './constants';
+import {
+  OPEN_DIAGRAM_COMMAND,
+  SHOW_FLOW_COMMAND,
+  SIDEBAR_VIEW_ID,
+  VIEW_CONTAINER_ID,
+} from './constants';
 
 interface Manifest {
   main?: string;
@@ -33,10 +38,16 @@ describe('extension manifest', () => {
 
   it('contributes the CodeFlow activity bar and the open-diagram command', () => {
     expect(manifest.activationEvents).toEqual(
-      expect.arrayContaining([`onCommand:${OPEN_DIAGRAM_COMMAND}`, `onView:${SIDEBAR_VIEW_ID}`]),
+      expect.arrayContaining([
+        'onStartupFinished',
+        `onCommand:${OPEN_DIAGRAM_COMMAND}`,
+        `onCommand:${SHOW_FLOW_COMMAND}`,
+        `onView:${SIDEBAR_VIEW_ID}`,
+      ]),
     );
     const commands = manifest.contributes?.commands?.map((command) => command.command) ?? [];
     expect(commands).toContain(OPEN_DIAGRAM_COMMAND);
+    expect(commands).toContain(SHOW_FLOW_COMMAND);
     const containers = manifest.contributes?.viewsContainers?.activitybar ?? [];
     expect(containers.map((container) => container.id)).toContain(VIEW_CONTAINER_ID);
     expect(containers.some((container) => container.icon === 'media/codeflow.svg')).toBe(true);

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -10,6 +10,8 @@ const licenseTarget = resolve(extensionDir, 'LICENSE');
 
 for (const relativePath of [
   'dist/extension.js',
+  'dist/analyzer-worker.js',
+  'dist/typescript-lib/lib.es5.d.ts',
   'media/webview/index.js',
   'media/webview/index.css',
 ]) {
@@ -37,9 +39,19 @@ try {
 
 const listing = execFileSync('unzip', ['-Z1', vsix], { encoding: 'utf8' });
 const names = new Set(listing.split('\n').filter((line) => line.length > 0));
+const extensionJs = statSync(resolve(extensionDir, 'dist/extension.js')).size;
+if (extensionJs > 1_500_000) {
+  console.error(
+    `dist/extension.js is ${extensionJs} bytes. The TypeScript compiler should stay in the worker bundle.`,
+  );
+  process.exit(1);
+}
+
 const required = [
   'extension/package.json',
   'extension/dist/extension.js',
+  'extension/dist/analyzer-worker.js',
+  'extension/dist/typescript-lib/lib.es5.d.ts',
   'extension/media/codeflow.svg',
   'extension/media/webview/index.js',
   'extension/media/webview/index.css',
@@ -52,4 +64,5 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log(`Packaged ${vsix}`);
+const vsixBytes = statSync(vsix).size;
+console.log(`Packaged ${vsix} (${(vsixBytes / (1024 * 1024)).toFixed(2)} MiB)`);

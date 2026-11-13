@@ -27,7 +27,9 @@
     "visualization"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:codeflow.openDiagram",
+    "onCommand:codeflow.showFlowAtCursor",
     "onView:codeflow.sidebar"
   ],
   "main": "./dist/extension.js",
@@ -38,6 +40,12 @@
         "title": "Open Diagram",
         "category": "CodeFlow",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "codeflow.showFlowAtCursor",
+        "title": "Show Flow for Symbol at Cursor",
+        "category": "CodeFlow",
+        "icon": "$(references)"
       }
     ],
     "viewsContainers": {
@@ -65,7 +73,40 @@
           "when": "view == codeflow.sidebar",
           "group": "navigation"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "codeflow.showFlowAtCursor",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact",
+          "group": "navigation"
+        }
       ]
+    },
+    "configuration": {
+      "title": "CodeFlow",
+      "properties": {
+        "codeflow.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/dist/**",
+            "**/out/**",
+            "**/build/**",
+            "**/coverage/**",
+            "**/*.min.js",
+            "**/.next/**"
+          ],
+          "description": "Glob patterns for files and folders CodeFlow does not analyze. node_modules is always skipped. These patterns are combined with files.exclude."
+        },
+        "codeflow.maxFiles": {
+          "type": "number",
+          "default": 2500,
+          "minimum": 1,
+          "description": "Maximum number of TypeScript and JavaScript files CodeFlow analyzes in each workspace folder."
+        }
+      }
     }
   },
   "scripts": {
