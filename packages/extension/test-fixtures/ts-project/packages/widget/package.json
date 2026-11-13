@@ -1,0 +1,4 @@
+{
+  "name": "@demo/widget",
+  "main": "./src/index.ts"
+}

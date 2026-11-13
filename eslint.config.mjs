@@ -14,6 +14,7 @@ export default tseslint.config(
       '**/media/webview/**',
       '**/.vscode-test/**',
       '**/*.vsix',
+      'packages/extension/test-fixtures/**',
     ],
   },
   eslint.configs.recommended,

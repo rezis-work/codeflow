@@ -6,6 +6,8 @@ out/**
 node_modules/**
 **/*.map
 **/*.ts
+!dist/typescript-lib/**
+!dist/typescript-lib/**/*.d.ts
 tsconfig.json
 tsconfig.test.json
 esbuild.mjs

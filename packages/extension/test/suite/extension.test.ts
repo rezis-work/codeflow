@@ -2,6 +2,7 @@ import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 
 const OPEN_DIAGRAM_COMMAND = 'codeflow.openDiagram';
+const SHOW_FLOW_COMMAND = 'codeflow.showFlowAtCursor';
 
 async function waitForCodeFlowTab(): Promise<void> {
   const deadline = Date.now() + 10_000;
@@ -31,6 +32,7 @@ suite('CodeFlow smoke', () => {
 
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes(OPEN_DIAGRAM_COMMAND));
+    assert.ok(commands.includes(SHOW_FLOW_COMMAND));
     assert.ok(commands.includes('workbench.view.extension.codeflow'));
     assert.ok(commands.includes('codeflow.sidebar.focus'));
   });

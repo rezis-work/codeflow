@@ -1,5 +1,5 @@
-import { createNode, emptyGraph, nodeId } from '@codeflow/shared';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { createEdge, createNode, emptyGraph, nodeId } from '@codeflow/shared';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { postExpandNode, postRequestGraph, postRevealLocation } from './messaging';
@@ -104,6 +104,57 @@ describe('App', () => {
     send({ type: 'graphSnapshot', graph: emptyGraph() });
     await waitFor(() => {
       expect(screen.queryByRole('alert')).toBeNull();
+    });
+  });
+});
+
+describe('symbol outline', () => {
+  it('lists symbols and hides inferred relationships when asked', async () => {
+    render(<App />);
+    const format = createNode({
+      kind: 'function',
+      name: 'format',
+      qualifiedName: 'format',
+      language: 'ts',
+      uri: 'file:///proj/a.ts',
+      range: { start: { line: 4, character: 0 }, end: { line: 4, character: 6 } },
+    });
+    send({ type: 'config', theme: 'dark', showInferredEdges: false });
+    send({
+      type: 'graphSnapshot',
+      graph: {
+        nodes: [mainNode, format],
+        edges: [
+          createEdge({
+            kind: 'contains',
+            from: mainNode.id,
+            to: format.id,
+            confidence: 'certain',
+            location: mainNode.location,
+          }),
+          createEdge({
+            kind: 'call',
+            from: mainNode.id,
+            to: format.id,
+            confidence: 'inferred',
+            location: format.location,
+          }),
+        ],
+        pendingEdges: [],
+      },
+    });
+
+    expect(await screen.findByTestId('symbol-outline')).toBeTruthy();
+    expect(screen.queryByText('No diagram yet')).toBeNull();
+    expect(screen.getByTestId('graph-summary').textContent).toBe('2 nodes · 1 edge');
+    expect(screen.getByRole('button', { name: 'function main' })).toBeTruthy();
+    expect(screen.getByText('contains main → format (certain)')).toBeTruthy();
+    expect(screen.queryByText(/inferred/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'function main' }));
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'revealLocation',
+      location: mainNode.location,
     });
   });
 });
