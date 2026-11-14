@@ -578,8 +578,22 @@ body {
   font-size: 11px;
 }
 
-.react-flow__edge.flow-edge-exception .react-flow__edge-path {
+.react-flow__edge.flow-edge-exception .react-flow__edge-path,
+.react-flow__edge.flow-edge-uncertain .react-flow__edge-path {
   stroke-dasharray: 6 4;
+}
+
+.flow-crumb button.flow-uncertain {
+  margin-left: auto;
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, inherit);
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.flow-crumb button.flow-uncertain[aria-pressed='false'] {
+  opacity: 0.55;
 }
 
 .react-flow__edge.flow-edge-dim .react-flow__edge-path {

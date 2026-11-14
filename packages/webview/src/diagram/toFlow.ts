@@ -1,6 +1,12 @@
 import { MarkerType, Position } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
-import type { CodeNode, EdgeKind, NodeId, SourceLocation } from '@codeflow/shared';
+import type {
+  CodeNode,
+  EdgeKind,
+  NodeId,
+  SourceLocation,
+  UncertaintyReason,
+} from '@codeflow/shared';
 import { edgeAppearance } from './appearance';
 import type { DisplayEdge } from './collapse';
 import { kindText, languageBadge, nodeText } from './labels';
@@ -27,6 +33,8 @@ export interface SymbolNodeData {
 export interface RelationEdgeData {
   readonly kind: EdgeKind;
   readonly confidence: 'certain' | 'inferred';
+  readonly uncertain: boolean;
+  readonly reason?: UncertaintyReason;
   readonly tooltip?: string;
   readonly incident: boolean;
   readonly dimmed: boolean;
@@ -94,6 +102,7 @@ export function toFlow(input: {
       kind: edge.kind,
       confidence: edge.confidence,
       ...(edge.uncertain ? { uncertain: true } : {}),
+      ...(edge.reason ? { reason: edge.reason } : {}),
       ...(edge.detail ? { detail: edge.detail } : {}),
     });
     const incident =
@@ -110,8 +119,10 @@ export function toFlow(input: {
       data: {
         kind: edge.kind,
         confidence: edge.confidence,
+        uncertain: edge.uncertain === true || edge.reason !== undefined,
         incident,
         dimmed,
+        ...(edge.reason ? { reason: edge.reason } : {}),
         ...(appearance.tooltip ? { tooltip: appearance.tooltip } : {}),
       },
       style: {

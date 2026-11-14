@@ -5,7 +5,14 @@
  */
 
 import { FILE_MODULE_QUALIFIED_NAME } from '@codeflow/shared';
-import type { CodeGraph, CodeNode, Confidence, EdgeKind, NodeId } from '@codeflow/shared';
+import type {
+  CodeGraph,
+  CodeNode,
+  Confidence,
+  EdgeKind,
+  NodeId,
+  UncertaintyReason,
+} from '@codeflow/shared';
 import { fileBaseName } from './labels';
 
 export interface DisplayEdge {
@@ -15,6 +22,7 @@ export interface DisplayEdge {
   readonly to: NodeId;
   readonly confidence: Confidence;
   readonly uncertain?: boolean;
+  readonly reason?: UncertaintyReason;
   readonly detail?: string;
 }
 
@@ -77,6 +85,7 @@ export function collapseRustModules(graph: CodeGraph): CollapsedView {
       to,
       confidence: edge.confidence,
       ...(edge.uncertain ? { uncertain: true } : {}),
+      ...(edge.reason ? { reason: edge.reason } : {}),
       ...(edge.detail ? { detail: edge.detail } : {}),
     });
   }

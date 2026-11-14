@@ -6,7 +6,14 @@
  * The route-to-handler link does not consume call depth.
  */
 
-import { FRAMEWORK_LABEL, createEdge, createNode, nodeId, normalizeUri } from '@codeflow/shared';
+import {
+  FRAMEWORK_LABEL,
+  createEdge,
+  createNode,
+  nodeId,
+  normalizeUri,
+  reasonFromDetail,
+} from '@codeflow/shared';
 import type {
   CodeEdge,
   CodeGraph,
@@ -17,6 +24,7 @@ import type {
   Language,
   NodeId,
   SourceRange,
+  UncertaintyReason,
 } from '@codeflow/shared';
 
 const NOTE_LIMIT = 160;
@@ -62,8 +70,7 @@ export function buildRequestFlow(input: {
         to: resolved.node.id,
         confidence: 'certain',
         location: { uri: input.entry.uri, range: input.entry.range },
-        ...(input.entry.uncertain ? { uncertain: true } : {}),
-        ...(input.entry.detail ? { detail: clip(input.entry.detail) } : {}),
+        ...uncertaintyFields(input.entry.uncertain, input.entry.detail),
       }),
     );
     if (resolved.expand) {
@@ -186,11 +193,30 @@ function attachSinks(
         to: sink.id,
         confidence: 'certain',
         location: { uri: hit.uri, range: hit.range },
-        ...(hit.uncertain ? { uncertain: true } : {}),
-        ...(detail ? { detail: clip(detail) } : {}),
+        ...uncertaintyFields(hit.uncertain, detail),
       }),
     );
   }
+}
+
+function uncertaintyFields(
+  uncertain: boolean | undefined,
+  detail: string | undefined,
+): {
+  readonly uncertain?: true;
+  readonly reason?: UncertaintyReason;
+  readonly detail?: string;
+} {
+  if (uncertain !== true) {
+    return detail ? { detail: clip(detail) } : {};
+  }
+  const clipped = detail ? clip(detail) : undefined;
+  const reason = reasonFromDetail(clipped);
+  return {
+    uncertain: true,
+    ...(reason ? { reason } : {}),
+    ...(clipped ? { detail: clipped } : {}),
+  };
 }
 
 function smallestFunction(

@@ -34,6 +34,7 @@ export function App() {
   const [focusId, setFocusId] = useState<NodeId | undefined>(undefined);
   const [theme, setTheme] = useState<DiagramTheme | undefined>(undefined);
   const [showInferred, setShowInferred] = useState(true);
+  const [showUncertain, setShowUncertain] = useState(true);
   const [viewMode, setViewMode] = useState<DiagramViewMode>('focus');
   const [maxNodes, setMaxNodes] = useState(DEFAULT_MAX_NODES);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -161,6 +162,7 @@ export function App() {
       data-testid="diagram-shell"
       data-theme={theme}
       data-show-inferred={String(showInferred)}
+      data-show-uncertain={String(showUncertain)}
       data-view-mode={viewMode}
       data-surface={surface}
     >
@@ -175,7 +177,7 @@ export function App() {
         </p>
       </header>
       <div className="graph-meta">
-        <p data-testid="graph-summary">{graphSummary(graph, showInferred)}</p>
+        <p data-testid="graph-summary">{graphSummary(graph, showInferred, showUncertain)}</p>
         {focusId ? <p data-testid="focus-node">Focus: {focusLabel}</p> : null}
         {cursorHint ? (
           <p className="cursor-hint" role="status" data-testid="cursor-hint">
@@ -269,6 +271,15 @@ export function App() {
             >
               Inferred
             </button>
+            <button
+              type="button"
+              aria-pressed={showUncertain}
+              onClick={() => {
+                setShowUncertain((current) => !current);
+              }}
+            >
+              Uncertain
+            </button>
           </div>
           <button
             type="button"
@@ -287,6 +298,10 @@ export function App() {
             <ControlFlowView
               graph={flow.graph}
               reducedMotion={reducedMotion}
+              showUncertain={showUncertain}
+              onToggleUncertain={() => {
+                setShowUncertain((current) => !current);
+              }}
               onReveal={onRevealRange}
               onOpenNested={onOpenNested}
               onBack={onBack}
@@ -314,6 +329,7 @@ export function App() {
               graph={graph}
               theme={theme}
               showInferred={showInferred}
+              showUncertain={showUncertain}
               hiddenEdgeKinds={hiddenEdgeKinds}
               query={query}
               maxNodes={maxNodes}
@@ -346,7 +362,7 @@ export function App() {
           )}
         </section>
       )}
-      {surface === 'flow' ? null : <Legend />}
+      <Legend />
     </main>
   );
 }
@@ -361,16 +377,18 @@ function toggleKind(current: ReadonlySet<EdgeKind>, kind: EdgeKind): ReadonlySet
   return next;
 }
 
-function graphSummary(graph: CodeGraph | undefined, showInferred: boolean): string {
+function graphSummary(
+  graph: CodeGraph | undefined,
+  showInferred: boolean,
+  showUncertain: boolean,
+): string {
   if (!graph) {
     return 'No graph loaded';
   }
-  const edges = showInferred
-    ? graph.edges
-    : graph.edges.filter((edge) => edge.confidence !== 'inferred');
-  const pending = showInferred
-    ? graph.pendingEdges
-    : graph.pendingEdges.filter((edge) => edge.confidence !== 'inferred');
+  const keep = (edge: { readonly confidence: string; readonly uncertain?: boolean }) =>
+    (showInferred || edge.confidence !== 'inferred') && (showUncertain || edge.uncertain !== true);
+  const edges = graph.edges.filter(keep);
+  const pending = graph.pendingEdges.filter(keep);
   const parts = [count(graph.nodes.length, 'node', 'nodes'), count(edges.length, 'edge', 'edges')];
   if (pending.length > 0) {
     parts.push(count(pending.length, 'unresolved edge', 'unresolved edges'));

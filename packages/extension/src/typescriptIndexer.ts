@@ -19,7 +19,7 @@ import { applyEntryReports, dropEntry, dropMissingEntries } from './entryReports
 import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES } from './constants';
 import { createPathBurst } from './pathBurst';
 import type { PathBurst, PathUpdate } from './pathBurst';
-import { getWorkspaceGraph } from './workspaceGraph';
+import { getWorkspaceGraph, notifyWorkspaceGraphChanged } from './workspaceGraph';
 
 const EDIT_DEBOUNCE_MS = 300;
 const INDEX_TIMEOUT_MS = 5 * 60 * 1000;
@@ -413,6 +413,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
   ): void {
     applyEntryReports(reports, request.reported, this.entryUris);
     const store = getWorkspaceGraph();
+    let changed = false;
     for (const fragment of fragments) {
       request.seen.add(fragment.uri);
       this.indexedUris.add(fragment.uri);
@@ -420,30 +421,40 @@ export class TypeScriptIndexer implements vscode.Disposable {
         const ingested = store.ingest(fragment);
         if (ingested.cache === 'miss') {
           DiagramPanel.publishDelta(ingested.delta);
+          changed = true;
         }
       } catch (error) {
         console.error('[codeflow] could not ingest', fragment.uri, error);
       }
     }
+    if (changed) {
+      notifyWorkspaceGraphChanged();
+    }
   }
 
   private finish(request: PendingRequest, removedPaths: readonly string[]): void {
     const store = getWorkspaceGraph();
+    let changed = false;
     if (request.kind === 'index') {
       for (const uri of this.indexedUris) {
         if (!request.seen.has(uri)) {
           DiagramPanel.publishDelta(store.invalidate(uri));
+          changed = true;
         }
       }
       this.indexedUris = request.seen;
       this.entryUris = dropMissingEntries(this.entryUris, request.reported);
-      return;
+    } else {
+      for (const filePath of removedPaths) {
+        const uri = pathToFileUri(filePath);
+        this.indexedUris.delete(uri);
+        dropEntry(uri, this.entryUris);
+        DiagramPanel.publishDelta(store.invalidate(uri));
+        changed = true;
+      }
     }
-    for (const filePath of removedPaths) {
-      const uri = pathToFileUri(filePath);
-      this.indexedUris.delete(uri);
-      dropEntry(uri, this.entryUris);
-      DiagramPanel.publishDelta(store.invalidate(uri));
+    if (changed) {
+      notifyWorkspaceGraphChanged();
     }
   }
 

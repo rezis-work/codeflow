@@ -22,7 +22,14 @@ export interface ControlBlockData {
 }
 
 export type ControlBlockNode = Node<ControlBlockData, 'control'>;
-export type ControlFlowEdgeView = Edge<{ readonly kind: ControlFlowEdge['kind'] }, 'control'>;
+export type ControlFlowEdgeView = Edge<
+  {
+    readonly kind: ControlFlowEdge['kind'];
+    readonly tooltip?: string;
+    readonly uncertain?: boolean;
+  },
+  'flowEdge'
+>;
 
 export function controlFlowBox(node: ControlFlowNode): {
   readonly width: number;
@@ -44,6 +51,7 @@ export function controlFlowToFlow(input: {
   readonly positions: ReadonlyMap<string, LayoutPoint>;
   readonly activeId?: string;
   readonly reducedMotion: boolean;
+  readonly showUncertain?: boolean;
   readonly onReveal: (node: ControlFlowNode) => void;
   readonly onOpenNested: (range: SourceRange) => void;
 }): { readonly nodes: ControlBlockNode[]; readonly edges: ControlFlowEdgeView[] } {
@@ -80,12 +88,22 @@ export function controlFlowToFlow(input: {
       },
     });
   }
-  const edges: ControlFlowEdgeView[] = input.graph.edges.map((edge) => {
+  const showUncertain = input.showUncertain !== false;
+  const nodesById = new Map(input.graph.nodes.map((node) => [node.id, node]));
+  const edges: ControlFlowEdgeView[] = [];
+  for (const edge of input.graph.edges) {
+    const target = nodesById.get(edge.to);
+    const uncertain = target?.uncertain === true;
+    if (!showUncertain && uncertain) {
+      continue;
+    }
     const back = edge.kind === 'back';
     const caption = edgeCaption(edge);
     const dimmed = unreachable.has(edge.to);
-    return {
+    const tooltip = uncertain ? `uncertain: ${target?.label ?? 'panic'}` : undefined;
+    edges.push({
       id: edge.id,
+      type: 'flowEdge',
       source: edge.from,
       target: edge.to,
       sourceHandle: back ? 'back-out' : 'out',
@@ -104,17 +122,22 @@ export function controlFlowToFlow(input: {
         'flow-edge',
         `flow-edge-${edge.kind}`,
         edge.kind === 'exception' ? 'flow-edge-exception' : '',
+        uncertain ? 'flow-edge-uncertain' : '',
         dimmed ? 'flow-edge-dim' : '',
       ]
         .filter((part) => part.length > 0)
         .join(' '),
       style: {
-        ...(edge.kind === 'exception' ? { strokeDasharray: '6 4' } : {}),
+        ...(edge.kind === 'exception' || uncertain ? { strokeDasharray: '6 4' } : {}),
         ...(dimmed ? { opacity: 0.35 } : {}),
       },
-      data: { kind: edge.kind },
-    };
-  });
+      data: {
+        kind: edge.kind,
+        ...(uncertain ? { uncertain: true } : {}),
+        ...(tooltip ? { tooltip } : {}),
+      },
+    });
+  }
   return { nodes, edges };
 }
 

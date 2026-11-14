@@ -17,9 +17,11 @@ export function Legend() {
         </li>
       </ul>
       <p className="legend-note">
-        A dashed edge is inferred, or uncertain because the receiver is dyn Trait, a generic bound,
-        impl Trait, a dependency-injection interface, a callback, or could not be named. Hover the
-        edge for the reason. An inherited default is dashed too.
+        A dashed edge is inferred, or uncertain. Uncertain calls are a callback or other
+        higher-order function, dependency injection, dynamic dispatch (including dyn Trait), a
+        generic bound (including impl Trait), a macro, or a dynamic property or computed call. Hover
+        the edge for the reason. An inherited default is dashed too. Turn off Uncertain to hide
+        those edges.
       </p>
     </footer>
   );

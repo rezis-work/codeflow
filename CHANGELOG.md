@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+### CodeLens and uncertainty
+
+- Above each TypeScript, JavaScript, and Rust function or method, CodeLens shows the call-graph degree, for example `3 callers` and `5 callees`. The numbers are the incoming and outgoing call edges. They use the same graph as the diagram.
+- An uncertain call is left out of that number and shown beside it, for example `3 callers +1 possible`. Clicking the caller count runs **Show Callers**. Clicking the callee count runs **Show Callees**.
+- The lenses refresh after an incremental re-analysis. A burst of updates is applied once, after 200ms. `codeflow.codeLens.enabled` (default on) hides them.
+- A call edge can carry a reason: callback / higher-order, dependency injection, dynamic dispatch (`dyn Trait` or an unresolved receiver), generic bound (`impl Trait` included), macro, or dynamic property / computed call. The diagram draws that edge dashed. The tooltip is the reason. The **Uncertain** switch hides those edges in the call graph, the trait map, request flow, file dependencies, and the flowchart.
+- A callback edge is a workspace function passed as an argument (`run(work)`). A macro edge is a `name!()` invocation whose name is a workspace function. The macro body is still not expanded. A computed call is uncertain when the checker can still name the function. A generic bound in TypeScript points at the constraint method. In Rust it still fans out to every impl.
+- Version 0.2.0. Pushing the tag `v0.2.0` runs the release workflow, which checks that the tag matches `packages/extension/package.json` and publishes `codeflow-0.2.0.vsix`.
 
 ### Request flow and entry points
 

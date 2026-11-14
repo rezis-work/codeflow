@@ -9,7 +9,9 @@
  * `inferred` when the receiver type was only guessed or several items match.
  * A trait-method call on `dyn Trait`, a generic bound, `impl Trait`, or an
  * unnamed receiver is `uncertain` and points at every workspace impl, up to
- * `maxFanout`. Macros are not expanded. Derive lists only the trait names.
+ * `maxFanout`. A function passed as an argument is an uncertain callback.
+ * A macro invocation is an uncertain edge when its name is a workspace
+ * function; the macro body is not expanded. Derive lists only the trait names.
  */
 
 import { existsSync } from 'node:fs';
@@ -28,6 +30,7 @@ import type {
   Confidence,
   FileFragment,
   NodeId,
+  UncertaintyReason,
   SourceRange,
   TypeKind,
 } from '@codeflow/shared';
@@ -741,6 +744,7 @@ function emitFile(
               to: overflow.id,
               confidence: 'inferred',
               uncertain: true,
+              ...(target.reason ? { reason: target.reason } : {}),
               detail: 'uncertain: fan-out capped by codeflow.view.maxNodes',
               location: location(symbol.filePath, call.range),
             }),
@@ -758,9 +762,26 @@ function emitFile(
             confidence: target.confidence,
             location: location(symbol.filePath, call.range),
             ...(target.uncertain ? { uncertain: true } : {}),
+            ...(target.reason ? { reason: target.reason } : {}),
             ...(target.detail ? { detail: target.detail } : {}),
           }),
         );
+      }
+      for (const callback of call.callbacks ?? []) {
+        const resolved = resolvePath(callback, symbol.module, 'expr');
+        for (const target of callables(resolved).slice(0, 8)) {
+          addEdge(
+            createEdge({
+              kind: 'call',
+              from: symbolId(symbol),
+              to: symbolId(target),
+              confidence: 'inferred',
+              uncertain: true,
+              reason: 'callback',
+              location: location(symbol.filePath, call.range),
+            }),
+          );
+        }
       }
     }
   }
@@ -913,6 +934,7 @@ interface CallTarget {
   readonly symbol?: SymbolModel;
   readonly confidence: Confidence;
   readonly uncertain?: boolean;
+  readonly reason?: UncertaintyReason;
   readonly detail?: string;
   readonly overflow?: { readonly hidden: number };
 }
@@ -924,12 +946,31 @@ const FANOUT_DETAIL: Record<'dyn' | 'generic' | 'impl-trait' | 'unknown', string
   unknown: 'uncertain: unresolved receiver',
 };
 
+const FANOUT_REASON: Record<'dyn' | 'generic' | 'impl-trait' | 'unknown', UncertaintyReason> = {
+  dyn: 'dynamic-dispatch',
+  generic: 'generic-bound',
+  'impl-trait': 'generic-bound',
+  unknown: 'dynamic-dispatch',
+};
+
 function resolveCall(
   caller: SymbolModel,
   call: ParsedCall,
   index: RustIndex,
   maxFanout: number,
 ): CallTarget[] {
+  if (call.macro) {
+    const resolved = resolvePath(call.path, caller.module, 'expr');
+    return callables(resolved)
+      .slice(0, 8)
+      .map((symbol) => ({
+        symbol,
+        confidence: 'inferred' as const,
+        uncertain: true,
+        reason: 'macro' as const,
+        detail: 'uncertain: macro',
+      }));
+  }
   if (call.ufcs) {
     return resolveUfcs(caller, call, index, maxFanout);
   }
@@ -1162,10 +1203,12 @@ function capFanout(
   maxFanout: number,
 ): CallTarget[] {
   const detail = FANOUT_DETAIL[dispatch];
+  const reason = FANOUT_REASON[dispatch];
   const marked = (symbol: SymbolModel): CallTarget => ({
     symbol,
     confidence: 'inferred',
     uncertain: true,
+    reason,
     detail,
   });
   if (targets.length <= maxFanout) {
@@ -1177,6 +1220,7 @@ function capFanout(
     {
       confidence: 'inferred',
       uncertain: true,
+      reason,
       detail: 'uncertain: fan-out capped by codeflow.view.maxNodes',
       overflow: { hidden: targets.length - shown.length },
     },

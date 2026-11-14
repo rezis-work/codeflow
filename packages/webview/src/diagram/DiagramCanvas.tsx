@@ -40,6 +40,7 @@ export interface DiagramCanvasProps {
   readonly focusId?: NodeId;
   readonly theme?: DiagramTheme;
   readonly showInferred: boolean;
+  readonly showUncertain: boolean;
   readonly hiddenEdgeKinds: ReadonlySet<EdgeKind>;
   readonly query: string;
   readonly maxNodes: number;
@@ -64,6 +65,7 @@ function DiagramSurface({
   focusId,
   theme,
   showInferred,
+  showUncertain,
   hiddenEdgeKinds,
   query,
   maxNodes,
@@ -82,13 +84,14 @@ function DiagramSurface({
         query,
         hiddenEdgeKinds,
         showInferred,
+        showUncertain,
         maxNodes,
         fileNames: collapsed.fileNames,
         ...(focusTarget ? { focusId: focusTarget } : {}),
       }),
-    [collapsed, query, hiddenEdgeKinds, showInferred, maxNodes, focusTarget],
+    [collapsed, query, hiddenEdgeKinds, showInferred, showUncertain, maxNodes, focusTarget],
   );
-  const filterKey = `${showInferred}:${[...hiddenEdgeKinds].sort().join(',')}`;
+  const filterKey = `${showInferred}:${showUncertain}:${[...hiddenEdgeKinds].sort().join(',')}`;
   const layoutMode = useLayoutMode(layoutRevision, filterKey, query);
 
   const [positions, setPositions] = useState<Map<string, LayoutPoint>>(() => new Map());
