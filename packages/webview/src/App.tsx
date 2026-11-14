@@ -221,6 +221,16 @@ export function App() {
             >
               Trait map
             </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === 'request'}
+              onClick={() => {
+                setViewMode('request');
+                postSetViewMode('request');
+              }}
+            >
+              Request
+            </button>
           </div>
           <label className="search">
             <span className="search-label">Search</span>
@@ -326,9 +336,11 @@ export function App() {
               <p className="empty-body">
                 {viewMode === 'traits'
                   ? 'Run CodeFlow: Show Trait Map on a Rust trait, impl, or type.'
-                  : viewMode === 'focus'
-                    ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
-                    : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
+                  : viewMode === 'request'
+                    ? 'Run CodeFlow: Show Request Flow and pick a route.'
+                    : viewMode === 'focus'
+                      ? 'Run CodeFlow: Show Flow for Symbol at Cursor, or switch to the whole workspace.'
+                      : 'Open a TypeScript, JavaScript, or Rust file and CodeFlow will draw it here.'}
               </p>
             </div>
           )}

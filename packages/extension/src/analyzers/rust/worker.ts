@@ -5,7 +5,7 @@
 
 import path from 'node:path';
 import { parentPort } from 'node:worker_threads';
-import type { FileFragment } from '@codeflow/shared';
+import type { EntryFileReport, FileFragment } from '@codeflow/shared';
 import type { RustAnalysisSession } from './analyzer';
 import { openRustSession } from './analyzer';
 import { discoverRustWorkspace } from './discover';
@@ -90,6 +90,7 @@ function indexWorkspace(id: number, nextRoots: readonly IndexRoot[]): void {
       const fragments = session.analyze();
       fileCount += fragments.length;
       postFragments(id, fragments);
+      postReports(id, session.entryReports());
       warnings.push(...session.errors);
       capped = capped || session.limitReached;
     } catch (error) {
@@ -118,6 +119,7 @@ function updateFile(
   if (fragment) {
     postFragments(id, [fragment]);
   }
+  postReports(id, session.entryReports());
   const removed = session.has(path.resolve(filePath)) ? [] : [filePath];
   done(id, fragment ? 1 : 0, session.limitReached, [...session.errors], removed);
 }
@@ -183,6 +185,17 @@ function postFragments(id: number, fragments: readonly FileFragment[]): void {
       type: 'fragments',
       id,
       fragments: fragments.slice(index, index + BATCH),
+    });
+  }
+}
+
+function postReports(id: number, reports: readonly EntryFileReport[]): void {
+  for (let index = 0; index < reports.length; index += BATCH) {
+    parent?.postMessage({
+      type: 'fragments',
+      id,
+      fragments: [],
+      reports: reports.slice(index, index + BATCH),
     });
   }
 }

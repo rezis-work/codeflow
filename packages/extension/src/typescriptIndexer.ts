@@ -15,6 +15,7 @@ import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { pathToFileUri } from './analyzers/typescript/uri';
 import { trackAnalysis } from './analysisStatus';
 import { DiagramPanel } from './diagramPanel';
+import { applyEntryReports, dropEntry, dropMissingEntries } from './entryReports';
 import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES } from './constants';
 import { createPathBurst } from './pathBurst';
 import type { PathBurst, PathUpdate } from './pathBurst';
@@ -29,6 +30,7 @@ const MAX_RESTARTS = 3;
 interface PendingRequest {
   readonly kind: 'index' | 'updateFile' | 'removeFile';
   readonly seen: Set<string>;
+  readonly reported: Set<string>;
   readonly timer: NodeJS.Timeout;
   resolve: (result: IndexResult) => void;
   reject: (error: Error) => void;
@@ -66,6 +68,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
   private readonly flowWaits = new Map<number, FlowWait>();
   private readonly burst: PathBurst;
   private indexedUris = new Set<string>();
+  private entryUris = new Set<string>();
   private tail: Promise<void> = Promise.resolve();
   private nextId = 1;
   private restarts = 0;
@@ -358,6 +361,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
       this.pending.set(message.id, {
         kind: message.type,
         seen: new Set(),
+        reported: new Set(),
         timer,
         resolve,
         reject,
@@ -385,7 +389,7 @@ export class TypeScriptIndexer implements vscode.Disposable {
       return;
     }
     if (message.type === 'fragments') {
-      this.ingest(message.fragments, request);
+      this.ingest(message.fragments, request, message.reports);
       return;
     }
     clearTimeout(request.timer);
@@ -402,7 +406,12 @@ export class TypeScriptIndexer implements vscode.Disposable {
     request.resolve({ fileCount: message.fileCount, capped: message.capped });
   }
 
-  private ingest(fragments: readonly FileFragment[], request: PendingRequest): void {
+  private ingest(
+    fragments: readonly FileFragment[],
+    request: PendingRequest,
+    reports: readonly unknown[] | undefined,
+  ): void {
+    applyEntryReports(reports, request.reported, this.entryUris);
     const store = getWorkspaceGraph();
     for (const fragment of fragments) {
       request.seen.add(fragment.uri);
@@ -427,11 +436,13 @@ export class TypeScriptIndexer implements vscode.Disposable {
         }
       }
       this.indexedUris = request.seen;
+      this.entryUris = dropMissingEntries(this.entryUris, request.reported);
       return;
     }
     for (const filePath of removedPaths) {
       const uri = pathToFileUri(filePath);
       this.indexedUris.delete(uri);
+      dropEntry(uri, this.entryUris);
       DiagramPanel.publishDelta(store.invalidate(uri));
     }
   }

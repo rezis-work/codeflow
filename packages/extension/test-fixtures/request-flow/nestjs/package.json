@@ -1,0 +1,5 @@
+{
+  "name": "clinic-api",
+  "private": true,
+  "main": "src/main.ts"
+}

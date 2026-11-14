@@ -1,4 +1,4 @@
-import type { ExtensionToDiagramWebviewMessage } from '@codeflow/shared';
+import type { EntryPoint, ExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { installAnalysisStatus } from './analysisStatus';
 import {
@@ -10,6 +10,7 @@ import {
   SHOW_CONTROL_FLOW_COMMAND,
   SHOW_FLOW_COMMAND,
   SHOW_TRAIT_MAP_COMMAND,
+  SHOW_REQUEST_FLOW_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -23,6 +24,8 @@ import {
   showFlowAtCursor,
   showTraitMapAtCursor,
 } from './showFlow';
+import { showRequestFlow } from './showRequestFlow';
+import { getEntryCatalog } from './entryCatalog';
 import { showControlFlowAtCursor } from './showControlFlow';
 import { SidebarProvider } from './sidebar';
 import { RustIndexer } from './rustIndexer';
@@ -34,6 +37,9 @@ export interface CodeFlowExtensionApi {
   diagramMessages(): readonly ExtensionToDiagramWebviewMessage[];
   clearDiagramMessages(): void;
   postFromWebview(message: unknown): void;
+  entryPoints(): readonly EntryPoint[];
+  sidebarEntries(): readonly EntryPoint[];
+  postSidebar(message: unknown): void;
 }
 
 /**
@@ -74,6 +80,14 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     vscode.commands.registerCommand(SHOW_TRAIT_MAP_COMMAND, () => {
       void showTraitMapAtCursor(context, typescript, rust);
     }),
+    vscode.commands.registerCommand(SHOW_REQUEST_FLOW_COMMAND, (entryId?: unknown) => {
+      void showRequestFlow(
+        context,
+        typescript,
+        rust,
+        typeof entryId === 'string' ? entryId : undefined,
+      );
+    }),
     vscode.workspace.onDidSaveTextDocument((document) => {
       DiagramPanel.refreshControlFlow(document);
     }),
@@ -107,6 +121,11 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     },
     postFromWebview: (message) => {
       DiagramPanel.deliver(message);
+    },
+    entryPoints: () => getEntryCatalog().list(),
+    sidebarEntries: () => SidebarProvider.postedEntries(),
+    postSidebar: (message) => {
+      SidebarProvider.deliver(message);
     },
   };
 }

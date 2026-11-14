@@ -1,9 +1,21 @@
-export interface SidebarToExtensionMessage {
-  readonly type: 'openDiagram' | 'showTraitMap';
-}
+export type SidebarToExtensionMessage =
+  | { readonly type: 'openDiagram' }
+  | { readonly type: 'showTraitMap' }
+  | { readonly type: 'showRequestFlow'; readonly entryId: string }
+  | { readonly type: 'revealEntry'; readonly entryId: string };
 
 export function isSidebarToExtensionMessage(value: unknown): value is SidebarToExtensionMessage {
-  return isRecord(value) && (value.type === 'openDiagram' || value.type === 'showTraitMap');
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (value.type === 'openDiagram' || value.type === 'showTraitMap') {
+    return true;
+  }
+  return (
+    (value.type === 'showRequestFlow' || value.type === 'revealEntry') &&
+    typeof value.entryId === 'string' &&
+    value.entryId.length > 0
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

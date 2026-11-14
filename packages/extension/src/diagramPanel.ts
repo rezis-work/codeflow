@@ -11,6 +11,8 @@ import type {
 import * as vscode from 'vscode';
 import { hasWebviewBundle } from './bundle';
 import { DIAGRAM_PANEL_VIEW_TYPE, NOT_IN_DIAGRAM, SYMBOL_FLOW_DEPTH } from './constants';
+import { entryAtPosition, getEntryCatalog } from './entryCatalog';
+import { routeNodeId } from './requestFlowView';
 import { diagramConfig, handleDiagramMessage, publishDiagramView } from './diagramMessages';
 import type { DiagramHost } from './diagramMessages';
 import { diagramThemeFromColorTheme } from './diagramTheme';
@@ -25,6 +27,7 @@ import { noteDiagramReveal } from './revealGuard';
 import { readMaxNodes, readViewMode } from './viewSettings';
 import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './controlFlowHost';
 import type { FlowEngines, FlowSession } from './controlFlowHost';
+import { fileUriToPath } from './analyzers/typescript/uri';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 let flowEngines: FlowEngines | undefined;
@@ -83,6 +86,15 @@ export class DiagramPanel {
    */
   public static highlightCursor(nodeId: NodeId | undefined): void {
     DiagramPanel.current?.highlightCursor(nodeId);
+  }
+
+  /** Rebuilds an open request trace after entry points change. */
+  public static refreshRequestFlow(): void {
+    const panel = DiagramPanel.current;
+    if (!panel || panel.disposed || panel.viewMode !== 'request' || !panel.spec) {
+      return;
+    }
+    panel.scheduleFocusRefresh();
   }
 
   /** Shows one function's flowchart. Queued until the webview has said ready. */
@@ -222,9 +234,12 @@ export class DiagramPanel {
   public showSpec(spec: FocusSpec): void {
     this.pendingNotice = undefined;
     this.spec =
-      spec.kind === 'traits' ? { ...spec, maxNodes: spec.maxNodes ?? readMaxNodes() } : spec;
+      spec.kind === 'traits' || spec.kind === 'request'
+        ? { ...spec, maxNodes: spec.maxNodes ?? readMaxNodes() }
+        : spec;
     this.focusId = spec.nodeId;
-    this.viewMode = spec.kind === 'traits' ? 'traits' : 'focus';
+    this.viewMode =
+      spec.kind === 'traits' ? 'traits' : spec.kind === 'request' ? 'request' : 'focus';
     if (!this.webviewReady || this.disposed) {
       return;
     }
@@ -247,6 +262,23 @@ export class DiagramPanel {
       this.post({ type: 'focusNode', nodeId });
       return;
     }
+    if (this.spec?.kind === 'request') {
+      if (readRefocusOnCursor()) {
+        const entry = entryForSymbol(nodeId);
+        if (entry && entry.id !== this.spec.entryId) {
+          this.showSpec({
+            kind: 'request',
+            entryId: entry.id,
+            nodeId: routeNodeId(entry),
+            depth: this.spec.depth,
+            maxNodes: readMaxNodes(),
+          });
+          return;
+        }
+      }
+      this.post({ type: 'cursorHint', message: NOT_IN_DIAGRAM });
+      return;
+    }
     if (
       (this.viewMode === 'focus' || this.viewMode === 'traits') &&
       readRefocusOnCursor() &&
@@ -267,7 +299,10 @@ export class DiagramPanel {
     if (!this.webviewReady || this.disposed || isEmptyDelta(delta)) {
       return;
     }
-    if ((this.viewMode === 'focus' || this.viewMode === 'traits') && this.spec) {
+    if (
+      (this.viewMode === 'focus' || this.viewMode === 'traits' || this.viewMode === 'request') &&
+      this.spec
+    ) {
       this.scheduleFocusRefresh();
       return;
     }
@@ -377,7 +412,10 @@ export class DiagramPanel {
    */
   private publishFocusDelta(): void {
     const spec = this.spec;
-    if (!spec || (this.viewMode !== 'focus' && this.viewMode !== 'traits')) {
+    if (
+      !spec ||
+      (this.viewMode !== 'focus' && this.viewMode !== 'traits' && this.viewMode !== 'request')
+    ) {
       return;
     }
     const next = graphForFocus(getWorkspaceGraph(), spec);
@@ -416,6 +454,9 @@ export class DiagramPanel {
         if (!this.spec) {
           return { graph: undefined, explicit: false };
         }
+        if (this.viewMode === 'request' && this.spec.kind !== 'request') {
+          return { graph: undefined, explicit: true };
+        }
         return { graph: graphForFocus(getWorkspaceGraph(), this.spec), explicit: true };
       },
       setViewMode: (mode) => {
@@ -427,6 +468,15 @@ export class DiagramPanel {
         }
         if (mode === 'focus' && this.spec?.kind === 'traits' && this.focusId) {
           this.spec = { kind: 'flow', nodeId: this.focusId, depth: 2 };
+          return;
+        }
+        if (mode === 'focus' && this.spec?.kind === 'request') {
+          const handler =
+            this.spec.handlerId ??
+            this.viewGraph?.edges.find((edge) => edge.kind === 'handles')?.to;
+          if (handler) {
+            this.spec = { kind: 'flow', nodeId: handler, depth: this.spec.depth };
+          }
         }
       },
       post: (message) => {
@@ -553,6 +603,20 @@ function clampPosition(
   const line = Math.min(Math.max(0, position.line), lastLine);
   const maxCharacter = document.lineAt(line).text.length;
   return new vscode.Position(line, Math.min(Math.max(0, position.character), maxCharacter));
+}
+
+function entryForSymbol(nodeId: NodeId) {
+  const node = getWorkspaceGraph().getNode(nodeId);
+  const filePath = node ? fileUriToPath(node.location.uri) : undefined;
+  if (!node || !filePath) {
+    return undefined;
+  }
+  return entryAtPosition(
+    getEntryCatalog().list(),
+    filePath,
+    node.location.range.start.line,
+    node.location.range.start.character,
+  );
 }
 
 function isEmptyDelta(delta: GraphDelta): boolean {

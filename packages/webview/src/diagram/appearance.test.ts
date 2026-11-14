@@ -33,9 +33,10 @@ describe('edge appearance', () => {
           'supertrait',
           'overrides',
           'provides',
+          'handles',
         ] as const
       ).map((kind) => edgeAppearance({ kind, confidence: 'certain' }).color),
     );
-    expect(colors.size).toBe(8);
+    expect(colors.size).toBe(9);
   });
 });

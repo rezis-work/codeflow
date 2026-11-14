@@ -35,6 +35,7 @@ import type {
   Language,
   NodeId,
   SourceRange,
+  EntryFileReport,
 } from '@codeflow/shared';
 import type { AnalysisProject } from './discover';
 import { isAnalyzablePath } from './discover';
@@ -43,6 +44,9 @@ import { resolveTypescriptLibDir } from './libs';
 import { pathToFileUri } from './uri';
 import { loadWorkspacePackages, resolveWorkspaceSpecifier } from './workspacePackages';
 import type { WorkspacePackage } from './workspacePackages';
+import { buildDiIndex, nestDiTargets } from './nestDi';
+import type { DiIndex } from './nestDi';
+import { collectTypeScriptEntries, readNestGlobalPrefix } from './routes';
 
 export interface AnalysisSession {
   readonly key: string;
@@ -59,6 +63,7 @@ export interface AnalysisSession {
   }): FileFragment | undefined;
   remove(filePath: string): void;
   dispose(): void;
+  entryReports(): readonly EntryFileReport[];
 }
 
 interface FileState {
@@ -89,6 +94,10 @@ class AnalysisSessionImpl implements AnalysisSession {
   private readonly packages: ReadonlyMap<string, WorkspacePackage>;
   private program: ts.Program | undefined;
   private dirty = true;
+  private readonly reports = new Map<string, EntryFileReport>();
+  private cachedProgram: ts.Program | undefined;
+  private cachedPrefix: string | undefined;
+  private cachedIndex: DiIndex | undefined;
 
   public constructor(
     private readonly project: AnalysisProject,
@@ -116,8 +125,13 @@ class AnalysisSessionImpl implements AnalysisSession {
     return this.lookup(filePath) !== undefined;
   }
 
+  public entryReports(): readonly EntryFileReport[] {
+    return [...this.reports.values()];
+  }
+
   public analyze(): FileFragment[] {
     this.errors.length = 0;
+    this.reports.clear();
     const program = this.getProgram();
     const fragments: FileFragment[] = [];
     for (const filePath of this.rootFiles()) {
@@ -165,7 +179,10 @@ class AnalysisSessionImpl implements AnalysisSession {
     }
     this.dirty = true;
     try {
-      return this.emitFile(this.getProgram(), filePath);
+      const program = this.getProgram();
+      const fragment = this.emitFile(program, filePath);
+      this.refreshReports(program);
+      return fragment;
     } catch (error) {
       this.errors.push(error instanceof Error ? error.message : `Could not analyze ${filePath}.`);
       return undefined;
@@ -184,11 +201,15 @@ class AnalysisSessionImpl implements AnalysisSession {
     }
     this.program = undefined;
     this.dirty = true;
+    this.cachedProgram = undefined;
+    this.reports.delete(state.uri);
   }
 
   public dispose(): void {
     this.program = undefined;
     this.files.clear();
+    this.reports.clear();
+    this.cachedProgram = undefined;
   }
 
   private readFromDisk(filePath: string): void {
@@ -349,8 +370,54 @@ class AnalysisSessionImpl implements AnalysisSession {
             getCurrentDirectory: () => this.project.workspaceRoot,
           }
         : ts.sys,
+      diIndex: this.injectionIndex(program),
     });
+    this.rememberReport(program, path.resolve(filePath));
     return fragment;
+  }
+
+  private refreshReports(program: ts.Program): void {
+    this.reports.clear();
+    for (const filePath of this.rootFiles()) {
+      this.rememberReport(program, filePath);
+    }
+  }
+
+  private rememberReport(program: ts.Program, filePath: string): void {
+    const sourceFile =
+      program.getSourceFile(filePath) ?? program.getSourceFile(tryRealpath(filePath));
+    if (!sourceFile) {
+      return;
+    }
+    const globalPrefix = this.globalPrefix(program);
+    const report = collectTypeScriptEntries({
+      sourceFile,
+      checker: program.getTypeChecker(),
+      filePath,
+      workspaceRoot: this.project.workspaceRoot,
+      packages: this.packages,
+      ...(globalPrefix !== undefined ? { globalPrefix } : {}),
+    });
+    this.reports.set(report.uri, report);
+  }
+
+  private globalPrefix(program: ts.Program): string | undefined {
+    this.prepareIndexes(program);
+    return this.cachedPrefix;
+  }
+
+  private injectionIndex(program: ts.Program): DiIndex {
+    this.prepareIndexes(program);
+    return this.cachedIndex ?? buildDiIndex(program, program.getTypeChecker());
+  }
+
+  private prepareIndexes(program: ts.Program): void {
+    if (this.cachedProgram === program && this.cachedIndex) {
+      return;
+    }
+    this.cachedProgram = program;
+    this.cachedPrefix = readNestGlobalPrefix(program);
+    this.cachedIndex = buildDiIndex(program, program.getTypeChecker());
   }
 }
 
@@ -366,6 +433,7 @@ interface ExtractInput {
   readonly excludeGlobs: readonly string[];
   readonly packages: ReadonlyMap<string, WorkspacePackage>;
   readonly options: ts.CompilerOptions;
+  readonly diIndex?: DiIndex;
   readonly resolutionHost: ts.ModuleResolutionHost;
 }
 
@@ -536,6 +604,7 @@ function extractFragment(input: ExtractInput): FileFragment {
     to: SymbolIdentity,
     confidence: Confidence,
     at: ts.Node,
+    detail?: string,
   ): void => {
     if (path.resolve(from.filePath) !== input.filePath) {
       return;
@@ -549,6 +618,7 @@ function extractFragment(input: ExtractInput): FileFragment {
       to: idFor(to),
       confidence,
       location: { uri: fileNode.uri, range: nodeRange(at) },
+      ...(detail ? { uncertain: true, detail } : {}),
     });
     if (edgeIds.has(edge.id)) {
       return;
@@ -729,6 +799,9 @@ function extractFragment(input: ExtractInput): FileFragment {
     if (!ts.isCallExpression(node) && !ts.isNewExpression(node)) {
       return;
     }
+    if (insideDecorator(node)) {
+      return;
+    }
     const callee = node.expression;
     if (ts.isCallExpression(node) && callee.kind === ts.SyntaxKind.ImportKeyword) {
       const specifier = firstStringArgument(node);
@@ -746,6 +819,15 @@ function extractFragment(input: ExtractInput): FileFragment {
     }
     if (isDynamicCallee(callee)) {
       return;
+    }
+    if (ts.isCallExpression(node) && input.diIndex) {
+      const fanout = nestDiTargets(input.checker, node, input.diIndex);
+      if (fanout && fanout.targets.length > 0) {
+        for (const target of fanout.targets) {
+          recordCall(node, target, 'inferred', fanout.detail);
+        }
+        return;
+      }
     }
     const type = input.checker.getTypeAtLocation(callee);
     if (type.isUnion()) {
@@ -768,7 +850,12 @@ function extractFragment(input: ExtractInput): FileFragment {
     }
   };
 
-  const recordCall = (node: ts.Node, decl: ts.Node, confidence: Confidence): boolean => {
+  const recordCall = (
+    node: ts.Node,
+    decl: ts.Node,
+    confidence: Confidence,
+    detail?: string,
+  ): boolean => {
     const target = identityOf(decl);
     if (
       !target ||
@@ -779,8 +866,22 @@ function extractFragment(input: ExtractInput): FileFragment {
       return false;
     }
     const caller = callerIdentity(node) ?? fileIdentity;
-    addEdge('call', caller, target, confidence, node);
+    addEdge('call', caller, target, confidence, node, detail);
     return true;
+  };
+
+  const insideDecorator = (node: ts.Node): boolean => {
+    let current: ts.Node | undefined = node.parent;
+    while (current) {
+      if (ts.isDecorator(current)) {
+        return true;
+      }
+      if (isCallableNode(current) || ts.isSourceFile(current)) {
+        return false;
+      }
+      current = current.parent;
+    }
+    return false;
   };
 
   const callerIdentity = (node: ts.Node): SymbolIdentity | undefined => {

@@ -267,6 +267,14 @@ body {
   border-left-color: var(--vscode-charts-orange, #d18616);
 }
 
+.code-node[data-kind='route'] {
+  border-left-color: var(--vscode-symbolIcon-fieldForeground, #9cdcfe);
+}
+
+.code-node[data-kind='sink'] {
+  border-left-color: var(--vscode-symbolIcon-constantForeground, #4fc1ff);
+}
+
 .code-node[data-focused='true'] {
   outline: 2px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 1px;

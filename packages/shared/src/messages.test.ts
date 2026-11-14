@@ -83,6 +83,7 @@ describe('webview to extension messages', () => {
     );
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'focus' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'traits' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'request' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'all' })).toBe(false);
     expect(isDiagramWebviewToExtensionMessage({ type: 'dismissControlFlow' })).toBe(true);
     expect(

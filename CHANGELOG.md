@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Request flow and entry points
+
+- **CodeFlow: Show Request Flow** traces one route through its handler and the calls below it, and ends at a data-layer sink when a known client call is in that set. It is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. With the cursor in a handler it traces that route. Otherwise it asks which route to open.
+- The side panel lists entry points grouped by framework and package, with a count, a filter, and an empty state. A row opens the trace. Source jumps to the handler. Saving a file refreshes that file's routes.
+- Next.js: App Router handlers, Pages Router `pages/api` handlers, `middleware.ts`, and `'use server'` actions, including `src/` and workspace packages. Route groups are omitted. Parallel slots are skipped. Intercepting routes are marked uncertain. A computed path is listed as `unresolved path`.
+- NestJS: controller methods and a string `setGlobalPrefix`. A concrete constructor dependency is a certain call. An interface, an abstract class, or an `@Inject` token is an uncertain edge. Versioning is ignored.
+- Axum: `.route`, method chains, `.nest`, `.merge`, and routers returned from helpers. A closure handler is collapsed and uncertain. A `State` extractor is noted on the route.
+- Actix: method attributes, `#[route]`, `web::resource`, scopes, `App` services, and `configure`.
+- Sinks are a data-driven table: Prisma, Drizzle, TypeORM, Mongoose, Kysely, Knex, `pg` / `postgres` / neon `sql`, `fetch`, sqlx, diesel, sea-orm, tokio-postgres / deadpool, and redis. A literal table, model, or URL is the sink name. `fetch` to an external URL is marked external.
+- The same uncertain drawing used for `dyn` and generic calls is used for dependency injection, closures, and intercepting routes. The route and sink nodes are drawn for this view and are not stored in the workspace graph. Depth follows `codeflow.editor.callDepth`. The node cap follows `codeflow.view.maxNodes`.
+
 ### Trait and impl map
 
 - **CodeFlow: Show Trait Map** draws a Rust trait, the types that implement it, and the methods each impl overrides or inherits. The same command on a type draws the traits that type implements. It is in the Command Palette, the Rust editor context menu, the side panel, and the diagram's Trait map switch.

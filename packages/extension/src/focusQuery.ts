@@ -9,6 +9,8 @@ import { FILE_MODULE_QUALIFIED_NAME, createEdge, createNode } from '@codeflow/sh
 import type { CodeEdge, CodeGraph, CodeNode, EdgeKind, GraphStore, NodeId } from '@codeflow/shared';
 import { fileUriToPath, sameFilePath } from './analyzers/typescript/uri';
 import { DEFAULT_MAX_NODES } from './constants';
+import { getEntryCatalog } from './entryCatalog';
+import { buildRequestFlow } from './requestFlowView';
 
 export type FocusSpec =
   | { readonly kind: 'flow'; readonly nodeId: NodeId; readonly depth: number }
@@ -23,6 +25,14 @@ export type FocusSpec =
   | {
       readonly kind: 'traits';
       readonly nodeId: NodeId;
+      readonly depth: number;
+      readonly maxNodes?: number;
+    }
+  | {
+      readonly kind: 'request';
+      readonly entryId: string;
+      readonly nodeId: NodeId;
+      readonly handlerId?: NodeId;
       readonly depth: number;
       readonly maxNodes?: number;
     };
@@ -47,11 +57,30 @@ export function graphForFocus(store: GraphStore, spec: FocusSpec): CodeGraph | u
       return folderImportView(store, spec.folderPath);
     case 'traits':
       return traitMapView(store, spec.nodeId, spec.maxNodes ?? DEFAULT_MAX_NODES);
+    case 'request':
+      return requestFlowFor(store, spec);
     default: {
       const unreachable: never = spec;
       return unreachable;
     }
   }
+}
+
+function requestFlowFor(
+  store: GraphStore,
+  spec: Extract<FocusSpec, { kind: 'request' }>,
+): CodeGraph | undefined {
+  const entry = getEntryCatalog().get(spec.entryId);
+  if (!entry) {
+    return undefined;
+  }
+  return buildRequestFlow({
+    store,
+    entry,
+    hits: getEntryCatalog().hits(),
+    callDepth: spec.depth,
+    maxNodes: spec.maxNodes ?? DEFAULT_MAX_NODES,
+  });
 }
 
 export function fileModuleNode(store: GraphStore, filePath: string): CodeNode | undefined {
