@@ -8,6 +8,8 @@ import type {
   EdgeKind,
   NodeId,
   Position,
+  SequenceDiagramMessage,
+  SequenceGranularity,
 } from '@codeflow/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ControlFlowView } from './diagram/ControlFlowView';
@@ -16,12 +18,15 @@ import type { LayoutRevision } from './diagram/DiagramCanvas';
 import { EDGE_KIND_LABEL } from './diagram/appearance';
 import { Legend } from './diagram/Legend';
 import { nodeText } from './diagram/labels';
+import { SequenceView } from './diagram/SequenceView';
 import {
   onExtensionMessage,
   postDismissControlFlow,
+  postDismissSequence,
   postExpandNode,
   postReady,
   postRequestControlFlow,
+  postRequestSequence,
   postRevealLocation,
   postSetViewMode,
 } from './messaging';
@@ -43,8 +48,10 @@ export function App() {
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<ReadonlySet<EdgeKind>>(() => new Set());
   const [showMinimap, setShowMinimap] = useState(true);
   const [layoutRevision, setLayoutRevision] = useState<LayoutRevision>({ id: 0, mode: 'full' });
-  const [surface, setSurface] = useState<'graph' | 'flow'>('graph');
+  const [surface, setSurface] = useState<'graph' | 'flow' | 'sequence'>('graph');
   const [flow, setFlow] = useState<ControlFlowMessage | undefined>(undefined);
+  const [sequence, setSequence] = useState<SequenceDiagramMessage | undefined>(undefined);
+  const [granularity, setGranularity] = useState<SequenceGranularity>('type');
   const [flowCursor, setFlowCursor] = useState<
     { readonly uri: string; readonly position: Position } | undefined
   >(undefined);
@@ -108,6 +115,14 @@ export function App() {
         case 'controlFlowCursor':
           setFlowCursor({ uri: message.uri, position: message.position });
           return;
+        case 'sequence':
+          setSequence(message);
+          if (message.diagram) {
+            setGranularity(message.diagram.granularity);
+          }
+          setSurface('sequence');
+          setError(undefined);
+          return;
         default: {
           const unreachable: never = message;
           return unreachable;
@@ -152,6 +167,14 @@ export function App() {
   const onExpand = useCallback((nodeId: NodeId) => {
     postExpandNode(nodeId);
   }, []);
+  const onSequenceBack = useCallback(() => {
+    postDismissSequence();
+    setSurface('graph');
+  }, []);
+  const onSequenceGranularity = useCallback((next: SequenceGranularity) => {
+    setGranularity(next);
+    postRequestSequence(next);
+  }, []);
 
   const focusNode = focusId ? graph?.nodes.find((node) => node.id === focusId) : undefined;
   const focusLabel = focusNode ? nodeText(focusNode).qualified : 'unknown symbol';
@@ -190,7 +213,7 @@ export function App() {
           </p>
         ) : null}
       </div>
-      {surface === 'flow' ? null : (
+      {surface === 'flow' || surface === 'sequence' ? null : (
         <div className="toolbar" role="toolbar" aria-label="Diagram controls">
           <div className="toolbar-group" role="group" aria-label="View mode">
             <button
@@ -234,6 +257,23 @@ export function App() {
               Request
             </button>
           </div>
+          {viewMode === 'request' ? (
+            <div className="toolbar-group" role="group" aria-label="Diagram shape">
+              <button type="button" aria-pressed onClick={onSequenceBack}>
+                Graph
+              </button>
+              <button
+                type="button"
+                aria-pressed={false}
+                data-testid="show-sequence"
+                onClick={() => {
+                  postRequestSequence(granularity);
+                }}
+              >
+                Sequence
+              </button>
+            </div>
+          ) : null}
           <label className="search">
             <span className="search-label">Search</span>
             <input
@@ -322,6 +362,28 @@ export function App() {
             </div>
           )}
         </section>
+      ) : surface === 'sequence' ? (
+        <section className="canvas" aria-label="Sequence">
+          {sequence?.diagram ? (
+            <SequenceView
+              diagram={sequence.diagram}
+              onReveal={onReveal}
+              onBack={onSequenceBack}
+              onGranularity={onSequenceGranularity}
+              {...(theme ? { theme } : {})}
+            />
+          ) : (
+            <div className="empty" data-testid="sequence-missing">
+              <p className="empty-title">No sequence</p>
+              <p className="empty-body">
+                {sequence?.error?.message ?? 'CodeFlow could not draw this sequence.'}
+              </p>
+              <button type="button" onClick={onSequenceBack}>
+                Graph
+              </button>
+            </div>
+          )}
+        </section>
       ) : (
         <section className="canvas" aria-label="Diagram canvas">
           {graph && graph.nodes.length > 0 ? (
@@ -362,7 +424,7 @@ export function App() {
           )}
         </section>
       )}
-      <Legend />
+      {surface === 'flow' || surface === 'sequence' ? null : <Legend />}
     </main>
   );
 }

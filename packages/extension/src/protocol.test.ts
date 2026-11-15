@@ -24,8 +24,10 @@ describe('sidebar messages', () => {
     expect(isSidebarToExtensionMessage({ type: 'openDiagram' })).toBe(true);
     expect(isSidebarToExtensionMessage({ type: 'showTraitMap' })).toBe(true);
     expect(isSidebarToExtensionMessage({ type: 'showRequestFlow', entryId: 'route-1' })).toBe(true);
+    expect(isSidebarToExtensionMessage({ type: 'showSequence', entryId: 'route-1' })).toBe(true);
     expect(isSidebarToExtensionMessage({ type: 'revealEntry', entryId: 'route-1' })).toBe(true);
     expect(isSidebarToExtensionMessage({ type: 'showRequestFlow' })).toBe(false);
+    expect(isSidebarToExtensionMessage({ type: 'showSequence' })).toBe(false);
     expect(isSidebarToExtensionMessage({ type: 'ready' })).toBe(false);
     expect(isSidebarToExtensionMessage(null)).toBe(false);
     expect(isSidebarToExtensionMessage([])).toBe(false);

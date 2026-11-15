@@ -207,6 +207,94 @@ describe('cursor hint', () => {
     expect(screen.queryByTestId('cursor-hint')).toBeNull();
     expect(layoutCalls.count).toBe(laidOut);
   });
+
+  it('draws a sequence, jumps to a call, and keeps it across a graph snapshot', async () => {
+    render(<App />);
+    send({ type: 'ack' });
+    send({ type: 'config', theme: 'light', showInferredEdges: true, viewMode: 'request' });
+    send({
+      type: 'sequence',
+      version: 1,
+      diagram: {
+        version: 1,
+        title: 'GET /pets',
+        granularity: 'type',
+        source: 'request',
+        participants: [
+          { id: 'p0', kind: 'route', label: 'GET /pets', location: mainNode.location },
+          {
+            id: 'p1',
+            kind: 'type',
+            label: 'PetsService',
+            note: 'class',
+            location: mainNode.location,
+          },
+        ],
+        messages: [
+          {
+            id: 'm0',
+            kind: 'call',
+            from: 'p0',
+            to: 'p1',
+            label: 'findAll',
+            order: 0,
+            depth: 0,
+            uncertain: true,
+            reason: 'dependency-injection',
+            detail: 'uncertain: DI interface',
+            location: mainNode.location,
+          },
+          {
+            id: 'm1',
+            kind: 'return',
+            from: 'p1',
+            to: 'p0',
+            label: 'return',
+            order: 1,
+            depth: 0,
+            location: mainNode.location,
+          },
+        ],
+        activations: [
+          { id: 'a0', participant: 'p0', start: 0, end: 1, depth: 0 },
+          { id: 'a1', participant: 'p1', start: 0, end: 1, depth: 0 },
+        ],
+        frames: [],
+        truncated: true,
+        note: 'Truncated at call depth 2.',
+      },
+    });
+    const view = await screen.findByTestId('sequence-view');
+    expect(view.getAttribute('data-theme')).toBe('light');
+    expect(screen.getByTestId('sequence-truncated').textContent).toContain(
+      'Truncated at call depth 2.',
+    );
+    expect(screen.getByTestId('sequence-message-m0').getAttribute('data-uncertain')).toBe('true');
+    expect(screen.getByTestId('sequence-message-m0').getAttribute('aria-label')).toContain(
+      'uncertain: dependency injection',
+    );
+    fireEvent.click(screen.getByTestId('sequence-message-m0'));
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'revealLocation',
+      location: mainNode.location,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'PetsService, class' }));
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'revealLocation',
+      location: mainNode.location,
+    });
+    send({ type: 'config', theme: 'dark', showInferredEdges: true, viewMode: 'request' });
+    await waitFor(() => {
+      expect(screen.getByTestId('sequence-view').getAttribute('data-theme')).toBe('dark');
+    });
+    send({ type: 'graphSnapshot', graph: emptyGraph() });
+    expect(screen.getByTestId('sequence-view')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'File' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'requestSequence', granularity: 'file' });
+    fireEvent.click(screen.getByRole('button', { name: 'Graph' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'dismissSequence' });
+    expect(screen.getByRole('region', { name: 'Diagram canvas' })).toBeTruthy();
+  });
 });
 
 describe('outgoing diagram messages', () => {

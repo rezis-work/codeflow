@@ -39,6 +39,7 @@
     "onCommand:codeflow.showControlFlowAtCursor",
     "onCommand:codeflow.showTraitMap",
     "onCommand:codeflow.showRequestFlow",
+    "onCommand:codeflow.showSequence",
     "onCommand:codeflow.showCallers",
     "onCommand:codeflow.showCallees",
     "onCommand:codeflow.showFileDependencies",
@@ -72,6 +73,11 @@
         "command": "codeflow.showRequestFlow",
         "title": "CodeFlow: Show Request Flow",
         "icon": "$(globe)"
+      },
+      {
+        "command": "codeflow.showSequence",
+        "title": "CodeFlow: Show as Sequence",
+        "icon": "$(list-flat)"
       },
       {
         "command": "codeflow.showCallers",
@@ -142,6 +148,9 @@
           "command": "codeflow.showRequestFlow"
         },
         {
+          "command": "codeflow.showSequence"
+        },
+        {
           "command": "codeflow.showCallers"
         },
         {
@@ -177,6 +186,11 @@
           "command": "codeflow.showRequestFlow",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
           "group": "navigation@7"
+        },
+        {
+          "command": "codeflow.showSequence",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "group": "navigation@8"
         },
         {
           "command": "codeflow.showCallers",
@@ -256,7 +270,7 @@
           "default": 2,
           "minimum": 1,
           "maximum": 32,
-          "description": "How many call steps CodeFlow: Show Callers and CodeFlow: Show Callees walk from the symbol under the cursor."
+          "description": "How many call steps CodeFlow: Show Callers, CodeFlow: Show Callees, a request flow, and a sequence walk. The route itself is not a step."
         },
         "codeflow.codeLens.enabled": {
           "type": "boolean",

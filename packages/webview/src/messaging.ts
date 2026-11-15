@@ -5,6 +5,7 @@ import type {
   ExtensionToDiagramWebviewMessage,
   Language,
   NodeId,
+  SequenceGranularity,
   SourceLocation,
 } from '@codeflow/shared';
 
@@ -85,6 +86,17 @@ export function postRequestControlFlow(input: {
 
 export function postDismissControlFlow(): void {
   post({ type: 'dismissControlFlow' });
+}
+
+export function postRequestSequence(granularity?: SequenceGranularity): void {
+  post({
+    type: 'requestSequence',
+    ...(granularity ? { granularity } : {}),
+  });
+}
+
+export function postDismissSequence(): void {
+  post({ type: 'dismissSequence' });
 }
 
 export function onExtensionMessage(

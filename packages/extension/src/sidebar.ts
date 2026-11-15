@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import {
   OPEN_DIAGRAM_COMMAND,
   SHOW_REQUEST_FLOW_COMMAND,
+  SHOW_SEQUENCE_COMMAND,
   SHOW_TRAIT_MAP_COMMAND,
 } from './constants';
 import type { EntryPoint } from '@codeflow/shared';
@@ -75,6 +76,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (message.type === 'showRequestFlow') {
       void vscode.commands.executeCommand(SHOW_REQUEST_FLOW_COMMAND, message.entryId);
+      return;
+    }
+    if (message.type === 'showSequence') {
+      void vscode.commands.executeCommand(SHOW_SEQUENCE_COMMAND, message.entryId);
       return;
     }
     if (message.type === 'revealEntry') {

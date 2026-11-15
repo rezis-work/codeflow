@@ -28,6 +28,13 @@ import {
 } from './controlFlow';
 import type { ControlFlowErrorCode, ControlFlowGraph } from './controlFlow';
 import {
+  SEQUENCE_VERSION,
+  isSequenceErrorCode,
+  isSequenceGranularity,
+  parseSequenceDiagram,
+} from './sequence';
+import type { SequenceDiagram, SequenceErrorCode, SequenceGranularity } from './sequence';
+import {
   asEdgeId,
   parseCodeEdge,
   parseCodeGraph,
@@ -103,6 +110,20 @@ export interface DismissControlFlowMessage {
   readonly type: 'dismissControlFlow';
 }
 
+/**
+ * Asks for the sequence of the open request, or of the sequence already
+ * showing. `granularity` picks file, type, or module lifelines.
+ */
+export interface RequestSequenceMessage {
+  readonly type: 'requestSequence';
+  readonly granularity?: SequenceGranularity;
+}
+
+/** The webview left the sequence and is showing the graph again. */
+export interface DismissSequenceMessage {
+  readonly type: 'dismissSequence';
+}
+
 export type DiagramWebviewToExtensionMessage =
   | ReadyMessage
   | RequestGraphMessage
@@ -110,7 +131,9 @@ export type DiagramWebviewToExtensionMessage =
   | ExpandNodeMessage
   | SetViewModeMessage
   | RequestControlFlowMessage
-  | DismissControlFlowMessage;
+  | DismissControlFlowMessage
+  | RequestSequenceMessage
+  | DismissSequenceMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -168,6 +191,20 @@ export interface ControlFlowMessage {
   };
 }
 
+/**
+ * One traced path as a sequence. `diagram` and `error` are alternatives.
+ * `version` is {@link SEQUENCE_VERSION}.
+ */
+export interface SequenceDiagramMessage {
+  readonly type: 'sequence';
+  readonly version: typeof SEQUENCE_VERSION;
+  readonly diagram?: SequenceDiagram;
+  readonly error?: {
+    readonly code: SequenceErrorCode;
+    readonly message: string;
+  };
+}
+
 /** Cursor position while a flowchart is open. The webview highlights that block. */
 export interface ControlFlowCursorMessage {
   readonly type: 'controlFlowCursor';
@@ -185,7 +222,8 @@ export type ExtensionToDiagramWebviewMessage =
   | ConfigMessage
   | ErrorMessage
   | ControlFlowMessage
-  | ControlFlowCursorMessage;
+  | ControlFlowCursorMessage
+  | SequenceDiagramMessage;
 
 export function isDiagramWebviewToExtensionMessage(
   value: unknown,
@@ -218,6 +256,10 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return parseRequestControlFlow(value);
     case 'dismissControlFlow':
       return { type: 'dismissControlFlow' };
+    case 'requestSequence':
+      return parseRequestSequence(value);
+    case 'dismissSequence':
+      return { type: 'dismissSequence' };
     default:
       return undefined;
   }
@@ -246,6 +288,8 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parseControlFlowMessage(value);
     case 'controlFlowCursor':
       return parseControlFlowCursor(value);
+    case 'sequence':
+      return parseSequenceMessage(value);
     default:
       return undefined;
   }
@@ -360,6 +404,48 @@ function parseCursorHint(value: Record<string, unknown>): CursorHintMessage | un
   }
   const message = value.message.trim();
   return message.length > 0 ? { type: 'cursorHint', message } : { type: 'cursorHint' };
+}
+
+function parseRequestSequence(value: Record<string, unknown>): RequestSequenceMessage | undefined {
+  if (value.granularity !== undefined && !isSequenceGranularity(value.granularity)) {
+    return undefined;
+  }
+  return {
+    type: 'requestSequence',
+    ...(isSequenceGranularity(value.granularity) ? { granularity: value.granularity } : {}),
+  };
+}
+
+function parseSequenceMessage(value: Record<string, unknown>): SequenceDiagramMessage | undefined {
+  if (value.version !== SEQUENCE_VERSION) {
+    return undefined;
+  }
+  const hasDiagram = value.diagram !== undefined;
+  const hasError = value.error !== undefined;
+  if (hasDiagram === hasError) {
+    return undefined;
+  }
+  if (hasDiagram) {
+    const diagram = parseSequenceDiagram(value.diagram);
+    if (!diagram.ok) {
+      return undefined;
+    }
+    return { type: 'sequence', version: SEQUENCE_VERSION, diagram: diagram.value };
+  }
+  const error = parseSequenceError(value.error);
+  if (!error) {
+    return undefined;
+  }
+  return { type: 'sequence', version: SEQUENCE_VERSION, error };
+}
+
+function parseSequenceError(
+  value: unknown,
+): { readonly code: SequenceErrorCode; readonly message: string } | undefined {
+  if (!isRecord(value) || !isSequenceErrorCode(value.code) || !isNonEmptyString(value.message)) {
+    return undefined;
+  }
+  return { code: value.code, message: value.message };
 }
 
 function parseRequestControlFlow(
