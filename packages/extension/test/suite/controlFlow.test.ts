@@ -15,6 +15,7 @@ interface FlowMessage {
   readonly type: string;
   readonly error?: { readonly message?: string };
   readonly nodeId?: string;
+  readonly position?: { readonly line: number; readonly character: number };
   readonly graph?: {
     readonly qualifiedName?: string;
     readonly uri?: string;
@@ -67,6 +68,51 @@ function waitFor(predicate: () => boolean, label: () => string, timeoutMs: numbe
       }
     }, 50);
   });
+}
+
+function pause(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Reveal swallows the selection it just applied. Step off that line and
+ * back onto the target until the flowchart posts a cursor highlight for it.
+ */
+async function followUntilHighlighted(
+  api: CodeFlowApi,
+  editor: vscode.TextEditor,
+  target: vscode.Position,
+  away: vscode.Position,
+): Promise<void> {
+  const deadline = Date.now() + 12_000;
+  let lastError = 'cursor follow did not highlight the Rust block';
+  while (Date.now() < deadline) {
+    const before = api.diagramMessages().length;
+    editor.selection = new vscode.Selection(away, away);
+    await pause(40);
+    editor.selection = new vscode.Selection(target, target);
+    const remaining = deadline - Date.now();
+    try {
+      await waitFor(
+        () =>
+          api
+            .diagramMessages()
+            .slice(before)
+            .some(
+              (message) =>
+                message.type === 'controlFlowCursor' && message.position?.line === target.line,
+            ),
+        () => lastError,
+        Math.min(2_000, Math.max(remaining, 1)),
+      );
+      return;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError;
+    }
+  }
+  throw new Error(lastError);
 }
 
 suite('CodeFlow control flow', () => {
@@ -190,18 +236,14 @@ suite('CodeFlow control flow', () => {
     assert.ok(landed);
     assert.ok(landed.document.lineAt(landed.selection.start.line).text.includes('if'));
 
-    const before = api.diagramMessages().length;
     const inside = document.positionAt(document.getText().indexOf('if user.is_none()'));
-    landed.selection = new vscode.Selection(inside, inside);
-    await waitFor(
-      () =>
-        api
-          .diagramMessages()
-          .slice(before)
-          .some((message) => message.type === 'controlFlowCursor'),
-      () => 'cursor follow did not highlight the Rust block',
-      10_000,
-    );
+    const away = document.positionAt(document.getText().indexOf('return "missing"'));
+    assert.notEqual(inside.line, away.line);
+    const followed = await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.One,
+      preview: false,
+    });
+    await followUntilHighlighted(api, followed, inside, away);
   });
 
   test('the command draws an impl method and a trait default', async function () {
