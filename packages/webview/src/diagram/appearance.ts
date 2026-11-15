@@ -1,4 +1,5 @@
-import type { Confidence, EdgeKind } from '@codeflow/shared';
+import type { Confidence, EdgeKind, UncertaintyReason } from '@codeflow/shared';
+import { uncertaintyTooltip } from '@codeflow/shared';
 
 export interface EdgeAppearance {
   readonly kind: EdgeKind;
@@ -25,19 +26,22 @@ export function edgeColor(kind: EdgeKind): string {
 }
 
 /**
- * Certain edges are solid. Inferred edges, and edges marked uncertain
- * (dyn Trait, a generic bound, impl Trait, dependency injection, a closure,
- * or an unresolved receiver), are dashed and faded. `detail` is the tooltip
- * when the analyzer explained why.
+ * Certain edges are solid. Inferred edges, and edges marked uncertain,
+ * are dashed and faded. The tooltip is the analyzer's detail, or the
+ * uncertainty category (callback, dependency injection, dynamic dispatch,
+ * generic bound, macro, dynamic property).
  */
 export function edgeAppearance(edge: {
   readonly kind: EdgeKind;
   readonly confidence: Confidence;
   readonly uncertain?: boolean;
+  readonly reason?: UncertaintyReason;
   readonly detail?: string;
 }): EdgeAppearance {
-  const dashed = edge.confidence === 'inferred' || edge.uncertain === true;
-  const tooltip = edge.detail ?? (edge.uncertain ? 'uncertain' : dashed ? 'inferred' : undefined);
+  const dashed =
+    edge.confidence === 'inferred' || edge.uncertain === true || edge.reason !== undefined;
+  const tooltip =
+    uncertaintyTooltip(edge) ?? (dashed && edge.confidence === 'inferred' ? 'inferred' : undefined);
   return {
     kind: edge.kind,
     dashed,

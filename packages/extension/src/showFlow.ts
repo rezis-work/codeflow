@@ -11,6 +11,7 @@ import { fileModuleNode, graphForFocus, nodesInFile } from './focusQuery';
 import type { FocusSpec } from './focusQuery';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
+import { isSymbolCommandTarget } from './codeLensModel';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 const RUST_TRAIT_MAP =
@@ -32,7 +33,7 @@ export async function showTraitMapAtCursor(
   if (!prepared) {
     return;
   }
-  const symbol = symbolAtCursor(prepared);
+  const symbol = symbolAt(prepared);
   if (!symbol || !isTraitMapSymbol(symbol)) {
     void vscode.window.showInformationMessage(
       'Put the cursor on a Rust trait, impl, or type to show its trait map.',
@@ -55,12 +56,13 @@ export async function showFlowAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  target?: unknown,
 ): Promise<void> {
-  const editor = await prepareEditor(typescript, rust, true);
+  const editor = await prepareEditor(typescript, rust, true, target);
   if (!editor) {
     return;
   }
-  const symbol = symbolAtCursor(editor);
+  const symbol = symbolAt(editor, target);
   if (!symbol) {
     void vscode.window.showInformationMessage('CodeFlow has no symbol at the cursor yet.');
     return;
@@ -72,16 +74,18 @@ export async function showCallersAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  target?: unknown,
 ): Promise<void> {
-  await showCalls(context, typescript, rust, 'callers');
+  await showCalls(context, typescript, rust, 'callers', target);
 }
 
 export async function showCalleesAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  target?: unknown,
 ): Promise<void> {
-  await showCalls(context, typescript, rust, 'callees');
+  await showCalls(context, typescript, rust, 'callees', target);
 }
 
 export async function showFileDependencies(
@@ -145,12 +149,13 @@ async function showCalls(
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
   direction: 'callers' | 'callees',
+  target?: unknown,
 ): Promise<void> {
-  const editor = await prepareEditor(typescript, rust, false);
+  const editor = await prepareEditor(typescript, rust, false, target);
   if (!editor) {
     return;
   }
-  const symbol = symbolAtCursor(editor);
+  const symbol = symbolAt(editor, target);
   if (!symbol) {
     void vscode.window.showInformationMessage('CodeFlow has no symbol at the cursor yet.');
     return;
@@ -167,7 +172,24 @@ async function prepareEditor(
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
   upgradeRust: boolean,
+  target?: unknown,
 ): Promise<vscode.TextEditor | undefined> {
+  const pinned = isSymbolCommandTarget(target) ? target : undefined;
+  if (pinned) {
+    let document: vscode.TextDocument;
+    try {
+      document = await vscode.workspace.openTextDocument(vscode.Uri.parse(pinned.uri));
+    } catch {
+      void vscode.window.showInformationMessage('CodeFlow could not open that file.');
+      return undefined;
+    }
+    const editor = await vscode.window.showTextDocument(document, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.One,
+    });
+    const position = new vscode.Position(pinned.line, pinned.character);
+    editor.selection = new vscode.Selection(position, position);
+  }
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
     void vscode.window.showInformationMessage(
@@ -232,9 +254,13 @@ async function resolveFile(
   return target;
 }
 
-function symbolAtCursor(editor: vscode.TextEditor) {
+function symbolAt(editor: vscode.TextEditor, target?: unknown) {
   const nodes = nodesInFile(getWorkspaceGraph(), editor.document.uri.fsPath);
-  const position = editor.selection.active;
+  const pinned = isSymbolCommandTarget(target) ? target : undefined;
+  const position = pinned ?? {
+    line: editor.selection.active.line,
+    character: editor.selection.active.character,
+  };
   return findSymbolAt(nodes, position.line, position.character);
 }
 

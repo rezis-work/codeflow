@@ -149,5 +149,7 @@ describe('extension manifest', () => {
     expect(refocus).toMatchObject({ type: 'boolean', default: false });
     const depth = manifest.contributes?.configuration?.properties?.['codeflow.editor.callDepth'];
     expect(depth).toMatchObject({ type: 'number', default: 2 });
+    const codeLens = manifest.contributes?.configuration?.properties?.['codeflow.codeLens.enabled'];
+    expect(codeLens).toMatchObject({ type: 'boolean', default: true });
   });
 });

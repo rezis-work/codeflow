@@ -6,6 +6,8 @@ export interface DiagramFilter {
   readonly query: string;
   readonly hiddenEdgeKinds: ReadonlySet<EdgeKind>;
   readonly showInferred: boolean;
+  /** When false, edges marked uncertain are left out. Default in the UI is on. */
+  readonly showUncertain: boolean;
   readonly maxNodes: number;
   readonly focusId?: NodeId;
   readonly fileNames: ReadonlyMap<NodeId, string>;
@@ -41,6 +43,9 @@ export function filterDiagram(
       return false;
     }
     if (!filter.showInferred && edge.confidence === 'inferred') {
+      return false;
+    }
+    if (!filter.showUncertain && edge.uncertain === true) {
       return false;
     }
     return true;

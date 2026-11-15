@@ -2,7 +2,7 @@
   "name": "codeflow",
   "displayName": "CodeFlow",
   "description": "Interactive call and dependency diagrams for TypeScript, JavaScript, and Rust, shown beside the code. Works in VS Code and Cursor.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "codeflow",
   "license": "MIT",
   "icon": "media/codeflow-icon.png",
@@ -257,6 +257,11 @@
           "minimum": 1,
           "maximum": 32,
           "description": "How many call steps CodeFlow: Show Callers and CodeFlow: Show Callees walk from the symbol under the cursor."
+        },
+        "codeflow.codeLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show caller and callee counts above each function and method. The counts are the call-graph degree. Uncertain calls are shown separately as “+N possible” and are not included in the main count. Clicking the caller count runs Show Callers. Clicking the callee count runs Show Callees."
         },
         "codeflow.rust.useRustAnalyzer": {
           "type": "boolean",

@@ -6,9 +6,10 @@
  * the file itself. Contains, imports, extends, and implements are read off
  * the syntax. A call is `certain` when the type checker names one declaration
  * in the workspace. A union of functions, or a call whose type is `any` but
- * whose symbol is still a workspace function, is `inferred`. Dynamic calls,
- * unresolved calls, and anything under node_modules are skipped: an edge is
- * only emitted when the target file is known.
+ * whose symbol is still a workspace function, is `inferred`. A computed call,
+ * a generic-bound receiver, a callback argument, and a NestJS injection are
+ * uncertain and carry a reason. A call whose target file is unknown, including
+ * most `any` calls and an index signature with no declaration, is still skipped.
  *
  * Each project keeps its own program. Reanalyzing a file rebuilds that
  * program and returns only the edited file's fragment.
@@ -36,6 +37,7 @@ import type {
   NodeId,
   SourceRange,
   EntryFileReport,
+  UncertaintyReason,
 } from '@codeflow/shared';
 import type { AnalysisProject } from './discover';
 import { isAnalyzablePath } from './discover';
@@ -421,6 +423,11 @@ class AnalysisSessionImpl implements AnalysisSession {
   }
 }
 
+interface CallNote {
+  readonly reason?: UncertaintyReason;
+  readonly detail?: string;
+}
+
 interface ExtractInput {
   readonly checker: ts.TypeChecker;
   readonly sourceFile: ts.SourceFile;
@@ -604,7 +611,7 @@ function extractFragment(input: ExtractInput): FileFragment {
     to: SymbolIdentity,
     confidence: Confidence,
     at: ts.Node,
-    detail?: string,
+    note?: CallNote,
   ): void => {
     if (path.resolve(from.filePath) !== input.filePath) {
       return;
@@ -616,9 +623,15 @@ function extractFragment(input: ExtractInput): FileFragment {
       kind,
       from: idFor(from),
       to: idFor(to),
-      confidence,
+      confidence: note?.reason ? 'inferred' : confidence,
       location: { uri: fileNode.uri, range: nodeRange(at) },
-      ...(detail ? { uncertain: true, detail } : {}),
+      ...(note?.reason || note?.detail
+        ? {
+            uncertain: true as const,
+            ...(note.reason ? { reason: note.reason } : {}),
+            ...(note.detail ? { detail: note.detail } : {}),
+          }
+        : {}),
     });
     if (edgeIds.has(edge.id)) {
       return;
@@ -817,36 +830,115 @@ function extractFragment(input: ExtractInput): FileFragment {
       }
       return;
     }
-    if (isDynamicCallee(callee)) {
-      return;
-    }
-    if (ts.isCallExpression(node) && input.diIndex) {
+    const dynamic = isDynamicCallee(callee);
+    if (!dynamic && ts.isCallExpression(node) && input.diIndex) {
       const fanout = nestDiTargets(input.checker, node, input.diIndex);
       if (fanout && fanout.targets.length > 0) {
         for (const target of fanout.targets) {
-          recordCall(node, target, 'inferred', fanout.detail);
+          recordCall(node, target, 'inferred', {
+            reason: 'dependency-injection',
+            detail: fanout.detail,
+          });
         }
+        recordCallbackArguments(node);
         return;
       }
     }
     const type = input.checker.getTypeAtLocation(callee);
+    const note = callNote(callee, type, dynamic);
     if (type.isUnion()) {
       for (const target of declarationsFromType(type)) {
-        recordCall(node, target, 'inferred');
+        recordCall(node, target, 'inferred', note ?? { reason: 'dynamic-dispatch' });
       }
+      recordCallbackArguments(node);
       return;
     }
     const signature = input.checker.getResolvedSignature(node);
     const signatureDecl = signature?.declaration;
     if (signatureDecl && isNode(signatureDecl)) {
-      const confidence: Confidence = isAnyOrError(type) ? 'inferred' : 'certain';
-      if (recordCall(node, signatureDecl, confidence)) {
+      const confidence: Confidence = note || isAnyOrError(type) ? 'inferred' : 'certain';
+      if (recordCall(node, signatureDecl, confidence, note)) {
+        recordCallbackArguments(node);
         return;
       }
     }
     const fallback = symbolDeclaration(callee);
     if (fallback) {
-      recordCall(node, fallback, 'inferred');
+      recordCall(node, fallback, 'inferred', note);
+    }
+    recordCallbackArguments(node);
+  };
+
+  const callNote = (
+    callee: ts.Expression,
+    type: ts.Type,
+    dynamic: boolean,
+  ): CallNote | undefined => {
+    if (dynamic) {
+      return { reason: 'dynamic-property' };
+    }
+    if (isGenericReceiver(callee)) {
+      return { reason: 'generic-bound' };
+    }
+    if (type.isUnion()) {
+      return { reason: 'dynamic-dispatch' };
+    }
+    return undefined;
+  };
+
+  const isGenericReceiver = (callee: ts.Expression): boolean => {
+    const expression = ts.isParenthesizedExpression(callee) ? callee.expression : callee;
+    if (!ts.isPropertyAccessExpression(expression) && !ts.isElementAccessExpression(expression)) {
+      return false;
+    }
+    const receiver = input.checker.getTypeAtLocation(expression.expression);
+    return isOpenTypeParameter(receiver);
+  };
+
+  const isOpenTypeParameter = (type: ts.Type): boolean => {
+    if (type.isUnion() || type.isIntersection()) {
+      return type.types.some((part) => isOpenTypeParameter(part));
+    }
+    if ((type.flags & ts.TypeFlags.TypeParameter) === 0) {
+      return false;
+    }
+    // A class method's polymorphic `this` is a type parameter whose symbol is
+    // the class. A declared type parameter's symbol is the parameter itself.
+    const symbol = type.getSymbol();
+    return (
+      symbol !== undefined &&
+      (symbol.flags & ts.SymbolFlags.TypeParameter) !== 0 &&
+      symbol.name !== 'this'
+    );
+  };
+
+  const recordCallbackArguments = (node: ts.CallExpression | ts.NewExpression): void => {
+    const note: CallNote = { reason: 'callback' };
+    for (const argument of node.arguments ?? []) {
+      const expr = unwrapArgument(argument);
+      if (
+        ts.isCallExpression(expr) ||
+        ts.isNewExpression(expr) ||
+        ts.isArrowFunction(expr) ||
+        ts.isFunctionExpression(expr) ||
+        ts.isClassExpression(expr)
+      ) {
+        continue;
+      }
+      if (
+        !ts.isIdentifier(expr) &&
+        !ts.isPropertyAccessExpression(expr) &&
+        !ts.isElementAccessExpression(expr)
+      ) {
+        continue;
+      }
+      if (isDynamicCallee(expr)) {
+        continue;
+      }
+      const decl = symbolDeclaration(expr);
+      if (decl) {
+        recordCall(node, decl, 'inferred', note);
+      }
     }
   };
 
@@ -854,7 +946,7 @@ function extractFragment(input: ExtractInput): FileFragment {
     node: ts.Node,
     decl: ts.Node,
     confidence: Confidence,
-    detail?: string,
+    note?: CallNote,
   ): boolean => {
     const target = identityOf(decl);
     if (
@@ -866,7 +958,7 @@ function extractFragment(input: ExtractInput): FileFragment {
       return false;
     }
     const caller = callerIdentity(node) ?? fileIdentity;
-    addEdge('call', caller, target, confidence, node, detail);
+    addEdge('call', caller, target, confidence, node, note);
     return true;
   };
 
@@ -1335,6 +1427,20 @@ function calleeName(expression: ts.Expression): ts.Node {
     return expression.argumentExpression;
   }
   return expression;
+}
+
+function unwrapArgument(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
 }
 
 function isDynamicCallee(expression: ts.Expression): boolean {

@@ -1,26 +1,39 @@
 import { CONTROL_FLOW_BLOCK_LIMIT, controlFlowBlockAt } from '@codeflow/shared';
 import type { ControlFlowGraph, DiagramTheme, Position, SourceRange } from '@codeflow/shared';
-import { Background, Controls, ReactFlow } from '@xyflow/react';
-import type { NodeProps } from '@xyflow/react';
+import { Background, Controls, ReactFlow, getSmoothStepPath } from '@xyflow/react';
+import type { EdgeProps, NodeProps } from '@xyflow/react';
 import { Handle, Position as HandlePosition } from '@xyflow/react';
 import { useEffect, useMemo, useState } from 'react';
 import { controlFlowBox, controlFlowToFlow } from './controlFlowToFlow';
-import type { ControlBlockNode } from './controlFlowToFlow';
+import type { ControlBlockNode, ControlFlowEdgeView } from './controlFlowToFlow';
 import { layoutControlFlow } from './elkLayout';
 import type { LayoutPoint } from './layout';
 
 const nodeTypes = { control: ControlBlock };
+const edgeTypes = { flowEdge: FlowEdge };
 
 export function ControlFlowView(props: {
   readonly graph: ControlFlowGraph;
   readonly theme?: DiagramTheme;
   readonly reducedMotion: boolean;
+  readonly showUncertain: boolean;
+  readonly onToggleUncertain?: () => void;
   readonly cursor?: Position;
   readonly onReveal: (range: SourceRange) => void;
   readonly onOpenNested: (range: SourceRange) => void;
   readonly onBack: () => void;
 }) {
-  const { graph, theme, reducedMotion, cursor, onReveal, onOpenNested, onBack } = props;
+  const {
+    graph,
+    theme,
+    reducedMotion,
+    showUncertain,
+    onToggleUncertain,
+    cursor,
+    onReveal,
+    onOpenNested,
+    onBack,
+  } = props;
   const layoutKey = `${graph.functionId}:${graph.nodes.map((node) => node.id).join(',')}:${graph.edges
     .map((edge) => edge.id)
     .join(',')}`;
@@ -61,13 +74,14 @@ export function ControlFlowView(props: {
       graph,
       positions,
       reducedMotion,
+      showUncertain,
       onReveal: (node) => {
         onReveal(node.range);
       },
       onOpenNested,
       ...(activeId ? { activeId } : {}),
     });
-  }, [graph, positions, activeId, reducedMotion, onReveal, onOpenNested]);
+  }, [graph, positions, activeId, reducedMotion, showUncertain, onReveal, onOpenNested]);
 
   const limit = graph.blockLimit ?? CONTROL_FLOW_BLOCK_LIMIT;
   const title =
@@ -81,6 +95,14 @@ export function ControlFlowView(props: {
         </button>
         <span aria-hidden="true">/</span>
         <span data-testid="flow-name">{title}</span>
+        <button
+          type="button"
+          className="flow-uncertain"
+          aria-pressed={showUncertain}
+          onClick={onToggleUncertain}
+        >
+          Uncertain
+        </button>
       </nav>
       {graph.truncated ? (
         <p className="cap-notice" role="status" data-testid="flow-cap">
@@ -97,6 +119,7 @@ export function ControlFlowView(props: {
         nodes={flow.nodes}
         edges={flow.edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         colorMode={colorMode(theme)}
         minZoom={0.2}
@@ -109,6 +132,23 @@ export function ControlFlowView(props: {
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>
+  );
+}
+
+function FlowEdge(props: EdgeProps<ControlFlowEdgeView>) {
+  const [path] = getSmoothStepPath(props);
+  const tooltip = props.data?.tooltip;
+  return (
+    <path
+      id={props.id}
+      d={path}
+      className="react-flow__edge-path"
+      style={props.style}
+      markerEnd={props.markerEnd}
+      data-uncertain={props.data?.uncertain ? 'true' : 'false'}
+    >
+      {tooltip ? <title>{tooltip}</title> : null}
+    </path>
   );
 }
 

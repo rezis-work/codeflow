@@ -144,6 +144,11 @@ describe('request flow fixtures', () => {
     expect(routeView(analyzed.entries)).toMatchSnapshot('nest routes');
     const graph = trace(analyzed.entries, analyzed.fragments, 'GET', '/api/pets');
     expect(graph.edges.some((edge) => edge.uncertain)).toBe(true);
+    expect(
+      analyzed.fragments.some((file) =>
+        file.edges.some((edge) => edge.reason === 'dependency-injection'),
+      ),
+    ).toBe(true);
     expect(graph).toMatchSnapshot('nest trace');
   });
 

@@ -46,11 +46,35 @@ describe('filters', () => {
       query: '',
       hiddenEdgeKinds: new Set(['import']),
       showInferred: false,
+      showUncertain: true,
       maxNodes: 300,
       fileNames: new Map(),
     });
     expect(hidden.edges).toHaveLength(1);
     expect(hidden.edges[0]).toMatchObject({ kind: 'call', confidence: 'certain' });
+  });
+
+  it('hides uncertain edges without hiding every inferred edge', () => {
+    const main = fn('main');
+    const helper = fn('helper');
+    const other = fn('other');
+    const certain = link(main, helper, 'call', 'certain');
+    const inferred = link(main, other, 'call', 'inferred');
+    const uncertain = {
+      ...link(main, helper, 'call', 'inferred'),
+      uncertain: true,
+      detail: 'uncertain: callback / higher-order',
+    };
+    const hidden = filterDiagram([main, helper, other], [certain, inferred, uncertain], {
+      query: '',
+      hiddenEdgeKinds: new Set(),
+      showInferred: true,
+      showUncertain: false,
+      maxNodes: 300,
+      fileNames: new Map(),
+    });
+    expect(hidden.edges).toHaveLength(2);
+    expect(hidden.edges.every((edge) => edge.uncertain !== true)).toBe(true);
   });
 
   it('filters by name across languages', () => {
@@ -60,6 +84,7 @@ describe('filters', () => {
       query: 'core::id',
       hiddenEdgeKinds: new Set(),
       showInferred: true,
+      showUncertain: true,
       maxNodes: 300,
       fileNames: new Map(),
     });

@@ -19,6 +19,13 @@ describe('edge appearance', () => {
     });
     expect(uncertain.dashed).toBe(true);
     expect(uncertain.tooltip).toBe('uncertain: dyn Trait');
+    const reasoned = edgeAppearance({
+      kind: 'call',
+      confidence: 'inferred',
+      reason: 'macro',
+    });
+    expect(reasoned.dashed).toBe(true);
+    expect(reasoned.tooltip).toBe('uncertain: macro');
   });
 
   it('gives each edge kind its own color', () => {

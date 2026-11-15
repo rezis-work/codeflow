@@ -9,9 +9,12 @@
  * that serves it (`handles`).
  * A `certain` edge was read off the syntax. An `inferred` edge is a guess
  * a later analyzer was not willing to treat as fact. `uncertain` marks a
- * call whose receiver could be any impl (dyn Trait, a generic bound, impl
- * Trait, or a receiver syntax could not name). It is not part of the edge id.
- * `detail` is a short reason the diagram can show. Older graphs omit both.
+ * call the analyzer could not prove: a callback, dependency injection,
+ * dynamic dispatch (`dyn Trait` or an unnamed receiver), a generic bound
+ * (`impl Trait` included), a macro, or a computed call. `reason` is that
+ * category. `detail` is the short tooltip. Neither is part of the edge id.
+ * Older graphs omit both. An inherited default and a fan-out cap stay
+ * uncertain without a category.
  *
  * An edge whose endpoint is not in the store yet is pending. It resolves
  * when that node arrives. Analyzers should emit a cross-file edge only when
@@ -64,6 +67,30 @@ const ANNOTATION_LIMIT = 160;
 export const CONFIDENCE = ['certain', 'inferred'] as const;
 export type Confidence = (typeof CONFIDENCE)[number];
 
+/**
+ * Why a call edge is uncertain. The diagram dashes every one of these and
+ * the CodeLens counts them apart from proved callers and callees.
+ */
+export const UNCERTAINTY_REASONS = [
+  'callback',
+  'dependency-injection',
+  'dynamic-dispatch',
+  'generic-bound',
+  'macro',
+  'dynamic-property',
+] as const;
+export type UncertaintyReason = (typeof UNCERTAINTY_REASONS)[number];
+
+/** Tooltip used when an analyzer sets `reason` and does not pass its own `detail`. */
+export const UNCERTAINTY_REASON_DETAIL: Record<UncertaintyReason, string> = {
+  callback: 'uncertain: callback / higher-order',
+  'dependency-injection': 'uncertain: dependency injection',
+  'dynamic-dispatch': 'uncertain: dynamic dispatch / dyn Trait',
+  'generic-bound': 'uncertain: generic bound',
+  macro: 'uncertain: macro',
+  'dynamic-property': 'uncertain: dynamic property / computed call',
+};
+
 export interface Position {
   readonly line: number;
   readonly character: number;
@@ -104,11 +131,16 @@ export interface CodeEdge {
   readonly confidence: Confidence;
   readonly location?: SourceLocation;
   /**
-   * The receiver could be more than one impl. Dashed like `inferred`.
+   * The call could not be proved. Dashed like `inferred`.
    * Omitted when the edge is not uncertain, so older graphs stay valid.
    */
   readonly uncertain?: boolean;
-  /** Why the edge is uncertain, or `inherited default`. Omitted when absent. */
+  /**
+   * Category of an uncertain call. Omitted for an inherited default, a fan-out
+   * cap, and any older edge that only stored `detail`.
+   */
+  readonly reason?: UncertaintyReason;
+  /** Tooltip. A specific analyzer note, or the label of `reason`. */
   readonly detail?: string;
 }
 
@@ -171,6 +203,10 @@ export function isEdgeKind(value: unknown): value is EdgeKind {
 
 export function isConfidence(value: unknown): value is Confidence {
   return isMember(CONFIDENCE, value);
+}
+
+export function isUncertaintyReason(value: unknown): value is UncertaintyReason {
+  return isMember(UNCERTAINTY_REASONS, value);
 }
 
 export function parsed<T>(value: T): ParseResult<T> {
@@ -242,6 +278,7 @@ export function createEdge(input: {
   readonly confidence: Confidence;
   readonly location?: SourceLocation;
   readonly uncertain?: boolean;
+  readonly reason?: UncertaintyReason;
   readonly detail?: string;
 }): CodeEdge {
   if (!isEdgeKind(input.kind) || !isConfidence(input.confidence)) {
@@ -253,7 +290,14 @@ export function createEdge(input: {
   if (input.uncertain !== undefined && typeof input.uncertain !== 'boolean') {
     throw new GraphModelError('uncertain must be a boolean.');
   }
-  const detail = readAnnotation(input.detail, 'detail');
+  if (input.reason !== undefined && !isUncertaintyReason(input.reason)) {
+    throw new GraphModelError('Uncertainty reason is not supported.');
+  }
+  const uncertain = input.uncertain === true || input.reason !== undefined;
+  const detail = readAnnotation(
+    input.detail ?? (input.reason ? UNCERTAINTY_REASON_DETAIL[input.reason] : undefined),
+    'detail',
+  );
   let location: SourceLocation | undefined;
   if (input.location !== undefined) {
     const parsedLocation = parseSourceLocation(input.location);
@@ -275,7 +319,8 @@ export function createEdge(input: {
     to: input.to,
     confidence: input.confidence,
     ...(location ? { location } : {}),
-    ...(input.uncertain === true ? { uncertain: true } : {}),
+    ...(uncertain ? { uncertain: true } : {}),
+    ...(input.reason ? { reason: input.reason } : {}),
     ...(detail ? { detail } : {}),
   };
 }
@@ -434,6 +479,12 @@ export function parseCodeEdge(value: unknown): ParseResult<CodeEdge> {
   if (value.uncertain !== undefined && typeof value.uncertain !== 'boolean') {
     return rejected('uncertain must be a boolean.');
   }
+  if (value.reason !== undefined && !isUncertaintyReason(value.reason)) {
+    return rejected('Uncertainty reason is not supported.');
+  }
+  if (value.reason !== undefined && value.uncertain !== true) {
+    return rejected('An edge with a reason is uncertain.');
+  }
   const detail = parseAnnotation(value.detail, 'detail');
   if (!detail.ok) {
     return detail;
@@ -450,6 +501,7 @@ export function parseCodeEdge(value: unknown): ParseResult<CodeEdge> {
     confidence: value.confidence,
     ...(location ? { location } : {}),
     ...(value.uncertain === true ? { uncertain: true } : {}),
+    ...(isUncertaintyReason(value.reason) ? { reason: value.reason } : {}),
     ...(detail.value ? { detail: detail.value } : {}),
   });
 }
@@ -622,6 +674,7 @@ export function edgeEquals(left: CodeEdge, right: CodeEdge): boolean {
     left.to === right.to &&
     left.confidence === right.confidence &&
     left.uncertain === right.uncertain &&
+    left.reason === right.reason &&
     left.detail === right.detail &&
     locationEquals(left.location, right.location)
   );

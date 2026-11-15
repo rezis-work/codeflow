@@ -1,6 +1,6 @@
 {
   "name": "codeflow-workspace",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "CodeFlow — interactive diagrams of how code flows, beside the code.",
   "license": "MIT",

@@ -75,4 +75,38 @@ describe('control flow mapping', () => {
     const intoDead = flow.edges.find((edge) => edge.id === 'e5');
     expect(intoDead?.className).toContain('flow-edge-dim');
   });
+
+  it('dashes an edge into an uncertain block and can hide it', () => {
+    const source = graph();
+    const withPanic = {
+      ...source,
+      nodes: source.nodes.map((node) =>
+        node.id === 'n2' ? { ...node, uncertain: true, label: 'unwrap()' } : node,
+      ),
+    };
+    const positions = new Map(
+      ['entry', 'n0', 'n1', 'n2', 'exit'].map((id, index) => [id, { x: 0, y: index * 80 }]),
+    );
+    const shown = controlFlowToFlow({
+      graph: withPanic,
+      positions,
+      reducedMotion: true,
+      showUncertain: true,
+      onReveal: () => undefined,
+      onOpenNested: () => undefined,
+    });
+    const intoPanic = shown.edges.find((edge) => edge.target === 'n2' && edge.id === 'e4');
+    expect(intoPanic?.className).toContain('flow-edge-uncertain');
+    expect(intoPanic?.style).toMatchObject({ strokeDasharray: '6 4' });
+    expect(intoPanic?.data?.tooltip).toBe('uncertain: unwrap()');
+    const hidden = controlFlowToFlow({
+      graph: withPanic,
+      positions,
+      reducedMotion: true,
+      showUncertain: false,
+      onReveal: () => undefined,
+      onOpenNested: () => undefined,
+    });
+    expect(hidden.edges.some((edge) => edge.target === 'n2')).toBe(false);
+  });
 });

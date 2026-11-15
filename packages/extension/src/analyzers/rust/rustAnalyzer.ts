@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { findSymbolAt } from '../typescript/findSymbol';
 import { fileUriToPath, sameFilePath } from '../typescript/uri';
 import { DiagramPanel } from '../../diagramPanel';
-import { getWorkspaceGraph } from '../../workspaceGraph';
+import { getWorkspaceGraph, notifyWorkspaceGraphChanged } from '../../workspaceGraph';
 import type { DefinitionLocation, HierarchyCall, HierarchySymbol } from './callHierarchy';
 import { applyCertainCalls, certainCallsForSymbol } from './callHierarchy';
 
@@ -58,6 +58,7 @@ export async function upgradeFocusedRustSymbol(
   DiagramPanel.publishDelta(removed);
   const ingested = store.ingest(next);
   DiagramPanel.publishDelta(ingested.delta);
+  notifyWorkspaceGraphChanged();
 }
 
 function createRustAnalyzerClient() {

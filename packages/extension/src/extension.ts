@@ -2,6 +2,7 @@ import type { EntryPoint, ExtensionToDiagramWebviewMessage } from '@codeflow/sha
 import * as vscode from 'vscode';
 import { installAnalysisStatus } from './analysisStatus';
 import {
+  EDITOR_LANGUAGE_IDS,
   OPEN_DIAGRAM_COMMAND,
   SHOW_CALLEES_COMMAND,
   SHOW_CALLERS_COMMAND,
@@ -30,6 +31,7 @@ import { showControlFlowAtCursor } from './showControlFlow';
 import { SidebarProvider } from './sidebar';
 import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
+import { CodeFlowCodeLensProvider } from './codeLens';
 import { getWorkspaceGraph } from './workspaceGraph';
 
 /** Returned from `activate` so the integration test can see diagram traffic. */
@@ -71,8 +73,8 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     vscode.commands.registerCommand(OPEN_DIAGRAM_COMMAND, () => {
       DiagramPanel.open(context);
     }),
-    vscode.commands.registerCommand(SHOW_FLOW_COMMAND, () => {
-      void showFlowAtCursor(context, typescript, rust);
+    vscode.commands.registerCommand(SHOW_FLOW_COMMAND, (target?: unknown) => {
+      void showFlowAtCursor(context, typescript, rust, target);
     }),
     vscode.commands.registerCommand(SHOW_CONTROL_FLOW_COMMAND, () => {
       void showControlFlowAtCursor(context, typescript, rust);
@@ -91,12 +93,22 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     vscode.workspace.onDidSaveTextDocument((document) => {
       DiagramPanel.refreshControlFlow(document);
     }),
-    vscode.commands.registerCommand(SHOW_CALLERS_COMMAND, () => {
-      void showCallersAtCursor(context, typescript, rust);
+    vscode.commands.registerCommand(SHOW_CALLERS_COMMAND, (target?: unknown) => {
+      void showCallersAtCursor(context, typescript, rust, target);
     }),
-    vscode.commands.registerCommand(SHOW_CALLEES_COMMAND, () => {
-      void showCalleesAtCursor(context, typescript, rust);
+    vscode.commands.registerCommand(SHOW_CALLEES_COMMAND, (target?: unknown) => {
+      void showCalleesAtCursor(context, typescript, rust, target);
     }),
+    (() => {
+      const codeLens = new CodeFlowCodeLensProvider();
+      return vscode.Disposable.from(
+        codeLens,
+        vscode.languages.registerCodeLensProvider(
+          EDITOR_LANGUAGE_IDS.map((language) => ({ language, scheme: 'file' })),
+          codeLens,
+        ),
+      );
+    })(),
     vscode.commands.registerCommand(SHOW_FILE_DEPENDENCIES_COMMAND, (resource?: vscode.Uri) => {
       void showFileDependencies(context, typescript, rust, resource);
     }),

@@ -3,9 +3,10 @@
  * platform-independent. `initRustParser` loads the runtime and the grammar
  * once. `parseRustFile` then walks the tree into plain syntax and deletes it.
  *
- * Macros are not expanded. A `macro_invocation` is skipped, including any
- * tokens inside it that look like items. Attributes such as `#[path]` are
- * read. Syntax errors become ERROR nodes and the walk continues.
+ * Macros are not expanded. A `macro_invocation` is recorded as a call and its
+ * body is not walked, so tokens inside it that look like items are ignored.
+ * Attributes such as `#[path]` are read. Syntax errors become ERROR nodes and
+ * the walk continues.
  */
 
 import Parser from 'web-tree-sitter';
@@ -339,11 +340,14 @@ function visitNode(
   nested: ParsedFunction[],
   bounds: ReadonlyMap<string, TraitPaths>,
 ): void {
-  if (
-    node.type === 'macro_invocation' ||
-    node.type === 'macro_definition' ||
-    node.type === 'token_tree'
-  ) {
+  if (node.type === 'macro_invocation') {
+    const call = macroCallFrom(node);
+    if (call) {
+      calls.push(call);
+    }
+    return;
+  }
+  if (node.type === 'macro_definition' || node.type === 'token_tree') {
     return;
   }
   if (node.type === 'function_item') {
@@ -428,30 +432,38 @@ function callFrom(
       return undefined;
     }
     const receiver = receiverFrom(value, scope, bounds);
-    return {
-      range: rangeOf(node),
-      kind: 'method',
-      path: [],
-      method,
-      ...(receiver ? { receiver } : {}),
-      ...(receiver?.dispatch ? { dispatch: receiver.dispatch } : {}),
-      ...(receiver?.traitPaths && receiver.traitPaths.length > 0
-        ? { traitPaths: receiver.traitPaths }
-        : {}),
-    };
+    return withCallbacks(
+      {
+        range: rangeOf(node),
+        kind: 'method',
+        path: [],
+        method,
+        ...(receiver ? { receiver } : {}),
+        ...(receiver?.dispatch ? { dispatch: receiver.dispatch } : {}),
+        ...(receiver?.traitPaths && receiver.traitPaths.length > 0
+          ? { traitPaths: receiver.traitPaths }
+          : {}),
+      },
+      node,
+      scope,
+    );
   }
   const ufcs = ufcsFrom(callee, scope, bounds);
   if (ufcs) {
-    return {
-      range: rangeOf(node),
-      kind: 'path',
-      path: [...ufcs.traitSegments, ufcs.method],
-      method: ufcs.method,
-      ufcs,
-      dispatch: ufcs.dispatch,
-      ...(ufcs.traitPaths && ufcs.traitPaths.length > 0 ? { traitPaths: ufcs.traitPaths } : {}),
-      ...(ufcs.typeSegments ? { receiverType: ufcs.typeSegments } : {}),
-    };
+    return withCallbacks(
+      {
+        range: rangeOf(node),
+        kind: 'path',
+        path: [...ufcs.traitSegments, ufcs.method],
+        method: ufcs.method,
+        ufcs,
+        dispatch: ufcs.dispatch,
+        ...(ufcs.traitPaths && ufcs.traitPaths.length > 0 ? { traitPaths: ufcs.traitPaths } : {}),
+        ...(ufcs.typeSegments ? { receiverType: ufcs.typeSegments } : {}),
+      },
+      node,
+      scope,
+    );
   }
   const path = pathSegments(callee);
   if (path.length === 0) {
@@ -463,17 +475,78 @@ function callFrom(
     return undefined;
   }
   const argument = argumentShape(node, scope, bounds);
+  return withCallbacks(
+    {
+      range: rangeOf(node),
+      kind: 'path',
+      path,
+      ...(argument
+        ? {
+            dispatch: argument.dispatch,
+            ...(argument.traitPaths.length > 0 ? { traitPaths: argument.traitPaths } : {}),
+            ...(argument.segments.length > 0 ? { receiverType: argument.segments } : {}),
+          }
+        : {}),
+    },
+    node,
+    scope,
+  );
+}
+
+function withCallbacks(
+  call: ParsedCall,
+  node: SyntaxNode,
+  scope: ReadonlyMap<string, Binding>,
+): ParsedCall {
+  const callbacks = callbackPaths(node, scope);
+  return callbacks.length > 0 ? { ...call, callbacks } : call;
+}
+
+/** Paths passed into the call, skipping locals and nested calls. */
+function callbackPaths(node: SyntaxNode, scope: ReadonlyMap<string, Binding>): string[][] {
+  const args = field(node, 'arguments');
+  if (!args) {
+    return [];
+  }
+  const paths: string[][] = [];
+  for (const child of args.namedChildren) {
+    const inner = unwrapExpr(child);
+    if (
+      inner.type === 'call_expression' ||
+      inner.type === 'macro_invocation' ||
+      inner.type === 'closure_expression'
+    ) {
+      continue;
+    }
+    if (!isPathNode(inner)) {
+      continue;
+    }
+    const path = pathSegments(inner);
+    if (path.length === 0) {
+      continue;
+    }
+    if (path.length === 1 && scope.has(path[0] ?? '')) {
+      continue;
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
+function macroCallFrom(node: SyntaxNode): ParsedCall | undefined {
+  const macro = field(node, 'macro');
+  if (!macro) {
+    return undefined;
+  }
+  const path = pathSegments(macro);
+  if (path.length === 0) {
+    return undefined;
+  }
   return {
     range: rangeOf(node),
     kind: 'path',
     path,
-    ...(argument
-      ? {
-          dispatch: argument.dispatch,
-          ...(argument.traitPaths.length > 0 ? { traitPaths: argument.traitPaths } : {}),
-          ...(argument.segments.length > 0 ? { receiverType: argument.segments } : {}),
-        }
-      : {}),
+    macro: true,
   };
 }
 

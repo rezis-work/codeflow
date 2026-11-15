@@ -43,6 +43,13 @@ export interface ParsedCall {
   readonly traitPaths?: readonly (readonly string[])[];
   /** Concrete type path of a UFCS receiver, when the type is a path. */
   readonly receiverType?: readonly string[];
+  /** `name!(...)`. The body is not expanded. The name may still resolve to a function. */
+  readonly macro?: boolean;
+  /**
+   * Function paths passed as arguments (`run(work)`). A local binding is not
+   * included: syntax cannot see which function that binding holds.
+   */
+  readonly callbacks?: readonly (readonly string[])[];
 }
 
 export interface ParsedFunction {

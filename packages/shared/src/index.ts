@@ -15,6 +15,8 @@ export {
   EDGE_KINDS,
   NODE_KINDS,
   TYPE_KINDS,
+  UNCERTAINTY_REASON_DETAIL,
+  UNCERTAINTY_REASONS,
   applyDelta,
   createEdge,
   createNode,
@@ -25,6 +27,7 @@ export {
   isEdgeKind,
   isNodeKind,
   isTypeKind,
+  isUncertaintyReason,
   nodeEquals,
 } from './graph';
 export {
@@ -85,7 +88,17 @@ export type {
   SourceLocation,
   SourceRange,
   TypeKind,
+  UncertaintyReason,
 } from './graph';
+export {
+  callCounts,
+  countsFor,
+  formatCallLens,
+  indexCallCounts,
+  reasonFromDetail,
+  uncertaintyTooltip,
+} from './uncertainty';
+export type { CallCountIndex, CallCounts } from './uncertainty';
 export type {
   CacheEntry,
   CodeNeighbour,

@@ -12,9 +12,14 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ![Flow around the lovepet API route handler](docs/images/lovepet-route-handle.png)
 
+![Caller and callee counts above each function](docs/images/codelens-callers.png)
+
+![Dashed uncertain call from higherOrder to alpha, with the legend](docs/images/uncertain-edges.png)
+
 ## Features
 
 - Call neighbourhood for the symbol under the cursor, plus callers-only and callees-only views.
+- CodeLens above each function and method: caller and callee counts from that same graph. Uncertain calls are counted beside them (`+2 possible`). Click a count to open Show Callers or Show Callees.
 - Control flow for the function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`, for TypeScript, JavaScript, and Rust.
 - Rust trait map: a trait and every workspace impl, or a type and the traits it implements. `dyn Trait`, generic bounds, and `impl Trait` call targets are drawn dashed and marked uncertain.
 - Request flow: Next.js, NestJS, Axum, and Actix entry points, traced from the route through the handler's calls to a data-layer sink. The side panel lists those entry points.
@@ -44,8 +49,6 @@ These appear in the Command Palette. The four call and import commands also appe
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
-CodeLens is not in this release. It is planned for phase 2.
-
 ## Settings
 
 | Setting                           | Default                                   |                                                                                                                                        |
@@ -56,6 +59,7 @@ CodeLens is not in this release. It is planned for phase 2.
 | `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map and request flow are opened by their own commands                                                    |
 | `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps trait-method fan-out and a request flow                                                                 |
 | `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
+| `codeflow.codeLens.enabled`       | `true`                                    | Caller and callee counts above functions and methods. Uncertain calls are `+N possible` and are not part of the main count             |
 | `codeflow.exclude`                | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
 | `codeflow.maxFiles`               | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
 
@@ -81,7 +85,8 @@ ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse it
 
 ## Known limitations
 
-- Macros are not expanded. `#[cfg]` is not evaluated, so both branches are kept when they parse as items.
+- Macros are not expanded. A `name!()` call is an uncertain edge only when `name` is a workspace function. `#[cfg]` is not evaluated, so both branches are kept when they parse as items.
+- CodeLens counts direct call edges, not the depth used by Show Callers. A function passed as an argument is an uncertain callee of the caller. The function that receives it does not list every function that might be passed in. A closure that is not a named function or method has no CodeLens.
 - Calls are not a whole-program type inference. TypeScript marks a call `certain` when the checker names one workspace function. Rust marks a call `certain` from syntax or, for the symbol you just showed, from rust-analyzer.
 - External packages and the Rust standard library are not nodes. An import edge stops at the workspace.
 - `codeflow.maxNodes` (default 300) caps what is drawn. `codeflow.maxFiles` (default 2500) caps what is analyzed.
@@ -169,7 +174,7 @@ A node is a function, a method, a type, a module, an impl, a route, or a data-la
 
 A node id is the language (`ts`, `js`, or `rust`), the file URI, and the qualified name. Build it with `nodeId`. Pass `vscode.Uri.toString()` and keep that form. The store only turns backslashes into slashes and drops a trailing slash. TypeScript and JavaScript qualified names join scopes with `.` (`App.start`). Rust qualified names join them with `::` (`app::App::start`). The store does not parse the name.
 
-An edge is a call, an import, a contains link, an implements or extends link, a provides link, or a handles link from a route to its handler. Edges point from caller to callee, from the importing file to the imported file, from a container to its member, and from a type to the type it implements or extends. Each edge is `certain` or `inferred`. An uncertain edge (a `dyn` or generic fan-out, a NestJS interface or token, a closure, an intercepting route) is drawn dashed. Two call sites between the same symbols stay as two edges. Confidence is not part of the edge id, so a later pass can upgrade `inferred` to `certain` in place.
+An edge is a call, an import, a contains link, an implements or extends link, a provides link, or a handles link from a route to its handler. Edges point from caller to callee, from the importing file to the imported file, from a container to its member, and from a type to the type it implements or extends. Each edge is `certain` or `inferred`. An uncertain edge carries a `reason`: `callback`, `dependency-injection`, `dynamic-dispatch` (`dyn Trait` or an unresolved receiver), `generic-bound` (`impl Trait` included), `macro`, or `dynamic-property`. An inherited default and a fan-out cap stay uncertain without a category. Uncertain edges are drawn dashed. Two call sites between the same symbols stay as two edges. Confidence and the reason are not part of the edge id, so a later pass can upgrade `inferred` to `certain` in place.
 
 Analyzers should put each edge in the file where the relationship is written. Emit a cross-file edge only when the target file is known, so the target node id can be built. Skip the edge when the target file is unknown. The store keeps an edge pending until both endpoints exist, then resolves it. Invalidating the target file makes the edge pending again. Invalidating the file that owns the edge deletes it.
 
@@ -192,7 +197,7 @@ The panel is a React Flow canvas. ELK lays the graph out left to right with the 
 
 A snapshot, and any change to the edge filters, lays the visible graph out again and fits every node in view. A delta keeps the positions of nodes that were already placed and only lays out the new ones, then shifts that component to the right of the existing graph. Dragging a node is kept across later deltas. A later `focusNode` (the cursor moved onto a symbol that is already drawn) pans to that node and does not lay the graph out again. Reduced motion makes that pan instant. `cursorHint` is the short "Not in this diagram" line.
 
-A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, switches for each edge kind and for inferred edges, and Focus, Workspace, Trait map, and Request. Certain edges are solid. Inferred edges, and edges marked uncertain, are dashed and dimmer. The tooltip says `inferred`, or the reason (`uncertain: dyn Trait`, `uncertain: generic bound`, `uncertain: impl Trait`, `uncertain: unresolved receiver`, `uncertain: DI interface`, `uncertain: custom provider token`, or an inherited default). The legend says the same.
+A single click on a node sends `revealLocation`. The extension opens that file in a text editor column, not on top of the diagram, selects the symbol's range, and reveals it in the center. A range past the end of the file is clamped. A file that has been deleted posts an error and does not throw. The expand button sends `expandNode` and does not open the file. Hovering a node emphasizes its edges. The toolbar has fit and zoom (React Flow controls), a minimap toggle, a name search, switches for each edge kind, and switches for inferred edges and uncertain edges, plus Focus, Workspace, Trait map, and Request. Certain edges are solid. Inferred edges, and edges marked uncertain, are dashed and dimmer. The tooltip says `inferred`, or the reason (`uncertain: callback / higher-order`, `uncertain: dependency injection`, `uncertain: dynamic dispatch / dyn Trait`, `uncertain: dyn Trait`, `uncertain: generic bound`, `uncertain: impl Trait`, `uncertain: macro`, `uncertain: dynamic property / computed call`, `uncertain: DI interface`, `uncertain: custom provider token`, `uncertain: unresolved receiver`, or an inherited default). The legend says the same. Turning off **Uncertain** hides those edges in every diagram, including the flowchart's uncertain panic edges.
 
 Node colour follows the kind (function, method, type, impl, module, route, sink). A type shows its `typeKind` (struct, enum, trait, class, interface). An impl node carries a short note: trait impl, generic impl, blanket impl, inherent impl, derived impl, override, or required. A route node is labelled with the method and path. A sink node is labelled with the library and, when a literal was found, the table, model, or URL. A small badge shows `TS`, `JS`, or `RS`. Qualified names are shown as the analyzers stored them: `.` between TypeScript and JavaScript scopes, `::` between Rust scopes. A file module is labeled with the file name.
 
