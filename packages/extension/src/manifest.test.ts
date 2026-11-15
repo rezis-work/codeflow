@@ -177,9 +177,9 @@ describe('extension manifest', () => {
 
   it('publishes as rezis-work.rezis-codeflow with documented settings', () => {
     expect(manifest.name).toBe('rezis-codeflow');
-    expect(manifest.displayName).toBe('CodeFlow');
+    expect(manifest.displayName).toBe('Rezis CodeFlow');
     expect(manifest.publisher).toBe('rezis-work');
-    expect(manifest.version).toBe('1.0.1');
+    expect(manifest.version).toBe('1.0.2');
     expect(manifest.pricing).toBe('Free');
     expect(manifest.license).toBe('MIT');
     expect(manifest.icon).toBe('media/codeflow-icon.png');
