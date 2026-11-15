@@ -14,7 +14,26 @@ import {
   VIEW_CONTAINER_ID,
 } from './constants';
 
+interface SettingProperty {
+  type?: string;
+  default?: unknown;
+  description?: string;
+  order?: number;
+}
+
+interface ConfigurationSection {
+  title?: string;
+  order?: number;
+  properties?: Record<string, SettingProperty>;
+}
+
 interface Manifest {
+  publisher?: string;
+  version?: string;
+  pricing?: string;
+  license?: string;
+  icon?: string;
+  extensionKind?: string[];
   main?: string;
   engines?: { vscode?: string };
   activationEvents?: string[];
@@ -28,10 +47,18 @@ interface Manifest {
       commandPalette?: Array<{ command?: string }>;
     };
     keybindings?: Array<{ command?: string; key?: string; mac?: string; when?: string }>;
-    configuration?: {
-      properties?: Record<string, { type?: string; default?: unknown }>;
-    };
+    configuration?: ConfigurationSection | ConfigurationSection[];
   };
+}
+
+function settingsOf(manifest: Manifest): Record<string, SettingProperty> {
+  const configuration = manifest.contributes?.configuration;
+  const sections = Array.isArray(configuration)
+    ? configuration
+    : configuration
+      ? [configuration]
+      : [];
+  return Object.assign({}, ...sections.map((section) => section.properties ?? {}));
 }
 
 function readManifest(): Manifest {
@@ -53,14 +80,7 @@ describe('extension manifest', () => {
   });
 
   it('contributes the CodeFlow activity bar and the open-diagram command', () => {
-    expect(manifest.activationEvents).toEqual(
-      expect.arrayContaining([
-        'onStartupFinished',
-        `onCommand:${OPEN_DIAGRAM_COMMAND}`,
-        `onCommand:${SHOW_FLOW_COMMAND}`,
-        `onView:${SIDEBAR_VIEW_ID}`,
-      ]),
-    );
+    expect(manifest.activationEvents).toEqual(['onStartupFinished']);
     const commands = manifest.contributes?.commands?.map((command) => command.command) ?? [];
     expect(commands).toEqual(
       expect.arrayContaining([
@@ -102,12 +122,11 @@ describe('extension manifest', () => {
       (item) => item.command === SHOW_FLOW_COMMAND,
     )?.when;
     expect(when).toContain('editorLangId == rust');
-    const setting =
-      manifest.contributes?.configuration?.properties?.['codeflow.rust.useRustAnalyzer'];
+    const setting = settingsOf(manifest)?.['codeflow.rust.useRustAnalyzer'];
     expect(setting).toMatchObject({ type: 'boolean', default: true });
-    const mode = manifest.contributes?.configuration?.properties?.['codeflow.view.defaultMode'];
+    const mode = settingsOf(manifest)?.['codeflow.view.defaultMode'];
     expect(mode).toMatchObject({ type: 'string', default: 'focus' });
-    const maxNodes = manifest.contributes?.configuration?.properties?.['codeflow.view.maxNodes'];
+    const maxNodes = settingsOf(manifest)?.['codeflow.view.maxNodes'];
     expect(maxNodes).toMatchObject({ type: 'number', default: 300 });
     const editorWhen = manifest.contributes?.menus?.['editor/context']?.map((item) => item.command);
     expect(editorWhen).toEqual(
@@ -133,26 +152,57 @@ describe('extension manifest', () => {
     )?.when;
     expect(flowWhen).toContain('editorLangId == typescript');
     expect(flowWhen).toContain('editorLangId == rust');
-    expect(manifest.activationEvents).toContain(`onCommand:${SHOW_CONTROL_FLOW_COMMAND}`);
-    expect(manifest.activationEvents).toContain(`onCommand:${SHOW_TRAIT_MAP_COMMAND}`);
-    expect(manifest.activationEvents).toContain(`onCommand:${SHOW_REQUEST_FLOW_COMMAND}`);
+    expect(manifest.activationEvents).toEqual(['onStartupFinished']);
     const traitWhen = manifest.contributes?.menus?.['editor/context']?.find(
       (item) => item.command === SHOW_TRAIT_MAP_COMMAND,
     )?.when;
     expect(traitWhen).toBe('editorLangId == rust');
     expect(binding?.when).not.toContain('shift+alt+f');
-    const follow =
-      manifest.contributes?.configuration?.properties?.['codeflow.editor.followCursor'];
+    const follow = settingsOf(manifest)?.['codeflow.editor.followCursor'];
     expect(follow).toMatchObject({ type: 'boolean', default: true });
-    const refocus =
-      manifest.contributes?.configuration?.properties?.['codeflow.editor.refocusOnCursor'];
+    const refocus = settingsOf(manifest)?.['codeflow.editor.refocusOnCursor'];
     expect(refocus).toMatchObject({ type: 'boolean', default: false });
-    const depth = manifest.contributes?.configuration?.properties?.['codeflow.editor.callDepth'];
+    const depth = settingsOf(manifest)?.['codeflow.editor.callDepth'];
     expect(depth).toMatchObject({ type: 'number', default: 2 });
-    const codeLens = manifest.contributes?.configuration?.properties?.['codeflow.codeLens.enabled'];
+    const codeLens = settingsOf(manifest)?.['codeflow.codeLens.enabled'];
     expect(codeLens).toMatchObject({ type: 'boolean', default: true });
-    const cache = manifest.contributes?.configuration?.properties?.['codeflow.cache.enabled'];
+    const cache = settingsOf(manifest)?.['codeflow.cache.enabled'];
     expect(cache).toMatchObject({ type: 'boolean', default: true });
-    expect(manifest.activationEvents).toContain('onCommand:codeflow.clearCache');
+    expect(manifest.contributes?.commands?.map((command) => command.command)).toContain(
+      'codeflow.clearCache',
+    );
+  });
+
+  it('publishes as rezis-work.codeflow with documented settings', () => {
+    expect(manifest.publisher).toBe('rezis-work');
+    expect(manifest.version).toBe('1.0.0');
+    expect(manifest.pricing).toBe('Free');
+    expect(manifest.license).toBe('MIT');
+    expect(manifest.icon).toBe('media/codeflow-icon.png');
+    expect(manifest.extensionKind).toEqual(['workspace']);
+    expect(Array.isArray(manifest.contributes?.configuration)).toBe(true);
+    const settings = settingsOf(manifest);
+    for (const [key, property] of Object.entries(settings)) {
+      expect(property.description && property.description.length > 20, key).toBe(true);
+      expect(property, key).toHaveProperty('default');
+      expect(typeof property.order, key).toBe('number');
+    }
+    expect(Object.keys(settings).sort()).toEqual(
+      [
+        'codeflow.cache.enabled',
+        'codeflow.codeLens.enabled',
+        'codeflow.editor.callDepth',
+        'codeflow.editor.followCursor',
+        'codeflow.editor.refocusOnCursor',
+        'codeflow.exclude',
+        'codeflow.export.background',
+        'codeflow.export.pngScale',
+        'codeflow.maxFiles',
+        'codeflow.rust.useRustAnalyzer',
+        'codeflow.savedFlows.storeInWorkspace',
+        'codeflow.view.defaultMode',
+        'codeflow.view.maxNodes',
+      ].sort(),
+    );
   });
 });

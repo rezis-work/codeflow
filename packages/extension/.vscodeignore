@@ -1,10 +1,14 @@
 .vscode/**
+.git/**
 src/**
 test/**
 test-fixtures/**
 out/**
 node_modules/**
+coverage/**
 **/*.map
+**/*.vsix
+**/.DS_Store
 **/*.ts
 !dist/typescript-lib/**
 !dist/typescript-lib/**/*.d.ts
@@ -12,5 +16,4 @@ tsconfig.json
 tsconfig.test.json
 esbuild.mjs
 vitest.config.mts
-coverage/**
 **/.gitkeep

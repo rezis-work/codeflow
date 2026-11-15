@@ -34,7 +34,7 @@ const fixtures = path.resolve(__dirname, '../../test-fixtures');
 const samplePath = path.join(fixtures, 'workspace/sample.ts');
 
 async function extensionApi(): Promise<CodeFlowApi> {
-  const extension = vscode.extensions.getExtension('codeflow.codeflow');
+  const extension = vscode.extensions.getExtension('rezis-work.codeflow');
   if (!extension) {
     assert.fail('CodeFlow should be loaded');
   }
