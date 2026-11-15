@@ -1,24 +1,41 @@
 /**
  * Owns the Rust worker, the workspace graph, and incremental updates.
- * Activation only starts the worker. Indexing runs in the background.
- * Cargo metadata and tree-sitter stay in the worker.
+ * Activation only watches the workspace. Indexing starts when a command, a
+ * view, or CodeLens needs it. Cargo metadata and tree-sitter stay in the worker.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import type { FileFragment, SourceRange } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { CARGO_FAILED_WARNING, CARGO_MISSING_WARNING } from './analyzers/rust/discover';
 import { isInsideRustTarget, isRustSourcePath } from './analyzers/rust/extensions';
-import type { ControlFlowWorkerResult, IndexRoot } from './analyzers/rust/workerProtocol';
-import { isControlFlowResult, isWorkerToHostMessage } from './analyzers/rust/workerProtocol';
+import type {
+  CacheDirective,
+  ControlFlowWorkerResult,
+  IndexRoot,
+} from './analyzers/rust/workerProtocol';
+import {
+  isControlFlowResult,
+  isWorkerProgress,
+  isWorkerToHostMessage,
+} from './analyzers/rust/workerProtocol';
 import { combineExcludeGlobs } from './analyzers/typescript/globs';
 import { pathToFileUri } from './analyzers/typescript/uri';
-import { trackAnalysis } from './analysisStatus';
+import { setIndexProgress, trackAnalysis } from './analysisStatus';
+import { analysisCacheDir, readCacheEnabled } from './cache/settings';
 import { DiagramPanel } from './diagramPanel';
 import { applyEntryReports, dropEntry, dropMissingEntries } from './entryReports';
-import { DEFAULT_EXCLUDE_GLOBS, DEFAULT_MAX_FILES, DEFAULT_MAX_NODES } from './constants';
+import {
+  DEFAULT_EXCLUDE_GLOBS,
+  DEFAULT_MAX_FILES,
+  DEFAULT_MAX_NODES,
+  FOCUS_FILE_CAP,
+  HOST_BUDGET_MS,
+} from './constants';
+import { forEachSlice } from './hostBudget';
 import { createPathBurst } from './pathBurst';
 import type { PathBurst, PathUpdate } from './pathBurst';
 import { getWorkspaceGraph, notifyWorkspaceGraphChanged } from './workspaceGraph';
@@ -30,7 +47,8 @@ const CONTROL_FLOW_TIMEOUT_MS = 20 * 1000;
 const MAX_RESTARTS = 3;
 
 interface PendingRequest {
-  readonly kind: 'index' | 'updateFile' | 'removeFile';
+  readonly kind: 'index' | 'updateFile' | 'removeFile' | 'focus';
+  readonly lane: 'interactive' | 'index';
   readonly seen: Set<string>;
   readonly reported: Set<string>;
   readonly timer: NodeJS.Timeout;
@@ -41,6 +59,9 @@ interface PendingRequest {
 interface IndexResult {
   readonly fileCount: number;
   readonly capped: boolean;
+  readonly cancelled: boolean;
+  readonly cacheHits: number;
+  readonly cacheMisses: number;
 }
 
 interface FlowWait {
@@ -62,7 +83,28 @@ export interface RustControlFlowQuery {
 
 export class RustIndexer implements vscode.Disposable {
   private readonly workerPath: string;
+  private readonly cacheDir: string;
   private worker: Worker | undefined;
+  private indexer: Worker | undefined;
+  private armed = false;
+  private indexReady = false;
+  private indexRunning = false;
+  private indexPaused = false;
+  private indexGeneration = 0;
+  private finishedGeneration = 0;
+  private activeIndexId: number | undefined;
+  private heldId: number | undefined;
+  private heldDone = false;
+  private heldArmed = false;
+  private holdNext = false;
+  private memoryEpoch = 0;
+  private cacheHits = 0;
+  private cacheMisses = 0;
+  private readonly uriEpoch = new Map<string, number>();
+  private indexEpoch = new Map<string, number>();
+  private readonly indexWaiters: Array<() => void> = [];
+  private interactiveTail: Promise<void> = Promise.resolve();
+  private messageChain: Promise<void> = Promise.resolve();
   private readonly pending = new Map<number, PendingRequest>();
   private readonly flowWaits = new Map<number, FlowWait>();
   private readonly burst: PathBurst;
@@ -78,6 +120,7 @@ export class RustIndexer implements vscode.Disposable {
 
   public constructor(context: vscode.ExtensionContext) {
     this.workerPath = path.join(context.extensionUri.fsPath, 'dist', 'rust-worker.js');
+    this.cacheDir = analysisCacheDir(context);
     this.burst = createPathBurst({
       delayMs: EDIT_DEBOUNCE_MS,
       schedule: (callback, delayMs) => {
@@ -92,22 +135,154 @@ export class RustIndexer implements vscode.Disposable {
         );
       },
     });
-    this.openWorker();
     this.watch();
   }
 
+  /** Opens the workers. Analysis still waits for a command, a view, or CodeLens. */
+  public arm(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.armed = true;
+    if (!this.worker) {
+      this.openWorker();
+    }
+    if (!this.indexer) {
+      this.openIndexer();
+    }
+  }
+
+  public analysisStarted(): boolean {
+    return this.armed;
+  }
+
+  public indexFinished(): boolean {
+    return this.indexGeneration > 0 && this.finishedGeneration === this.indexGeneration;
+  }
+
+  public heldIndexFinished(): boolean {
+    return !this.heldArmed || this.heldDone;
+  }
+
+  public cacheHitCount(): number {
+    return this.cacheHits;
+  }
+
+  /** The next background index waits until `releaseIndex`. Integration tests use this. */
+  public holdNextIndex(): void {
+    this.holdNext = true;
+    this.heldDone = false;
+    this.heldArmed = false;
+    this.indexPaused = false;
+  }
+
+  public releaseIndex(): void {
+    this.holdNext = false;
+    if (this.heldId !== undefined) {
+      this.indexer?.postMessage({ type: 'release', id: this.heldId });
+    }
+  }
+
+  public cancelBackground(): void {
+    this.indexPaused = true;
+    this.indexRunning = false;
+    if (this.activeIndexId !== undefined) {
+      this.indexer?.postMessage({ type: 'cancel', id: this.activeIndexId });
+    }
+    setIndexProgress('rust', undefined);
+  }
+
   public start(): void {
-    void this.reindex().catch((error: unknown) => {
-      console.error('[codeflow] Rust indexing failed', error);
-    });
+    this.scheduleBackground();
   }
 
   public reindex(): Promise<void> {
-    return this.enqueue(() => this.track(() => this.runIndex()));
+    this.indexPaused = false;
+    this.indexReady = false;
+    this.finishedGeneration = -1;
+    this.cancelBackground();
+    this.indexPaused = false;
+    this.scheduleBackground();
+    return this.whenReady();
   }
 
-  public whenReady(): Promise<void> {
-    return this.tail;
+  public whenReady(resume = true): Promise<void> {
+    this.scheduleBackground(resume);
+    if (this.indexFinished()) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.indexWaiters.push(resolve);
+    });
+  }
+
+  public scheduleBackground(resume = false): void {
+    this.arm();
+    if (resume && this.indexPaused) {
+      this.indexPaused = false;
+      if (!this.indexReady) {
+        this.finishedGeneration = -1;
+      }
+    }
+    if (this.holdNext) {
+      this.holdNext = false;
+      void this.runIndex(true);
+      return;
+    }
+    if (this.indexPaused || this.indexRunning || this.indexFinished()) {
+      return;
+    }
+    void this.runIndex(false);
+  }
+
+  /**
+   * Analyzes the file and the modules it declares first. The background index
+   * keeps going and does not block this promise.
+   */
+  public focusDocument(
+    document: vscode.TextDocument,
+    depth: number,
+    resume = false,
+  ): Promise<void> {
+    this.arm();
+    if (resume) {
+      this.scheduleBackground(true);
+    } else {
+      this.scheduleBackground(false);
+    }
+    if (this.fresh(document)) {
+      return Promise.resolve();
+    }
+    const run = this.interactiveTail.then(() => this.track(() => this.sendFocus(document, depth)));
+    this.interactiveTail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run.then(() => undefined);
+  }
+
+  public async dropMemory(): Promise<void> {
+    this.memoryEpoch += 1;
+    const store = getWorkspaceGraph();
+    for (const uri of this.indexedUris) {
+      store.invalidate(uri);
+    }
+    this.indexedUris = new Set();
+    this.entryUris = new Set();
+    this.indexReady = false;
+    this.indexRunning = false;
+    this.finishedGeneration = -1;
+    this.uriEpoch.clear();
+    this.failPending('CodeFlow reloaded its in-memory graph.');
+    await this.worker?.terminate();
+    await this.indexer?.terminate();
+    this.worker = undefined;
+    this.indexer = undefined;
+    if (this.armed && !this.disposed) {
+      this.openWorker();
+      this.openIndexer();
+    }
+    notifyWorkspaceGraphChanged();
   }
 
   public applyExternal(changes: readonly PathUpdate[]): void {
@@ -121,6 +296,7 @@ export class RustIndexer implements vscode.Disposable {
   }
 
   public controlFlow(query: RustControlFlowQuery): Promise<ControlFlowWorkerResult> {
+    this.arm();
     const worker = this.worker;
     if (!worker) {
       return Promise.reject(
@@ -150,15 +326,7 @@ export class RustIndexer implements vscode.Disposable {
 
   public syncDocument(document: vscode.TextDocument): Promise<void> {
     this.burst.forget(path.resolve(document.uri.fsPath));
-    if (document.isDirty) {
-      return this.enqueue(() => this.track(() => this.sendDocument(document)));
-    }
-    return this.whenIdle().then(() => {
-      if (this.indexedUris.has(pathToFileUri(document.uri.fsPath))) {
-        return undefined;
-      }
-      return this.enqueue(() => this.track(() => this.sendDocument(document)));
-    });
+    return this.focusDocument(document, 1, true);
   }
 
   public dispose(): void {
@@ -173,11 +341,14 @@ export class RustIndexer implements vscode.Disposable {
     this.failPending('CodeFlow Rust analyzer stopped.');
     try {
       this.worker?.postMessage({ type: 'shutdown' });
+      this.indexer?.postMessage({ type: 'shutdown' });
     } catch {
       // The worker is already gone.
     }
     void this.worker?.terminate();
+    void this.indexer?.terminate();
     this.worker = undefined;
+    this.indexer = undefined;
     for (const disposable of this.disposables.splice(0)) {
       disposable.dispose();
     }
@@ -219,6 +390,9 @@ export class RustIndexer implements vscode.Disposable {
   }
 
   private scheduleReindex(): void {
+    if (!this.armed) {
+      return;
+    }
     if (this.reindexTimer) {
       clearTimeout(this.reindexTimer);
     }
@@ -231,14 +405,14 @@ export class RustIndexer implements vscode.Disposable {
   }
 
   private schedulePath(filePath: string): void {
-    if (!isRustSourcePath(filePath) || isInsideRustTarget(filePath)) {
+    if (!this.armed || !isRustSourcePath(filePath) || isInsideRustTarget(filePath)) {
       return;
     }
     this.burst.update(path.resolve(filePath));
   }
 
   private scheduleRemove(filePath: string): void {
-    if (!isRustSourcePath(filePath) || isInsideRustTarget(filePath)) {
+    if (!this.armed || !isRustSourcePath(filePath) || isInsideRustTarget(filePath)) {
       return;
     }
     this.burst.remove(path.resolve(filePath));
@@ -279,35 +453,107 @@ export class RustIndexer implements vscode.Disposable {
     return trackAnalysis('rust', work);
   }
 
-  private async runIndex(): Promise<void> {
-    if (!this.worker) {
+  private async runIndex(hold: boolean): Promise<void> {
+    if (this.indexRunning) {
+      if (hold) {
+        this.holdNext = true;
+      }
+      return;
+    }
+    this.arm();
+    if (!this.indexer) {
       return;
     }
     const roots = readRoots();
     if (roots.length === 0) {
+      this.finishedGeneration = ++this.indexGeneration;
+      this.settleIndex();
       return;
     }
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Window,
-        title: 'CodeFlow: Indexing Rust',
-      },
-      async () => {
-        const result = await this.send(
-          { type: 'index', id: this.nextId++, roots },
-          INDEX_TIMEOUT_MS,
-        );
-        if (result.capped) {
-          void vscode.window.showInformationMessage(
-            `CodeFlow indexed ${result.fileCount} Rust files and stopped at the codeflow.maxFiles limit.`,
+    this.indexRunning = true;
+    this.indexGeneration += 1;
+    this.indexEpoch = new Map(this.uriEpoch);
+    const id = this.nextId++;
+    this.activeIndexId = id;
+    if (hold) {
+      this.heldId = id;
+      this.heldDone = false;
+      this.heldArmed = true;
+    }
+    setIndexProgress('rust', { completed: 0, total: 0 });
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: 'CodeFlow: Indexing Rust',
+          cancellable: true,
+        },
+        async (_progress, token) => {
+          token.onCancellationRequested(() => {
+            this.indexer?.postMessage({ type: 'cancel', id });
+          });
+          const result = await this.send(
+            this.indexer,
+            {
+              type: 'index',
+              id,
+              roots,
+              cache: this.cacheDirective(),
+              ...(hold ? { hold: true } : {}),
+            },
+            INDEX_TIMEOUT_MS,
+            'index',
           );
+          if (result.capped && !result.cancelled) {
+            void vscode.window.showInformationMessage(
+              `CodeFlow indexed ${result.fileCount} Rust files and stopped at the codeflow.maxFiles limit.`,
+            );
+          }
+        },
+      );
+    } catch (error) {
+      if (!isReload(error)) {
+        console.error('[codeflow] Rust indexing failed', error);
+      }
+    } finally {
+      if (this.activeIndexId === id) {
+        this.indexRunning = false;
+        setIndexProgress('rust', undefined);
+        this.settleIndex();
+        if (this.holdNext && !this.disposed) {
+          this.scheduleBackground();
         }
+      }
+    }
+  }
+
+  private async sendFocus(document: vscode.TextDocument, depth: number): Promise<void> {
+    const folder = folderFor(document.uri);
+    const fanout = folder ? readMaxNodes(folder.uri) : DEFAULT_MAX_NODES;
+    await this.send(
+      this.worker,
+      {
+        type: 'focus',
+        id: this.nextId++,
+        filePath: document.uri.fsPath,
+        ...(document.isDirty
+          ? { content: document.getText(), version: document.version }
+          : { version: document.version }),
+        depth,
+        maxFiles: FOCUS_FILE_CAP,
+        rootDir: folder?.uri.fsPath ?? path.dirname(document.uri.fsPath),
+        excludeGlobs: folder ? excludeFor(folder.uri) : [],
+        maxFanout: fanout,
+        cache: this.cacheDirective(),
       },
+      FILE_TIMEOUT_MS,
+      'focus',
     );
   }
 
   private async sendDocument(document: vscode.TextDocument): Promise<void> {
     await this.send(
+      this.lane(),
       {
         type: 'updateFile',
         id: this.nextId++,
@@ -316,18 +562,20 @@ export class RustIndexer implements vscode.Disposable {
         version: document.version,
       },
       FILE_TIMEOUT_MS,
+      'updateFile',
     );
   }
 
   private async sendDisk(filePath: string): Promise<void> {
     let content: string;
     try {
-      content = readFileSync(filePath, 'utf8');
+      content = await readFile(filePath, 'utf8');
     } catch {
       await this.sendRemove(filePath);
       return;
     }
     await this.send(
+      this.lane(),
       {
         type: 'updateFile',
         id: this.nextId++,
@@ -335,15 +583,25 @@ export class RustIndexer implements vscode.Disposable {
         content,
       },
       FILE_TIMEOUT_MS,
+      'updateFile',
     );
   }
 
   private async sendRemove(filePath: string): Promise<void> {
-    await this.send({ type: 'removeFile', id: this.nextId++, filePath }, FILE_TIMEOUT_MS);
+    await this.send(
+      this.lane(),
+      { type: 'removeFile', id: this.nextId++, filePath },
+      FILE_TIMEOUT_MS,
+      'removeFile',
+    );
   }
 
-  private send(message: WorkerRequest, timeoutMs: number): Promise<IndexResult> {
-    const worker = this.worker;
+  private send(
+    worker: Worker | undefined,
+    message: WorkerRequest,
+    timeoutMs: number,
+    kind: PendingRequest['kind'],
+  ): Promise<IndexResult> {
     if (!worker) {
       return Promise.reject(
         new Error('CodeFlow Rust analyzer is not running. Run the build and reload.'),
@@ -353,10 +611,11 @@ export class RustIndexer implements vscode.Disposable {
       const timer = setTimeout(() => {
         this.pending.delete(message.id);
         reject(new Error('CodeFlow Rust analyzer timed out.'));
-        this.restart('timed out');
+        this.restart(kind === 'index' ? 'index' : 'interactive', 'timed out');
       }, timeoutMs);
       this.pending.set(message.id, {
-        kind: message.type,
+        kind,
+        lane: kind === 'index' ? 'index' : 'interactive',
         seen: new Set(),
         reported: new Set(),
         timer,
@@ -368,6 +627,19 @@ export class RustIndexer implements vscode.Disposable {
   }
 
   private onWorkerMessage(message: unknown): void {
+    this.messageChain = this.messageChain
+      .then(() => this.handleMessage(message))
+      .catch((error: unknown) => {
+        console.error('[codeflow] Rust worker message failed', error);
+      });
+  }
+
+  private async handleMessage(message: unknown): Promise<void> {
+    const epoch = this.memoryEpoch;
+    if (isWorkerProgress(message)) {
+      setIndexProgress('rust', { completed: message.completed, total: message.total });
+      return;
+    }
     if (isControlFlowResult(message)) {
       const wait = this.flowWaits.get(message.id);
       if (!wait) {
@@ -386,7 +658,13 @@ export class RustIndexer implements vscode.Disposable {
       return;
     }
     if (message.type === 'fragments') {
-      this.ingest(message.fragments, request, message.reports);
+      await this.ingest(message.fragments, request, message.reports);
+      if (epoch !== this.memoryEpoch) {
+        return;
+      }
+      return;
+    }
+    if (epoch !== this.memoryEpoch) {
       return;
     }
     clearTimeout(request.timer);
@@ -396,9 +674,30 @@ export class RustIndexer implements vscode.Disposable {
       return;
     }
     this.restarts = 0;
+    this.cacheHits += message.cacheHits ?? 0;
+    this.cacheMisses += message.cacheMisses ?? 0;
     this.noteWarnings(message.warnings);
-    this.finish(request, message.removedPaths);
-    request.resolve({ fileCount: message.fileCount, capped: message.capped });
+    if (message.id === this.heldId) {
+      this.heldDone = true;
+    }
+    if (request.kind === 'index' && message.id === this.activeIndexId && !message.cancelled) {
+      this.indexReady = true;
+      this.finishedGeneration = this.indexGeneration;
+    }
+    if (request.kind === 'index' && message.cancelled) {
+      this.indexPaused = true;
+      this.finishedGeneration = this.indexGeneration;
+    }
+    if (!message.cancelled) {
+      this.finish(request, message.removedPaths);
+    }
+    request.resolve({
+      fileCount: message.fileCount,
+      capped: message.capped,
+      cancelled: message.cancelled === true,
+      cacheHits: message.cacheHits ?? 0,
+      cacheMisses: message.cacheMisses ?? 0,
+    });
   }
 
   private noteWarnings(warnings: readonly string[]): void {
@@ -414,17 +713,24 @@ export class RustIndexer implements vscode.Disposable {
     }
   }
 
-  private ingest(
+  private async ingest(
     fragments: readonly FileFragment[],
     request: PendingRequest,
     reports: readonly unknown[] | undefined,
-  ): void {
+  ): Promise<void> {
     applyEntryReports(reports, request.reported, this.entryUris);
     const store = getWorkspaceGraph();
     let changed = false;
-    for (const fragment of fragments) {
+    await forEachSlice(fragments, HOST_BUDGET_MS, (fragment) => {
+      if (request.lane === 'index' && !this.acceptIndexFragment(fragment.uri)) {
+        request.seen.add(fragment.uri);
+        return;
+      }
       request.seen.add(fragment.uri);
       this.indexedUris.add(fragment.uri);
+      if (request.lane !== 'index') {
+        this.uriEpoch.set(fragment.uri, (this.uriEpoch.get(fragment.uri) ?? 0) + 1);
+      }
       try {
         const ingested = store.ingest(fragment);
         if (ingested.cache === 'miss') {
@@ -434,7 +740,7 @@ export class RustIndexer implements vscode.Disposable {
       } catch (error) {
         console.error('[codeflow] could not ingest Rust file', fragment.uri, error);
       }
-    }
+    });
     if (changed) {
       notifyWorkspaceGraphChanged();
     }
@@ -450,7 +756,7 @@ export class RustIndexer implements vscode.Disposable {
           changed = true;
         }
       }
-      this.indexedUris = request.seen;
+      this.indexedUris = new Set(request.seen);
       this.entryUris = dropMissingEntries(this.entryUris, request.reported);
     } else {
       for (const filePath of removedPaths) {
@@ -466,7 +772,41 @@ export class RustIndexer implements vscode.Disposable {
     }
   }
 
+  private acceptIndexFragment(uri: string): boolean {
+    return (this.uriEpoch.get(uri) ?? 0) === (this.indexEpoch.get(uri) ?? 0);
+  }
+
+  private fresh(document: vscode.TextDocument): boolean {
+    if (document.isDirty) {
+      return false;
+    }
+    return this.indexedUris.has(pathToFileUri(document.uri.fsPath));
+  }
+
+  private lane(): Worker | undefined {
+    return this.indexReady && this.indexer ? this.indexer : this.worker;
+  }
+
+  private cacheDirective(): CacheDirective {
+    return { enabled: readCacheEnabled(), directory: this.cacheDir };
+  }
+
+  private settleIndex(): void {
+    const waiters = this.indexWaiters.splice(0);
+    for (const waiter of waiters) {
+      waiter();
+    }
+  }
+
   private openWorker(): boolean {
+    return this.spawnWorker('interactive');
+  }
+
+  private openIndexer(): boolean {
+    return this.spawnWorker('index');
+  }
+
+  private spawnWorker(lane: 'interactive' | 'index'): boolean {
     if (this.disposed) {
       return false;
     }
@@ -482,34 +822,47 @@ export class RustIndexer implements vscode.Disposable {
       worker.on('error', (error: Error) => {
         console.error('[codeflow] Rust analyzer worker error', error);
         this.failPending(error.message);
-        this.restart('worker error');
+        this.restart(lane, 'worker error');
       });
-      this.worker = worker;
+      if (lane === 'index') {
+        this.indexer = worker;
+      } else {
+        this.worker = worker;
+      }
       return true;
     } catch (error) {
       console.error('[codeflow] could not start the Rust analyzer', error);
-      this.worker = undefined;
       return false;
     }
   }
 
-  private restart(reason: string): void {
+  private restart(lane: 'interactive' | 'index', reason: string): void {
     if (this.disposed) {
       return;
     }
     this.restarts += 1;
-    void this.worker?.terminate();
-    this.worker = undefined;
+    if (lane === 'index') {
+      void this.indexer?.terminate();
+      this.indexer = undefined;
+    } else {
+      void this.worker?.terminate();
+      this.worker = undefined;
+    }
     if (this.restarts > MAX_RESTARTS) {
       console.error('[codeflow] Rust analyzer stopped after repeated failures');
       return;
     }
     console.error(`[codeflow] restarting Rust analyzer (${reason})`);
-    if (this.openWorker()) {
-      void this.reindex().catch((error: unknown) => {
-        console.error('[codeflow] Rust indexing failed', error);
-      });
+    if (lane === 'index') {
+      if (this.openIndexer()) {
+        this.indexReady = false;
+        this.finishedGeneration = -1;
+        this.indexPaused = false;
+        this.scheduleBackground();
+      }
+      return;
     }
+    this.openWorker();
   }
 
   private failPending(message: string): void {
@@ -532,10 +885,6 @@ export class RustIndexer implements vscode.Disposable {
       () => undefined,
     );
     return run.then(() => undefined);
-  }
-
-  private whenIdle(): Promise<void> {
-    return this.tail;
   }
 }
 
@@ -588,7 +937,43 @@ function isRustDocument(document: vscode.TextDocument): boolean {
   return document.uri.scheme === 'file' && isRustSourcePath(document.uri.fsPath);
 }
 
+function isReload(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('reloaded its in-memory graph');
+}
+
+function folderFor(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
+  return vscode.workspace.getWorkspaceFolder(uri);
+}
+
+function excludeFor(folder: vscode.Uri): string[] {
+  return combineExcludeGlobs(
+    vscode.workspace
+      .getConfiguration('codeflow', folder)
+      .get<string[]>('exclude', [...DEFAULT_EXCLUDE_GLOBS]),
+    vscode.workspace.getConfiguration('files', folder).get<Record<string, unknown>>('exclude'),
+  );
+}
+
 type WorkerRequest =
-  | { type: 'index'; id: number; roots: readonly IndexRoot[] }
+  | {
+      type: 'index';
+      id: number;
+      roots: readonly IndexRoot[];
+      cache: CacheDirective;
+      hold?: boolean;
+    }
+  | {
+      type: 'focus';
+      id: number;
+      filePath: string;
+      content?: string;
+      version?: number;
+      depth: number;
+      maxFiles: number;
+      rootDir: string;
+      excludeGlobs: readonly string[];
+      maxFanout?: number;
+      cache: CacheDirective;
+    }
   | { type: 'updateFile'; id: number; filePath: string; content: string; version?: number }
   | { type: 'removeFile'; id: number; filePath: string };

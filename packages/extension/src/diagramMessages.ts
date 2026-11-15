@@ -16,6 +16,7 @@ import type {
   ViewStateMessage,
 } from '@codeflow/shared';
 import { SYMBOL_FLOW_DEPTH } from './constants';
+import { limitPostedGraph } from './graphLimit';
 
 export interface DiagramHost {
   readonly store: GraphStore;
@@ -92,7 +93,7 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
         return;
       }
       host.post({ type: 'focusNode', nodeId: id });
-      host.post({ type: 'graphSnapshot', graph });
+      postGraph(host, graph);
       return;
     }
     case 'revealLocation':
@@ -173,13 +174,13 @@ export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramView
         type: 'error',
         message: 'Run CodeFlow: Show Request Flow and pick a route.',
       });
-      host.post({ type: 'graphSnapshot', graph: { nodes: [], edges: [], pendingEdges: [] } });
+      postGraph(host, { nodes: [], edges: [], pendingEdges: [] });
       return;
     }
     if (focusId) {
       host.post({ type: 'focusNode', nodeId: focusId });
     }
-    host.post({ type: 'graphSnapshot', graph: custom.graph });
+    postGraph(host, custom.graph);
     return;
   }
   if (mode === 'traits') {
@@ -189,13 +190,13 @@ export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramView
         type: 'error',
         message: 'Run CodeFlow: Show Trait Map on a Rust trait, impl, or type.',
       });
-      host.post({ type: 'graphSnapshot', graph: { nodes: [], edges: [], pendingEdges: [] } });
+      postGraph(host, { nodes: [], edges: [], pendingEdges: [] });
       return;
     }
     if (focusId) {
       host.post({ type: 'focusNode', nodeId: focusId });
     }
-    host.post({ type: 'graphSnapshot', graph: custom.graph });
+    postGraph(host, custom.graph);
     return;
   }
   if (mode === 'focus') {
@@ -207,13 +208,13 @@ export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramView
           code: 'not-found',
           message: 'That symbol is not in the graph.',
         });
-        host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+        postGraph(host, host.store.snapshot());
         return;
       }
       if (focusId) {
         host.post({ type: 'focusNode', nodeId: focusId });
       }
-      host.post({ type: 'graphSnapshot', graph: custom.graph });
+      postGraph(host, custom.graph);
       return;
     }
     if (focusId) {
@@ -224,18 +225,27 @@ export function publishDiagramView(host: DiagramHost, modeOverride?: DiagramView
           code: 'not-found',
           message: 'That symbol is not in the graph.',
         });
-        host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+        postGraph(host, host.store.snapshot());
         return;
       }
       host.post({ type: 'focusNode', nodeId: focusId });
-      host.post({ type: 'graphSnapshot', graph });
+      postGraph(host, graph);
       return;
     }
   }
-  host.post({ type: 'graphSnapshot', graph: host.store.snapshot() });
+  postGraph(host, host.store.snapshot());
   if (focusId) {
     host.post({ type: 'focusNode', nodeId: focusId });
   }
+}
+
+function postGraph(host: DiagramHost, graph: CodeGraph): void {
+  const limited = limitPostedGraph(graph);
+  host.post({
+    type: 'graphSnapshot',
+    graph: limited.graph,
+    ...(limited.omittedNodes > 0 ? { omittedNodes: limited.omittedNodes } : {}),
+  });
 }
 
 function configFor(host: DiagramHost, modeOverride?: DiagramViewMode): ConfigMessage {

@@ -1,0 +1,96 @@
+{
+  "quick": false,
+  "node": "v22.23.4",
+  "results": [
+    {
+      "name": "TypeScript 5.7.2",
+      "language": "ts",
+      "file": "src/compiler/program.ts",
+      "fullIndex": {
+        "ms": 389108,
+        "files": 600,
+        "nodes": 18800,
+        "cacheHits": 0
+      },
+      "incremental": {
+        "ms": 1877,
+        "files": 1,
+        "nodes": 257,
+        "cacheHits": 0
+      },
+      "coldFocus": {
+        "ms": 3266,
+        "files": 29,
+        "nodes": 4700,
+        "cacheHits": 0
+      },
+      "warmFocus": {
+        "ms": 156,
+        "files": 29,
+        "nodes": 4700,
+        "cacheHits": 29
+      },
+      "peakRssMb": 1395
+    },
+    {
+      "name": "ripgrep 14.1.1",
+      "language": "rust",
+      "file": "crates/core/main.rs",
+      "fullIndex": {
+        "ms": 1599,
+        "files": 98,
+        "nodes": 4481,
+        "cacheHits": 0
+      },
+      "incremental": {
+        "ms": 1089,
+        "files": 1,
+        "nodes": 17,
+        "cacheHits": 0
+      },
+      "coldFocus": {
+        "ms": 348,
+        "files": 13,
+        "nodes": 1611,
+        "cacheHits": 0
+      },
+      "warmFocus": {
+        "ms": 114,
+        "files": 13,
+        "nodes": 1611,
+        "cacheHits": 13
+      },
+      "peakRssMb": 1355
+    },
+    {
+      "name": "tokio 1.41.1",
+      "language": "rust",
+      "file": "tokio/src/lib.rs",
+      "fullIndex": {
+        "ms": 6842,
+        "files": 720,
+        "nodes": 10905,
+        "cacheHits": 0
+      },
+      "incremental": {
+        "ms": 5527,
+        "files": 1,
+        "nodes": 16,
+        "cacheHits": 0
+      },
+      "coldFocus": {
+        "ms": 138,
+        "files": 38,
+        "nodes": 435,
+        "cacheHits": 0
+      },
+      "warmFocus": {
+        "ms": 64,
+        "files": 38,
+        "nodes": 435,
+        "cacheHits": 38
+      },
+      "peakRssMb": 1412
+    }
+  ]
+}

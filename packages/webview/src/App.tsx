@@ -37,6 +37,8 @@ import {
 } from './messaging';
 
 const DEFAULT_MAX_NODES = 300;
+const DIAGRAM_HARD_CAP = 2000;
+const SHOW_MORE_STEP = 100;
 
 export function App() {
   const [connected, setConnected] = useState(false);
@@ -47,6 +49,8 @@ export function App() {
   const [showUncertain, setShowUncertain] = useState(true);
   const [viewMode, setViewMode] = useState<DiagramViewMode>('focus');
   const [maxNodes, setMaxNodes] = useState(DEFAULT_MAX_NODES);
+  const [renderExtra, setRenderExtra] = useState(0);
+  const [omittedNodes, setOmittedNodes] = useState(0);
   const [error, setError] = useState<string | undefined>(undefined);
   const [cursorHint, setCursorHint] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState('');
@@ -87,6 +91,8 @@ export function App() {
           return;
         case 'graphSnapshot':
           setGraph(message.graph);
+          setOmittedNodes(message.omittedNodes ?? 0);
+          setRenderExtra(0);
           setLayoutRevision((current) => ({ id: current.id + 1, mode: 'full' }));
           setCursorHint(undefined);
           setError(undefined);
@@ -543,7 +549,11 @@ export function App() {
               showUncertain={showUncertain}
               hiddenEdgeKinds={hiddenEdgeKinds}
               query={query}
-              maxNodes={maxNodes}
+              maxNodes={Math.min(DIAGRAM_HARD_CAP, maxNodes + renderExtra)}
+              omittedNodes={omittedNodes}
+              onShowMore={() => {
+                setRenderExtra((current) => current + SHOW_MORE_STEP);
+              }}
               viewMode={viewMode}
               reducedMotion={reducedMotion}
               showMinimap={showMinimap}

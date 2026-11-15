@@ -50,6 +50,8 @@
     "onCommand:codeflow.exportSvg",
     "onCommand:codeflow.exportMermaid",
     "onCommand:codeflow.copyMermaid",
+    "onCommand:codeflow.clearCache",
+    "onCommand:codeflow.cancelIndexing",
     "onView:codeflow.sidebar"
   ],
   "main": "./dist/extension.js",
@@ -85,6 +87,14 @@
       {
         "command": "codeflow.copyMermaid",
         "title": "CodeFlow: Copy Mermaid"
+      },
+      {
+        "command": "codeflow.clearCache",
+        "title": "CodeFlow: Clear Cache"
+      },
+      {
+        "command": "codeflow.cancelIndexing",
+        "title": "CodeFlow: Cancel Indexing"
       },
       {
         "command": "codeflow.showFlowAtCursor",
@@ -214,6 +224,12 @@
         },
         {
           "command": "codeflow.copyMermaid"
+        },
+        {
+          "command": "codeflow.clearCache"
+        },
+        {
+          "command": "codeflow.cancelIndexing"
         }
       ],
       "editor/context": [
@@ -347,6 +363,11 @@
           ],
           "default": "theme",
           "description": "Background for PNG and SVG export. theme follows the current color theme. light forces a white background."
+        },
+        "codeflow.cache.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Store per-file analysis in this window's storage so the next diagram can open from disk. CodeFlow: Clear Cache deletes it. Turning this off skips the disk and does not delete an existing cache."
         },
         "codeflow.rust.useRustAnalyzer": {
           "type": "boolean",

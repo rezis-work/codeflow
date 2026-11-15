@@ -45,6 +45,8 @@ export interface DiagramCanvasProps {
   readonly hiddenEdgeKinds: ReadonlySet<EdgeKind>;
   readonly query: string;
   readonly maxNodes: number;
+  readonly omittedNodes?: number;
+  readonly onShowMore?: () => void;
   readonly viewMode: DiagramViewMode;
   readonly reducedMotion: boolean;
   readonly showMinimap: boolean;
@@ -80,6 +82,8 @@ function DiagramSurface({
   hiddenEdgeKinds,
   query,
   maxNodes,
+  omittedNodes = 0,
+  onShowMore,
   viewMode,
   reducedMotion,
   showMinimap,
@@ -271,11 +275,17 @@ function DiagramSurface({
     };
   }, [focusTarget, fitToken, holdViewport, reducedMotion, reactFlow]);
 
+  const hidden = filtered.hiddenByCap + omittedNodes;
+  const atHardCap = maxNodes >= 2000;
   const capNotice =
-    filtered.hiddenByCap > 0
-      ? viewMode === 'workspace'
-        ? `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Switch to focus mode to see the neighbourhood of a symbol.`
-        : `Showing ${filtered.nodes.length} of ${filtered.nodes.length + filtered.hiddenByCap} nodes. Hide edge kinds or search to narrow this neighbourhood.`
+    hidden > 0
+      ? `Showing ${filtered.nodes.length} of ${filtered.nodes.length + hidden} nodes. ${
+          atHardCap
+            ? 'This diagram stops at 2,000 nodes.'
+            : viewMode === 'workspace'
+              ? 'Switch to focus mode to see the neighbourhood of a symbol.'
+              : 'Hide edge kinds or search to narrow this neighbourhood.'
+        }`
       : undefined;
 
   return (
@@ -283,6 +293,11 @@ function DiagramSurface({
       {capNotice ? (
         <p className="cap-notice" role="status" data-testid="node-cap">
           {capNotice}
+          {!atHardCap && filtered.hiddenByCap > 0 && onShowMore ? (
+            <button type="button" onClick={onShowMore}>
+              Show 100 more
+            </button>
+          ) : null}
         </p>
       ) : null}
       {query.trim().length > 0 && filtered.nodes.length === 0 ? (

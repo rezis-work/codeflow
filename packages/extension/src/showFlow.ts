@@ -33,6 +33,7 @@ export async function showTraitMapAtCursor(
   if (!prepared) {
     return;
   }
+  await rust.whenReady();
   const symbol = symbolAt(prepared);
   if (!symbol || !isTraitMapSymbol(symbol)) {
     void vscode.window.showInformationMessage(
@@ -211,7 +212,11 @@ async function prepareEditor(
         title: 'CodeFlow: Reading symbol',
       },
       async () => {
-        await (rustFile ? rust : typescript).syncDocument(editor.document);
+        await (rustFile ? rust : typescript).focusDocument(
+          editor.document,
+          SYMBOL_FLOW_DEPTH,
+          true,
+        );
         if (!rustFile || !upgradeRust) {
           return;
         }

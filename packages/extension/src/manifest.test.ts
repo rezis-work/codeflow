@@ -151,5 +151,8 @@ describe('extension manifest', () => {
     expect(depth).toMatchObject({ type: 'number', default: 2 });
     const codeLens = manifest.contributes?.configuration?.properties?.['codeflow.codeLens.enabled'];
     expect(codeLens).toMatchObject({ type: 'boolean', default: true });
+    const cache = manifest.contributes?.configuration?.properties?.['codeflow.cache.enabled'];
+    expect(cache).toMatchObject({ type: 'boolean', default: true });
+    expect(manifest.activationEvents).toContain('onCommand:codeflow.clearCache');
   });
 });

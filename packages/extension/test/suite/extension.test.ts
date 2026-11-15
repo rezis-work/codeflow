@@ -29,6 +29,13 @@ suite('CodeFlow smoke', () => {
     }
     await extension.activate();
     assert.equal(extension.isActive, true);
+    const api = extension.exports as { analysisStarted?: () => boolean };
+    const openFile = vscode.window.visibleTextEditors.some(
+      (editor) => editor.document.uri.scheme === 'file',
+    );
+    if (!openFile) {
+      assert.equal(api.analysisStarted?.(), false);
+    }
 
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes(OPEN_DIAGRAM_COMMAND));
@@ -39,6 +46,8 @@ suite('CodeFlow smoke', () => {
     assert.ok(commands.includes('codeflow.showDependencies'));
     assert.ok(commands.includes('workbench.view.extension.codeflow'));
     assert.ok(commands.includes('codeflow.sidebar.focus'));
+    assert.ok(commands.includes('codeflow.clearCache'));
+    assert.ok(commands.includes('codeflow.cancelIndexing'));
   });
 
   test('activity bar view can be focused', async () => {

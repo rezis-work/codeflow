@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { findSymbolAt } from './analyzers/typescript/findSymbol';
+import { SYMBOL_FLOW_DEPTH } from './constants';
 import { DiagramPanel } from './diagramPanel';
 import { readCallDepth } from './editorSettings';
 import { getEntryCatalog } from './entryCatalog';
@@ -32,10 +33,13 @@ export async function showSequence(
   rust: RustIndexer,
   entryId?: string,
 ): Promise<void> {
-  await typescript.whenReady();
-  await rust.whenReady();
   if (typeof entryId === 'string') {
-    const entry = getEntryCatalog().get(entryId);
+    let entry = getEntryCatalog().get(entryId);
+    if (!entry) {
+      await typescript.whenReady(true);
+      await rust.whenReady(true);
+      entry = getEntryCatalog().get(entryId);
+    }
     if (!entry) {
       void vscode.window.showInformationMessage(MISSING_ENTRY);
       return;
@@ -59,7 +63,11 @@ export async function showSequence(
     return;
   }
   try {
-    await (isRust(editor.document) ? rust : typescript).syncDocument(editor.document);
+    await (isRust(editor.document) ? rust : typescript).focusDocument(
+      editor.document,
+      SYMBOL_FLOW_DEPTH,
+      true,
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'CodeFlow could not analyze this file.';

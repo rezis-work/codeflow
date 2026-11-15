@@ -15,6 +15,7 @@ import { isSidebarToExtensionMessage } from './sidebarMessage';
 const ENTRY_DEBOUNCE_MS = 50;
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
+  public constructor(private readonly onOpen?: () => void) {}
   private static active: SidebarProvider | undefined;
   private static lastEntries: readonly EntryPoint[] = [];
 
@@ -35,6 +36,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private flowListener: { dispose(): void } | undefined;
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.onOpen?.();
     SidebarProvider.active = this;
     this.view = webviewView;
     webviewView.webview.options = { enableScripts: true };

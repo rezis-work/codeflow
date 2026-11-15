@@ -250,6 +250,17 @@ body {
   right: 48px;
 }
 
+.cap-notice button {
+  margin-left: 8px;
+  pointer-events: auto;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
 .layout-status {
   top: 8px;
   right: 8px;
