@@ -44,6 +44,66 @@ body {
   border-bottom: 1px solid var(--vscode-panel-border, #2b2b2b);
 }
 
+.header-side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.flow-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-actions > button,
+.export-menu button {
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 2px;
+  background: var(--vscode-button-secondaryBackground, transparent);
+  color: var(--vscode-button-secondaryForeground, inherit);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.flow-actions > button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.export-menu {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  margin-top: 4px;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, #252526);
+}
+
+.export-menu button {
+  text-align: left;
+}
+
+.export-anchor {
+  position: relative;
+}
+
+.stale-banner {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-inputValidation-warningBorder, #9d7a1a);
+  border-radius: 4px;
+  background: var(--vscode-inputValidation-warningBackground, rgba(157, 122, 26, 0.16));
+  color: var(--vscode-foreground, inherit);
+}
+
 .shell-header h1 {
   margin: 0;
   font-size: 13px;
@@ -336,6 +396,7 @@ body {
   white-space: nowrap;
 }
 
+.code-node-collapse,
 .code-node-expand {
   flex: none;
   width: 22px;

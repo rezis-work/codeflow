@@ -8,6 +8,12 @@ export const SHOW_CONTROL_FLOW_COMMAND = 'codeflow.showControlFlowAtCursor';
 export const SHOW_TRAIT_MAP_COMMAND = 'codeflow.showTraitMap';
 export const SHOW_REQUEST_FLOW_COMMAND = 'codeflow.showRequestFlow';
 export const SHOW_SEQUENCE_COMMAND = 'codeflow.showSequence';
+export const SAVE_FLOW_COMMAND = 'codeflow.saveFlow';
+export const OPEN_SAVED_FLOW_COMMAND = 'codeflow.openSavedFlow';
+export const EXPORT_PNG_COMMAND = 'codeflow.exportPng';
+export const EXPORT_SVG_COMMAND = 'codeflow.exportSvg';
+export const EXPORT_MERMAID_COMMAND = 'codeflow.exportMermaid';
+export const COPY_MERMAID_COMMAND = 'codeflow.copyMermaid';
 /** Editor languages that have a CodeFlow context menu. */
 export const EDITOR_LANGUAGE_IDS = [
   'typescript',

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Saved flows and export
+
+- **Save flow** is on every diagram: call graph, callers, callees, file dependencies, control flow, trait map, request flow, and sequence. It asks for a name and stores the view, the root symbol or entry point, and the options (depth, granularity, uncertain and inferred switches, collapsed nodes, and a viewport after you pan or zoom). Opening it analyzes the current code. The last picture is kept only for when that root is gone, and the panel then says the flow is stale.
+- Saved flows live in this window's workspace storage. `codeflow.savedFlows.storeInWorkspace` writes `.codeflow/flows.json` instead, with workspace-relative paths, so the file can be committed. The document is version 1 of the shared protocol. An older flat document is migrated. A file that does not parse is left untouched.
+- The side panel lists saved flows. Open, Rename, and Delete are on each row. Delete asks first. **CodeFlow: Save Flow** and **CodeFlow: Open Saved Flow** are in the Command Palette. Open Saved Flow also has a quick pick.
+- **Export** on every diagram saves PNG, SVG, or Mermaid through the save dialog. PNG scale is `codeflow.export.pngScale` (1–4, default 2). `codeflow.export.background` is `theme` or `light`, and the menu can force a white background for one PNG. SVG is self-contained, with a font stack and dashed uncertain edges. Mermaid is a `flowchart` for graph views (a subgraph per file and module, `-.->` for uncertain edges), a `sequenceDiagram` for a sequence, and a `flowchart` for control flow. **Copy Mermaid** puts that text on the clipboard.
+- Exported diagrams use a deterministic layout, not the on-screen ELK positions. PNG text uses a built-in bitmap font. A sequence does not apply a saved viewport.
+
 ### Sequence view
 
 - **CodeFlow: Show as Sequence** turns a function's calls, or a request trace, into a timeline. Lifelines group by file, by class, impl, or struct, or by module or crate. Calls run downward, with a return arrow and an activation bar. A nested call sits inside the call that made it.

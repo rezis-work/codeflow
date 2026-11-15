@@ -13,6 +13,12 @@ import {
   SHOW_TRAIT_MAP_COMMAND,
   SHOW_REQUEST_FLOW_COMMAND,
   SHOW_SEQUENCE_COMMAND,
+  SAVE_FLOW_COMMAND,
+  OPEN_SAVED_FLOW_COMMAND,
+  EXPORT_PNG_COMMAND,
+  EXPORT_SVG_COMMAND,
+  EXPORT_MERMAID_COMMAND,
+  COPY_MERMAID_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -30,6 +36,7 @@ import { showRequestFlow } from './showRequestFlow';
 import { showSequence } from './showSequence';
 import { getEntryCatalog } from './entryCatalog';
 import { showControlFlowAtCursor } from './showControlFlow';
+import { installSavedFlows } from './savedFlows';
 import { SidebarProvider } from './sidebar';
 import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
@@ -44,6 +51,8 @@ export interface CodeFlowExtensionApi {
   entryPoints(): readonly EntryPoint[];
   sidebarEntries(): readonly EntryPoint[];
   postSidebar(message: unknown): void;
+  savedFlows(): readonly { readonly id: string; readonly name: string; readonly kind: string }[];
+  reloadSavedFlows(): void;
 }
 
 /**
@@ -63,6 +72,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   typescript.start();
   rust.start();
   bindControlFlowEngines({ typescript, rust });
+  const savedFlows = installSavedFlows(context, { typescript, rust });
 
   context.subscriptions.push(
     typescript,
@@ -74,6 +84,31 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     }),
     vscode.commands.registerCommand(OPEN_DIAGRAM_COMMAND, () => {
       DiagramPanel.open(context);
+    }),
+    vscode.commands.registerCommand(SAVE_FLOW_COMMAND, (name?: unknown) =>
+      savedFlows.save(typeof name === 'string' ? name : undefined),
+    ),
+    vscode.commands.registerCommand(OPEN_SAVED_FLOW_COMMAND, (id?: unknown) =>
+      savedFlows.open(typeof id === 'string' ? id : undefined),
+    ),
+    vscode.commands.registerCommand(EXPORT_PNG_COMMAND, (target?: unknown, background?: unknown) =>
+      savedFlows.exportDiagram(
+        'png',
+        target instanceof vscode.Uri ? target : undefined,
+        background === 'light' || background === 'theme' ? background : undefined,
+      ),
+    ),
+    vscode.commands.registerCommand(EXPORT_SVG_COMMAND, (target?: unknown) =>
+      savedFlows.exportDiagram('svg', target instanceof vscode.Uri ? target : undefined),
+    ),
+    vscode.commands.registerCommand(EXPORT_MERMAID_COMMAND, (target?: unknown) =>
+      savedFlows.exportDiagram('mermaid', target instanceof vscode.Uri ? target : undefined),
+    ),
+    vscode.commands.registerCommand(COPY_MERMAID_COMMAND, () => savedFlows.copyMermaid()),
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration('codeflow.savedFlows.storeInWorkspace')) {
+        savedFlows.reload();
+      }
     }),
     vscode.commands.registerCommand(SHOW_FLOW_COMMAND, (target?: unknown) => {
       void showFlowAtCursor(context, typescript, rust, target);
@@ -148,6 +183,10 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     sidebarEntries: () => SidebarProvider.postedEntries(),
     postSidebar: (message) => {
       SidebarProvider.deliver(message);
+    },
+    savedFlows: () => savedFlows.list(),
+    reloadSavedFlows: () => {
+      savedFlows.reload();
     },
   };
 }

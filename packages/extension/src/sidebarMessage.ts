@@ -3,7 +3,10 @@ export type SidebarToExtensionMessage =
   | { readonly type: 'showTraitMap' }
   | { readonly type: 'showRequestFlow'; readonly entryId: string }
   | { readonly type: 'showSequence'; readonly entryId: string }
-  | { readonly type: 'revealEntry'; readonly entryId: string };
+  | { readonly type: 'revealEntry'; readonly entryId: string }
+  | { readonly type: 'openSavedFlow'; readonly id: string }
+  | { readonly type: 'renameSavedFlow'; readonly id: string }
+  | { readonly type: 'deleteSavedFlow'; readonly id: string };
 
 export function isSidebarToExtensionMessage(value: unknown): value is SidebarToExtensionMessage {
   if (!isRecord(value)) {
@@ -11,6 +14,13 @@ export function isSidebarToExtensionMessage(value: unknown): value is SidebarToE
   }
   if (value.type === 'openDiagram' || value.type === 'showTraitMap') {
     return true;
+  }
+  if (
+    value.type === 'openSavedFlow' ||
+    value.type === 'renameSavedFlow' ||
+    value.type === 'deleteSavedFlow'
+  ) {
+    return typeof value.id === 'string' && value.id.length > 0;
   }
   return (
     (value.type === 'showRequestFlow' ||

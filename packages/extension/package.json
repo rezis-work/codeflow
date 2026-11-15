@@ -44,6 +44,12 @@
     "onCommand:codeflow.showCallees",
     "onCommand:codeflow.showFileDependencies",
     "onCommand:codeflow.showDependencies",
+    "onCommand:codeflow.saveFlow",
+    "onCommand:codeflow.openSavedFlow",
+    "onCommand:codeflow.exportPng",
+    "onCommand:codeflow.exportSvg",
+    "onCommand:codeflow.exportMermaid",
+    "onCommand:codeflow.copyMermaid",
     "onView:codeflow.sidebar"
   ],
   "main": "./dist/extension.js",
@@ -53,6 +59,32 @@
         "command": "codeflow.openDiagram",
         "title": "CodeFlow: Open Diagram",
         "icon": "$(open-preview)"
+      },
+      {
+        "command": "codeflow.saveFlow",
+        "title": "CodeFlow: Save Flow",
+        "icon": "$(save)"
+      },
+      {
+        "command": "codeflow.openSavedFlow",
+        "title": "CodeFlow: Open Saved Flow",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "codeflow.exportPng",
+        "title": "CodeFlow: Export PNG"
+      },
+      {
+        "command": "codeflow.exportSvg",
+        "title": "CodeFlow: Export SVG"
+      },
+      {
+        "command": "codeflow.exportMermaid",
+        "title": "CodeFlow: Export Mermaid"
+      },
+      {
+        "command": "codeflow.copyMermaid",
+        "title": "CodeFlow: Copy Mermaid"
       },
       {
         "command": "codeflow.showFlowAtCursor",
@@ -164,6 +196,24 @@
         },
         {
           "command": "codeflow.openDiagram"
+        },
+        {
+          "command": "codeflow.saveFlow"
+        },
+        {
+          "command": "codeflow.openSavedFlow"
+        },
+        {
+          "command": "codeflow.exportPng"
+        },
+        {
+          "command": "codeflow.exportSvg"
+        },
+        {
+          "command": "codeflow.exportMermaid"
+        },
+        {
+          "command": "codeflow.copyMermaid"
         }
       ],
       "editor/context": [
@@ -276,6 +326,27 @@
           "type": "boolean",
           "default": true,
           "description": "Show caller and callee counts above each function and method. The counts are the call-graph degree. Uncertain calls are shown separately as “+N possible” and are not included in the main count. Clicking the caller count runs Show Callers. Clicking the callee count runs Show Callees."
+        },
+        "codeflow.savedFlows.storeInWorkspace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Write named flows to .codeflow/flows.json so they can be committed. When this is off, CodeFlow keeps them in this window's workspace storage."
+        },
+        "codeflow.export.pngScale": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 4,
+          "description": "Pixel scale for CodeFlow: Export PNG. 1 is the diagram's layout size. 2 is sharper on a high-density screen."
+        },
+        "codeflow.export.background": {
+          "type": "string",
+          "enum": [
+            "theme",
+            "light"
+          ],
+          "default": "theme",
+          "description": "Background for PNG and SVG export. theme follows the current color theme. light forces a white background."
         },
         "codeflow.rust.useRustAnalyzer": {
           "type": "boolean",

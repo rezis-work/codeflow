@@ -72,6 +72,11 @@ describe('renderSidebarHtml', () => {
     expect(html).toContain("type: 'openDiagram'");
     expect(html).toContain('Open Diagram');
     expect(html).toContain('Entry Points');
+    expect(html).toContain('Saved Flows');
+    expect(html).toContain('No saved flows yet');
+    expect(html).toContain("type: 'openSavedFlow'");
+    expect(html).toContain("type: 'renameSavedFlow'");
+    expect(html).toContain("type: 'deleteSavedFlow'");
     expect(html).toContain('No entry points yet');
     expect(html).toContain("type: 'showRequestFlow'");
     expect(html).toContain("type: 'showSequence'");

@@ -24,6 +24,8 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 - Rust trait map: a trait and every workspace impl, or a type and the traits it implements. `dyn Trait`, generic bounds, and `impl Trait` call targets are drawn dashed and marked uncertain.
 - Request flow: Next.js, NestJS, Axum, and Actix entry points, traced from the route through the handler's calls to a data-layer sink. The side panel lists those entry points.
 - Sequence view: the same request, or the calls from one function, as a timeline. Lifelines can be the file, the class, impl, or struct, or the module or crate. Uncertain calls stay dashed.
+- Saved flows: name the diagram you are looking at and open it again later. CodeFlow stores the view and the symbol, then analyzes the current code when you reopen it. If that symbol is gone, it shows the last picture and says the flow is stale.
+- Export the open diagram to PNG, SVG, or Mermaid, or copy the Mermaid source. Uncertain edges stay dashed.
 - Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
 - Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
 - Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
@@ -34,7 +36,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ## Commands
 
-These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor**, **Show Request Flow**, and **Show as Sequence** appear in that menu for those languages. Control flow is also on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map. The side panel lists entry points. A row opens a request flow, and its Sequence button opens that route as a sequence.
+These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor**, **Show Request Flow**, and **Show as Sequence** appear in that menu for those languages. Control flow is also on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map. The side panel lists entry points and saved flows. A row opens a request flow, and its Sequence button opens that route as a sequence. Saved Flows lists named diagrams: open, rename, or delete. Delete asks first.
 
 | Command                                            | What it draws                                                                             |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -48,22 +50,31 @@ These appear in the Command Palette. The four call and import commands also appe
 | CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer calls those functions make |
 | CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence of calls and returns           |
 | CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                            |
+| CodeFlow: Save Flow                                | Name the open diagram and store its definition                                            |
+| CodeFlow: Open Saved Flow                          | Pick a saved flow and analyze it again                                                    |
+| CodeFlow: Export PNG                               | Save the open diagram as a PNG                                                            |
+| CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                                             |
+| CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                                  |
+| CodeFlow: Copy Mermaid                             | Copy that Mermaid source to the clipboard                                                 |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
 ## Settings
 
-| Setting                           | Default                                   |                                                                                                                                        |
-| --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `codeflow.editor.followCursor`    | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
-| `codeflow.editor.refocusOnCursor` | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
-| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers, Show Callees, a request flow, and a sequence (1–32). The route itself is not a step                       |
-| `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map and request flow are opened by their own commands                                                    |
-| `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps trait-method fan-out and a request flow                                                                 |
-| `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
-| `codeflow.codeLens.enabled`       | `true`                                    | Caller and callee counts above functions and methods. Uncertain calls are `+N possible` and are not part of the main count             |
-| `codeflow.exclude`                | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
-| `codeflow.maxFiles`               | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
+| Setting                                | Default                                   |                                                                                                                                        |
+| -------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `codeflow.editor.followCursor`         | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
+| `codeflow.editor.refocusOnCursor`      | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
+| `codeflow.editor.callDepth`            | `2`                                       | Call steps for Show Callers, Show Callees, a request flow, and a sequence (1–32). The route itself is not a step                       |
+| `codeflow.view.defaultMode`            | `focus`                                   | `focus` or `workspace`. Trait map and request flow are opened by their own commands                                                    |
+| `codeflow.view.maxNodes`               | `300`                                     | Nodes drawn at once. Also caps trait-method fan-out and a request flow                                                                 |
+| `codeflow.rust.useRustAnalyzer`        | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
+| `codeflow.codeLens.enabled`            | `true`                                    | Caller and callee counts above functions and methods. Uncertain calls are `+N possible` and are not part of the main count             |
+| `codeflow.savedFlows.storeInWorkspace` | `false`                                   | Write named flows to `.codeflow/flows.json`. Off keeps them in this window's workspace storage                                         |
+| `codeflow.export.pngScale`             | `2`                                       | PNG export scale from 1 to 4                                                                                                           |
+| `codeflow.export.background`           | `theme`                                   | `theme` follows the color theme. `light` forces a white background for PNG and SVG                                                     |
+| `codeflow.exclude`                     | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
+| `codeflow.maxFiles`                    | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
 
 ## Requirements
 
@@ -102,6 +113,7 @@ ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse it
 - A sequence is the trace turned on its side. It does not discover new calls. A recursive call is drawn once. The diagram stops at `codeflow.editor.callDepth` or at 80 calls and says it was truncated. A request sequence keeps a sink that the trace attached past that depth, and says so when the trace left other calls out.
 - An `alt` frame is one box around a decision, not a separate else compartment. `&&`, `||`, `?.`, and `??` are not frames. Frames are attached for up to eight functions on the trace, and only when that function's control flow can be built. The box can include the gap between the blocks it covers.
 - At class, impl, or struct granularity, a free function is its own lifeline. A route and a data sink stay their own lifelines at every granularity. A Rust file module is labelled as the crate.
+- PNG, SVG, and Mermaid export use a deterministic layout, not the on-screen ELK positions. Mermaid lays the diagram out again when you render it. PNG text uses a built-in bitmap font. A saved viewport is applied to the call graph. A sequence does not use it. Control flow keeps its own fit-to-view.
 
 ## Layout
 
@@ -189,8 +201,8 @@ Analyzers should put each edge in the file where the relationship is written. Em
 
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
-- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`, `requestSequence`, `dismissSequence`.
-- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`, `sequence`.
+- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`, `requestSequence`, `dismissSequence`, `viewState`, `saveFlow`, `exportDiagram`, `copyMermaid`.
+- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`, `sequence`, `savedFlowBanner`, `presentation`.
 
 `requestControlFlow` asks for one function, by a call-graph node id or by a file URI and a cursor position. `controlFlow` answers with a versioned graph (`version: 1`) or an error. `dismissControlFlow` leaves the flowchart. `controlFlowCursor` is the caret, so the open flowchart can highlight the block that contains it. `requestSequence` asks for the open request or the open function as a sequence, optionally at `file`, `type`, or `module` granularity. `sequence` answers with a versioned diagram (`version: 1`) or an error (`not-found`, `not-a-function`, or `internal`). `dismissSequence` leaves the sequence. Older messages are unchanged.
 
@@ -213,6 +225,10 @@ A Rust `mod` declaration and the file it points at are two nodes joined by an im
 While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
 
 A request-flow diagram has a Sequence button. It opens the same trace as a sequence. The sequence toolbar switches File, Type, and Module, and Graph returns to the call diagram. The sequence layout is not ELK: lifelines are columns and message order is the row. See [Sequence](#sequence).
+
+**Save flow** is in the header of every diagram. It asks for a name. CodeFlow stores the view kind, the root symbol or entry point, depth or granularity, the uncertain and inferred switches, collapsed nodes, and the viewport after you pan or zoom. Opening the flow analyzes the current code. The side panel's Saved Flows section lists them. **CodeFlow: Open Saved Flow** is a quick pick of the same list. If the root symbol or entry point is gone, the panel shows the last rendered diagram and a stale banner. By default the list is in workspace storage for this window. `codeflow.savedFlows.storeInWorkspace` writes `.codeflow/flows.json` with paths relative to the workspace. The file is version 1. A document that does not parse is not overwritten.
+
+**Export** in the same header saves PNG, SVG, or Mermaid, or copies the Mermaid source. PNG uses `codeflow.export.pngScale`. The menu's white-background PNG, and `codeflow.export.background` set to `light`, paint a white page instead of the theme. SVG embeds its styles, falls back through `"Segoe UI", "Helvetica Neue", Arial, sans-serif`, and keeps uncertain edges dashed. Mermaid uses `flowchart` for a call graph, file dependencies, a trait map, and a request flow, with a subgraph per file and per module. Uncertain edges are `-.->`. A sequence is a `sequenceDiagram`. Control flow is a top-to-bottom `flowchart`, with diamonds for decisions and dashed exception edges. Identifiers and labels are escaped.
 
 A function or method node has a Flow button. It opens a top-to-bottom flowchart of that function (ELK layered, direction down). Decisions and switches are marked, loops are dashed, entry and exit are rounded, returns and throws use their own borders, and exception edges are dashed. Back edges leave the right side of a block. Clicking a block selects its source range. The breadcrumb returns to the call graph. Saving the file rebuilds the flowchart. If the function is gone, the panel says so. A function with more than 500 blocks shows the first 500 and a notice. The same command is **CodeFlow: Show Control Flow for Function at Cursor**. It works for TypeScript, JavaScript, and Rust.
 

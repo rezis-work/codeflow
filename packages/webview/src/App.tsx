@@ -5,13 +5,14 @@ import type {
   ControlFlowMessage,
   DiagramTheme,
   DiagramViewMode,
+  DiagramViewport,
   EdgeKind,
   NodeId,
   Position,
   SequenceDiagramMessage,
   SequenceGranularity,
 } from '@codeflow/shared';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ControlFlowView } from './diagram/ControlFlowView';
 import { DiagramCanvas } from './diagram/DiagramCanvas';
 import type { LayoutRevision } from './diagram/DiagramCanvas';
@@ -22,13 +23,17 @@ import { SequenceView } from './diagram/SequenceView';
 import {
   onExtensionMessage,
   postDismissControlFlow,
+  postCopyMermaid,
   postDismissSequence,
   postExpandNode,
+  postExportDiagram,
   postReady,
   postRequestControlFlow,
   postRequestSequence,
   postRevealLocation,
+  postSaveFlow,
   postSetViewMode,
+  postViewState,
 } from './messaging';
 
 const DEFAULT_MAX_NODES = 300;
@@ -52,6 +57,13 @@ export function App() {
   const [flow, setFlow] = useState<ControlFlowMessage | undefined>(undefined);
   const [sequence, setSequence] = useState<SequenceDiagramMessage | undefined>(undefined);
   const [granularity, setGranularity] = useState<SequenceGranularity>('type');
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<readonly string[]>([]);
+  const [viewport, setViewport] = useState<DiagramViewport | undefined>(undefined);
+  const [viewportToken, setViewportToken] = useState(0);
+  const [holdViewport, setHoldViewport] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [stale, setStale] = useState(false);
+  const [staleMessage, setStaleMessage] = useState<string | undefined>(undefined);
   const [flowCursor, setFlowCursor] = useState<
     { readonly uri: string; readonly position: Position } | undefined
   >(undefined);
@@ -123,6 +135,28 @@ export function App() {
           setSurface('sequence');
           setError(undefined);
           return;
+        case 'savedFlowBanner':
+          setStale(message.stale);
+          setStaleMessage(message.message);
+          return;
+        case 'presentation':
+          setCollapsedNodeIds(message.collapsedNodeIds);
+          if (message.showUncertain !== undefined) {
+            setShowUncertain(message.showUncertain);
+          }
+          if (message.showInferred !== undefined) {
+            inferredTouched.current = true;
+            setShowInferred(message.showInferred);
+          }
+          if (message.hiddenEdgeKinds) {
+            setHiddenEdgeKinds(new Set(message.hiddenEdgeKinds));
+          }
+          if (message.viewport) {
+            setViewport(message.viewport);
+            setViewportToken((current) => current + 1);
+            setHoldViewport(true);
+          }
+          return;
         default: {
           const unreachable: never = message;
           return unreachable;
@@ -175,9 +209,37 @@ export function App() {
     setGranularity(next);
     postRequestSequence(next);
   }, []);
+  const onToggleCollapse = useCallback((id: NodeId) => {
+    setCollapsedNodeIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }, []);
+  const onViewport = useCallback((next: DiagramViewport) => {
+    setHoldViewport(false);
+    setViewport(next);
+  }, []);
+
+  const collapsedSet = useMemo(() => new Set(collapsedNodeIds), [collapsedNodeIds]);
+  const presentation = useMemo(
+    () => ({
+      collapsedNodeIds,
+      showUncertain,
+      showInferred,
+      hiddenEdgeKinds: [...hiddenEdgeKinds].sort(),
+      ...(viewport ? { viewport } : {}),
+    }),
+    [collapsedNodeIds, showUncertain, showInferred, hiddenEdgeKinds, viewport],
+  );
+  useEffect(() => {
+    postViewState(presentation);
+  }, [presentation]);
 
   const focusNode = focusId ? graph?.nodes.find((node) => node.id === focusId) : undefined;
   const focusLabel = focusNode ? nodeText(focusNode).qualified : 'unknown symbol';
+  const canSave =
+    (surface === 'graph' && (graph?.nodes.length ?? 0) > 0) ||
+    (surface === 'flow' && Boolean(flow?.graph)) ||
+    (surface === 'sequence' && Boolean(sequence?.diagram));
 
   return (
     <main
@@ -191,14 +253,101 @@ export function App() {
     >
       <header className="shell-header">
         <h1>CodeFlow</h1>
-        <p
-          className="status"
-          data-state={connected ? 'connected' : 'waiting'}
-          data-testid="connection-status"
-        >
-          {connected ? 'Connected' : 'Waiting for extension...'}
-        </p>
+        <div className="header-side">
+          <div className="flow-actions">
+            <button
+              type="button"
+              data-testid="save-flow"
+              disabled={!canSave}
+              onClick={() => {
+                postSaveFlow(presentation);
+              }}
+            >
+              Save flow
+            </button>
+            <div className="export-anchor">
+              <button
+                type="button"
+                data-testid="export-menu"
+                aria-expanded={exportOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setExportOpen((current) => !current);
+                }}
+              >
+                Export
+              </button>
+              {exportOpen ? (
+                <div className="export-menu" role="menu" aria-label="Export">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      postExportDiagram('png', 'theme');
+                    }}
+                  >
+                    PNG
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      postExportDiagram('png', 'light');
+                    }}
+                  >
+                    PNG, white background
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      postExportDiagram('svg');
+                    }}
+                  >
+                    SVG
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      postExportDiagram('mermaid');
+                    }}
+                  >
+                    Mermaid
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      postCopyMermaid();
+                    }}
+                  >
+                    Copy Mermaid
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <p
+            className="status"
+            data-state={connected ? 'connected' : 'waiting'}
+            data-testid="connection-status"
+          >
+            {connected ? 'Connected' : 'Waiting for extension...'}
+          </p>
+        </div>
       </header>
+      {stale ? (
+        <p className="stale-banner" role="status" data-testid="stale-banner">
+          {staleMessage ??
+            'This saved flow is stale. The root was not found, so CodeFlow is showing the last rendered diagram.'}
+        </p>
+      ) : null}
       <div className="graph-meta">
         <p data-testid="graph-summary">{graphSummary(graph, showInferred, showUncertain)}</p>
         {focusId ? <p data-testid="focus-node">Focus: {focusLabel}</p> : null}
@@ -401,6 +550,12 @@ export function App() {
               layoutRevision={layoutRevision}
               onReveal={onReveal}
               onExpand={onExpand}
+              collapsedNodeIds={collapsedSet}
+              onToggleCollapse={onToggleCollapse}
+              viewportToken={viewportToken}
+              holdViewport={holdViewport}
+              onViewport={onViewport}
+              {...(viewport ? { viewport } : {})}
               {...(focusId ? { focusId } : {})}
             />
           ) : connected && !graph ? (

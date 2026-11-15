@@ -9,6 +9,7 @@ import type { EntryPoint } from '@codeflow/shared';
 import { getEntryCatalog, groupEntries } from './entryCatalog';
 import { renderSidebarHtml } from './html';
 import { createNonce } from './nonce';
+import { getSavedFlows } from './savedFlows';
 import { isSidebarToExtensionMessage } from './sidebarMessage';
 
 const ENTRY_DEBOUNCE_MS = 50;
@@ -31,6 +32,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private listener: vscode.Disposable | undefined;
   private catalogListener: { dispose(): void } | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private flowListener: { dispose(): void } | undefined;
 
   public resolveWebviewView(webviewView: vscode.WebviewView): void {
     SidebarProvider.active = this;
@@ -50,13 +52,20 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this.catalogListener = getEntryCatalog().onChanged(() => {
       this.scheduleEntries();
     });
+    this.flowListener?.dispose();
+    this.flowListener = getSavedFlows()?.onDidChange(() => {
+      this.postFlows();
+    });
     this.postEntries();
+    this.postFlows();
 
     webviewView.onDidDispose(() => {
       this.listener?.dispose();
       this.listener = undefined;
       this.catalogListener?.dispose();
       this.catalogListener = undefined;
+      this.flowListener?.dispose();
+      this.flowListener = undefined;
       if (this.timer) {
         clearTimeout(this.timer);
         this.timer = undefined;
@@ -86,6 +95,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       this.revealEntry(message.entryId);
       return;
     }
+    if (message.type === 'openSavedFlow') {
+      void getSavedFlows()?.open(message.id);
+      return;
+    }
+    if (message.type === 'renameSavedFlow') {
+      void getSavedFlows()?.rename(message.id);
+      return;
+    }
+    if (message.type === 'deleteSavedFlow') {
+      void getSavedFlows()?.remove(message.id);
+      return;
+    }
     void vscode.commands.executeCommand(
       message.type === 'showTraitMap' ? SHOW_TRAIT_MAP_COMMAND : OPEN_DIAGRAM_COMMAND,
     );
@@ -109,6 +130,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const entries = groupEntries(getEntryCatalog().list()).flatMap((group) => [...group.entries]);
     SidebarProvider.lastEntries = entries;
     void view.webview.postMessage({ type: 'entries', entries });
+  }
+
+  private postFlows(): void {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    void view.webview.postMessage({ type: 'savedFlows', flows: getSavedFlows()?.list() ?? [] });
   }
 
   private revealEntry(entryId: string): void {

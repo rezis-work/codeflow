@@ -1,7 +1,9 @@
 import { isExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import type {
   DiagramViewMode,
+  DiagramViewport,
   DiagramWebviewToExtensionMessage,
+  EdgeKind,
   ExtensionToDiagramWebviewMessage,
   Language,
   NodeId,
@@ -97,6 +99,47 @@ export function postRequestSequence(granularity?: SequenceGranularity): void {
 
 export function postDismissSequence(): void {
   post({ type: 'dismissSequence' });
+}
+
+export interface DiagramPresentation {
+  readonly collapsedNodeIds: readonly string[];
+  readonly showUncertain: boolean;
+  readonly showInferred: boolean;
+  readonly hiddenEdgeKinds: readonly EdgeKind[];
+  readonly viewport?: DiagramViewport;
+}
+
+function presentationFields(input: DiagramPresentation) {
+  return {
+    collapsedNodeIds: [...input.collapsedNodeIds],
+    showUncertain: input.showUncertain,
+    showInferred: input.showInferred,
+    hiddenEdgeKinds: [...input.hiddenEdgeKinds],
+    ...(input.viewport ? { viewport: input.viewport } : {}),
+  };
+}
+
+export function postViewState(input: DiagramPresentation): void {
+  post({ type: 'viewState', ...presentationFields(input) });
+}
+
+export function postSaveFlow(input: DiagramPresentation): void {
+  post({ type: 'saveFlow', ...presentationFields(input) });
+}
+
+export function postExportDiagram(
+  format: 'png' | 'svg' | 'mermaid',
+  background?: 'theme' | 'light',
+): void {
+  post({
+    type: 'exportDiagram',
+    format,
+    ...(background ? { background } : {}),
+  });
+}
+
+export function postCopyMermaid(): void {
+  post({ type: 'copyMermaid' });
 }
 
 export function onExtensionMessage(

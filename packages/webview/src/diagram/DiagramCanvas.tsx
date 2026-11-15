@@ -17,6 +17,7 @@ import type {
 } from '@codeflow/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collapseRustModules, representativeId } from './collapse';
+import { collapsedDescendants, collapsibleNodeIds } from './userCollapse';
 import { elkEngine } from './elkLayout';
 import { filterDiagram } from './filters';
 import { nodeText } from './labels';
@@ -50,6 +51,16 @@ export interface DiagramCanvasProps {
   readonly layoutRevision: LayoutRevision;
   readonly onReveal: (location: SourceLocation) => void;
   readonly onExpand: (nodeId: NodeId) => void;
+  readonly collapsedNodeIds: ReadonlySet<string>;
+  readonly onToggleCollapse: (nodeId: NodeId) => void;
+  readonly viewport?: { readonly x: number; readonly y: number; readonly zoom: number };
+  readonly viewportToken: number;
+  readonly holdViewport: boolean;
+  readonly onViewport: (viewport: {
+    readonly x: number;
+    readonly y: number;
+    readonly zoom: number;
+  }) => void;
 }
 
 export function DiagramCanvas(props: DiagramCanvasProps) {
@@ -75,12 +86,31 @@ function DiagramSurface({
   layoutRevision,
   onReveal,
   onExpand,
+  collapsedNodeIds,
+  onToggleCollapse,
+  viewport,
+  viewportToken,
+  holdViewport,
+  onViewport,
 }: DiagramCanvasProps) {
   const collapsed = useMemo(() => collapseRustModules(graph), [graph]);
+  const userHidden = useMemo(
+    () => collapsedDescendants(graph.edges, collapsedNodeIds),
+    [graph.edges, collapsedNodeIds],
+  );
+  const collapsible = useMemo(() => collapsibleNodeIds(graph.edges), [graph.edges]);
+  const shownNodes = useMemo(
+    () => collapsed.nodes.filter((node) => !userHidden.has(node.id)),
+    [collapsed.nodes, userHidden],
+  );
+  const shownEdges = useMemo(
+    () => collapsed.edges.filter((edge) => !userHidden.has(edge.from) && !userHidden.has(edge.to)),
+    [collapsed.edges, userHidden],
+  );
   const focusTarget = representativeId(focusId, collapsed.collapsedInto);
   const filtered = useMemo(
     () =>
-      filterDiagram(collapsed.nodes, collapsed.edges, {
+      filterDiagram(shownNodes, shownEdges, {
         query,
         hiddenEdgeKinds,
         showInferred,
@@ -89,7 +119,17 @@ function DiagramSurface({
         fileNames: collapsed.fileNames,
         ...(focusTarget ? { focusId: focusTarget } : {}),
       }),
-    [collapsed, query, hiddenEdgeKinds, showInferred, showUncertain, maxNodes, focusTarget],
+    [
+      shownNodes,
+      shownEdges,
+      collapsed.fileNames,
+      query,
+      hiddenEdgeKinds,
+      showInferred,
+      showUncertain,
+      maxNodes,
+      focusTarget,
+    ],
   );
   const filterKey = `${showInferred}:${showUncertain}:${[...hiddenEdgeKinds].sort().join(',')}`;
   const layoutMode = useLayoutMode(layoutRevision, filterKey, query);
@@ -156,6 +196,9 @@ function DiagramSurface({
         fileNames: collapsed.fileNames,
         onReveal,
         onExpand,
+        collapsibleIds: collapsible,
+        collapsedIds: collapsedNodeIds,
+        onToggleCollapse,
         ...(focusTarget ? { focusId: focusTarget } : {}),
         ...(hovered ? { hoveredId: hovered } : {}),
       }),
@@ -166,6 +209,9 @@ function DiagramSurface({
       collapsed.fileNames,
       onReveal,
       onExpand,
+      onToggleCollapse,
+      collapsible,
+      collapsedNodeIds,
       focusTarget,
       hovered,
     ],
@@ -182,8 +228,16 @@ function DiagramSurface({
 
   const reactFlow = useReactFlow();
   const fittedToken = useRef(0);
+  const appliedViewport = useRef(0);
   useEffect(() => {
-    if (fitToken === 0) {
+    if (!viewport || viewportToken === 0 || appliedViewport.current === viewportToken) {
+      return;
+    }
+    appliedViewport.current = viewportToken;
+    void reactFlow.setViewport(viewport, { duration: 0 });
+  }, [viewport, viewportToken, reactFlow]);
+  useEffect(() => {
+    if (fitToken === 0 || holdViewport) {
       return;
     }
     const duration = focusPanDuration(reducedMotion);
@@ -193,11 +247,11 @@ function DiagramSurface({
     return () => {
       window.clearTimeout(handle);
     };
-  }, [fitToken, reducedMotion, reactFlow]);
+  }, [fitToken, holdViewport, reducedMotion, reactFlow]);
   useEffect(() => {
     const layoutJustFitted = fittedToken.current !== fitToken;
     fittedToken.current = fitToken;
-    if (fitToken === 0 || !focusTarget || layoutJustFitted) {
+    if (holdViewport || fitToken === 0 || !focusTarget || layoutJustFitted) {
       return;
     }
     if (!positionsRef.current.has(focusTarget)) {
@@ -215,7 +269,7 @@ function DiagramSurface({
     return () => {
       window.clearTimeout(handle);
     };
-  }, [focusTarget, fitToken, reducedMotion, reactFlow]);
+  }, [focusTarget, fitToken, holdViewport, reducedMotion, reactFlow]);
 
   const capNotice =
     filtered.hiddenByCap > 0
@@ -258,6 +312,12 @@ function DiagramSurface({
         }}
         onNodeMouseLeave={() => {
           setHovered(undefined);
+        }}
+        onMoveEnd={(event, next) => {
+          if (!event) {
+            return;
+          }
+          onViewport({ x: next.x, y: next.y, zoom: next.zoom });
         }}
         onNodeDragStop={(_event, node) => {
           const next = new Map(positionsRef.current);

@@ -84,6 +84,22 @@ export {
   isDiagramWebviewToExtensionMessage,
   isExtensionToDiagramWebviewMessage,
 } from './messages';
+export {
+  SAVED_FLOW_VERSION,
+  isSavedFlowKind,
+  migrateSavedFlowDocument,
+  parseSavedFlowDocument,
+  serializeSavedFlowDocument,
+} from './savedFlow';
+export {
+  exportMermaid,
+  exportPalette,
+  exportSvg,
+  layoutExport,
+  mermaidText,
+  sceneToSvg,
+  visibleGraph,
+} from './exportDiagram';
 
 export type { EdgeId, Language, NodeId, SymbolRef } from './ids';
 export type {
@@ -150,6 +166,24 @@ export type {
   SequenceSource,
 } from './sequence';
 export type {
+  SavedFlow,
+  SavedFlowDocument,
+  SavedFlowKind,
+  SavedFlowOptions,
+  SavedFlowRoot,
+  SavedFlowSnapshot,
+  SavedFlowViewport,
+} from './savedFlow';
+export type {
+  ExportBackground,
+  ExportOptions,
+  ExportPalette,
+  ExportScene,
+  ExportSceneEdge,
+  ExportSceneNode,
+  ExportSubject,
+} from './exportDiagram';
+export type {
   AckMessage,
   ConfigMessage,
   ControlFlowCursorMessage,
@@ -159,19 +193,26 @@ export type {
   DiagramTheme,
   DiagramViewMode,
   DiagramWebviewToExtensionMessage,
+  CopyMermaidMessage,
+  DiagramViewport,
   DismissControlFlowMessage,
   DismissSequenceMessage,
   ErrorMessage,
+  ExportDiagramMessage,
   ExpandNodeMessage,
   ExtensionToDiagramWebviewMessage,
   FocusNodeMessage,
   GraphDeltaMessage,
   GraphSnapshotMessage,
+  PresentationMessage,
   ReadyMessage,
   RequestControlFlowMessage,
   RequestGraphMessage,
   RequestSequenceMessage,
   RevealLocationMessage,
+  SaveFlowMessage,
+  SavedFlowBannerMessage,
   SequenceDiagramMessage,
   SetViewModeMessage,
+  ViewStateMessage,
 } from './messages';

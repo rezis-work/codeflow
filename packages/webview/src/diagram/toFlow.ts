@@ -27,6 +27,9 @@ export interface SymbolNodeData {
   readonly location: SourceLocation;
   readonly onReveal: (location: SourceLocation) => void;
   readonly onExpand: (nodeId: NodeId) => void;
+  readonly canCollapse?: boolean;
+  readonly collapsed?: boolean;
+  readonly onToggleCollapse?: (nodeId: NodeId) => void;
   [key: string]: unknown;
 }
 
@@ -54,6 +57,9 @@ export function toFlow(input: {
   readonly hiddenNodeIds?: ReadonlySet<NodeId>;
   readonly onReveal: (location: SourceLocation) => void;
   readonly onExpand: (nodeId: NodeId) => void;
+  readonly collapsibleIds?: ReadonlySet<NodeId>;
+  readonly collapsedIds?: ReadonlySet<string>;
+  readonly onToggleCollapse?: (nodeId: NodeId) => void;
 }): { readonly nodes: SymbolFlowNode[]; readonly edges: RelationFlowEdge[] } {
   const nodes: SymbolFlowNode[] = [];
   for (const node of input.nodes) {
@@ -85,6 +91,9 @@ export function toFlow(input: {
         location: node.location,
         onReveal: input.onReveal,
         onExpand: input.onExpand,
+        canCollapse: input.collapsibleIds?.has(node.id) === true,
+        collapsed: input.collapsedIds?.has(node.id) === true,
+        ...(input.onToggleCollapse ? { onToggleCollapse: input.onToggleCollapse } : {}),
         ...(text.detail ? { detail: text.detail } : {}),
         ...(node.kind === 'type' ? { typeKind: node.typeKind } : {}),
       },
