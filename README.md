@@ -1,12 +1,12 @@
 # CodeFlow
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
-[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=rezis-work.codeflow)
-[![Open VSX](https://img.shields.io/badge/Open%20VSX-install-1f6f6a)](https://open-vsx.org/extension/rezis-work/codeflow)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=rezis-work.rezis-codeflow)
+[![Open VSX](https://img.shields.io/badge/Open%20VSX-install-1f6f6a)](https://open-vsx.org/extension/rezis-work/rezis-codeflow)
 
 CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, and Rust. Analysis stays on your machine. There is no telemetry.
 
-Install **CodeFlow** from the Extensions view in Cursor or VS Code. The extension id is `rezis-work.codeflow`. Cursor installs it from [Open VSX](https://open-vsx.org/extension/rezis-work/codeflow). VS Code installs it from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=rezis-work.codeflow).
+Install **CodeFlow** from the Extensions view in Cursor or VS Code. The extension id is `rezis-work.rezis-codeflow`. Cursor installs it from [Open VSX](https://open-vsx.org/extension/rezis-work/rezis-codeflow). VS Code installs it from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=rezis-work.rezis-codeflow).
 
 Open a supported file and run **CodeFlow: Show Flow for Symbol at Cursor** (right-click, or Ctrl+Alt+F, Cmd+Alt+F on macOS). Click a node to open that symbol. Move the cursor and the diagram follows.
 
@@ -135,7 +135,7 @@ Show Flow does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Curs
 
 ## Settings
 
-Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.codeflow`. The page is grouped into Editor, Diagram, Analysis, Rust, Saved Flows, and Export. Each setting's title, default, and description are the strings in the extension manifest. The same list, with the group order, is in [docs/SETTINGS.md](https://github.com/rezis-work/codeflow/blob/main/docs/SETTINGS.md).
+Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`. The page is grouped into Editor, Diagram, Analysis, Rust, Saved Flows, and Export. Each setting's title, default, and description are the strings in the extension manifest. The same list, with the group order, is in [docs/SETTINGS.md](https://github.com/rezis-work/codeflow/blob/main/docs/SETTINGS.md).
 
 | Setting                                | Default                                   | What it changes                                                                                       |
 | -------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -184,14 +184,14 @@ CodeFlow is fully local.
 
 ## Troubleshooting
 
-- **The icon never appears.** Reload the window. In Extensions, confirm **CodeFlow** by **rezis-work** (`rezis-work.codeflow`) is installed and enabled. In Restricted Mode the extension does not run. Trust the folder if you want diagrams.
+- **The icon never appears.** Reload the window. In Extensions, confirm **CodeFlow** by **rezis-work** (`rezis-work.rezis-codeflow`) is installed and enabled. In Restricted Mode the extension does not run. Trust the folder if you want diagrams.
 - **A command does nothing.** The editor language must be TypeScript, JavaScript, TSX, JSX, or Rust. Trait map is Rust only.
 - **The panel says the diagram view is not built.** You are running from a source checkout. From the repository root, run `npm run build`.
 - **Rust files are missing or a cargo warning is showing.** Install `cargo`, or accept the `Cargo.toml` scan. CodeFlow does not download crates.
 - **CodeLens counts are missing.** Check `codeflow.codeLens.enabled`. Counts appear after that file has been analyzed. Opening the file is what starts that analysis.
 - **The first diagram is slow, or a later open looks stale.** The status bar shows indexing progress. **CodeFlow: Cancel Indexing** stops the background pass. **CodeFlow: Clear Cache** deletes the disk cache. Turning `codeflow.cache.enabled` off skips the disk without deleting it.
 - **A saved flow says it is stale.** The symbol or route is no longer in the workspace. The panel keeps the last picture.
-- **Cursor's search does not list it yet.** Cursor reads Open VSX. Until that publish finishes, install `codeflow-1.0.0.vsix` from the GitHub Release: Extensions → `…` → **Install from VSIX…**.
+- **Cursor's search does not list it yet.** Cursor reads Open VSX. Until that publish finishes, install `rezis-codeflow-1.0.1.vsix` from the GitHub Release: Extensions → `…` → **Install from VSIX…**. Open VSX 1.0.0 is the older id `rezis-work.codeflow`.
 - **Ctrl+Alt+F formats the document or switches consoles.** The binding is Ctrl+Alt+F, not Shift+Alt+F. On a Linux text console, Ctrl+Alt+Fn changes virtual terminals. Use the Command Palette in that case.
 
 ## Development

@@ -2,7 +2,7 @@
 
 CodeFlow is an npm workspace. `packages/shared` is the language-neutral graph. `packages/extension` is the VS Code extension host. `packages/webview` is the React diagram.
 
-The extension id is `rezis-work.codeflow` (`publisher` `rezis-work`, `name` `codeflow`). Integration tests look the extension up by that id.
+The extension id is `rezis-work.rezis-codeflow` (`publisher` `rezis-work`, `name` `rezis-codeflow`). Integration tests look the extension up by that id. Command ids, `codeflow.*` settings, and view ids stay `codeflow`.
 
 ## Setup
 
@@ -27,7 +27,7 @@ npm test
 xvfb-run -a npm run test:integration
 ```
 
-`npm test` is Vitest. `npm run test:integration` launches a real extension host. `npm run bench -- --quick` times the in-repo fixtures. `npm run package` writes `codeflow.vsix` at the repository root. Do not commit the VSIX.
+`npm test` is Vitest. `npm run test:integration` launches a real extension host. `npm run bench -- --quick` times the in-repo fixtures. `npm run package` writes `rezis-codeflow.vsix` at the repository root. Do not commit the VSIX.
 
 ## Pull requests
 

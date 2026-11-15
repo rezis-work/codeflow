@@ -23,7 +23,7 @@ async function waitForCodeFlowTab(): Promise<void> {
 
 suite('CodeFlow smoke', () => {
   test('extension activates and registers the diagram command', async () => {
-    const extension = vscode.extensions.getExtension('rezis-work.codeflow');
+    const extension = vscode.extensions.getExtension('rezis-work.rezis-codeflow');
     if (!extension) {
       assert.fail('CodeFlow should be loaded in the extension host');
     }

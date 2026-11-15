@@ -26,7 +26,7 @@ interface PerformanceApi {
 const samplePath = path.resolve(__dirname, '../../test-fixtures/workspace/sample.ts');
 
 async function api(): Promise<PerformanceApi> {
-  const extension = vscode.extensions.getExtension('rezis-work.codeflow');
+  const extension = vscode.extensions.getExtension('rezis-work.rezis-codeflow');
   if (!extension) {
     assert.fail('CodeFlow should be loaded');
   }

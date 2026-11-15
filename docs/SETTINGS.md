@@ -1,6 +1,6 @@
 # CodeFlow settings
 
-Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.codeflow`.
+Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`.
 
 The page is six groups, in this order. Titles and descriptions in the Settings editor are the `markdownDescription` strings in `packages/extension/package.json`. Defaults below are the manifest defaults.
 

@@ -2,7 +2,7 @@
 
 This file is the graph model, the diagram protocol, and the analyzer behavior. The user-facing guide is the [README](../README.md). Settings are [SETTINGS.md](SETTINGS.md). Publishing is [PUBLISHING.md](PUBLISHING.md). Benchmarks are [benchmark.md](benchmark.md).
 
-The installed extension id is `rezis-work.codeflow`. Version 1.0.0 publishes that id to Open VSX and the VS Code Marketplace.
+The installed extension id is `rezis-work.rezis-codeflow`. Version 1.0.1 uses that id. Open VSX 1.0.0 was published as `rezis-work.codeflow`.
 
 # CodeFlow
 
@@ -177,7 +177,7 @@ npm test
 npm run test:integration
 ```
 
-`npm test` runs Vitest for the extension host and the webview. `npm run test:integration` is the `@vscode/test-electron` smoke test. GitHub Actions installs dependencies, lints, checks formatting, typechecks, runs both test suites, builds, and uploads `codeflow.vsix`.
+`npm test` runs Vitest for the extension host and the webview. `npm run test:integration` is the `@vscode/test-electron` smoke test. GitHub Actions installs dependencies, lints, checks formatting, typechecks, runs both test suites, builds, and uploads `rezis-codeflow.vsix`.
 
 ## Build a VSIX and install it in Cursor
 
@@ -185,17 +185,17 @@ npm run test:integration
 npm run package
 ```
 
-That builds both packages and writes `codeflow.vsix` at the repository root.
+That builds both packages and writes `rezis-codeflow.vsix` at the repository root.
 
-In Cursor, open the Extensions view, open the `…` menu, choose **Install from VSIX…**, and select `codeflow.vsix`.
+In Cursor, open the Extensions view, open the `…` menu, choose **Install from VSIX…**, and select `rezis-codeflow.vsix`.
 
 From a terminal:
 
 ```bash
-cursor --install-extension codeflow.vsix
+cursor --install-extension rezis-codeflow.vsix
 ```
 
-Reload the window if the CodeFlow icon does not appear immediately. The installed extension id is `rezis-work.codeflow`.
+Reload the window if the CodeFlow icon does not appear immediately. The installed extension id is `rezis-work.rezis-codeflow`.
 
 ## Graph model
 

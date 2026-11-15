@@ -37,7 +37,7 @@ const rustLib = path.resolve(
 );
 
 async function extensionApi(): Promise<CodeFlowApi> {
-  const extension = vscode.extensions.getExtension('rezis-work.codeflow');
+  const extension = vscode.extensions.getExtension('rezis-work.rezis-codeflow');
   if (!extension) {
     assert.fail('CodeFlow should be loaded');
   }
