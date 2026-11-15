@@ -8,6 +8,4 @@
     { "path": "request-flow/axum-app" },
     { "path": "request-flow/actix-app" },
   ],
-  "settings": {
-  },
 }
