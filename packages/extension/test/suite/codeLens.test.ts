@@ -40,7 +40,7 @@ function delay(ms: number): Promise<void> {
 }
 
 async function extensionApi(): Promise<CodeFlowApi> {
-  const extension = vscode.extensions.getExtension('codeflow.codeflow');
+  const extension = vscode.extensions.getExtension('rezis-work.codeflow');
   if (!extension) {
     assert.fail('CodeFlow should be loaded');
   }

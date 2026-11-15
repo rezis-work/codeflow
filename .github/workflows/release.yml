@@ -4,22 +4,42 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build and publish, including the v prefix (for example v1.0.0).'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
     name: Test, package, and publish the VSIX
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
+      - name: Resolve the release tag
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag must look like v1.0.0. Refusing: ${RELEASE_TAG}"
+            exit 1
+          fi
+          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -69,12 +89,14 @@ jobs:
         run: npm ci
 
       - name: Check the tag matches the extension version
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./packages/extension/package.json').version")"
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${RELEASE_TAG#v}"
           if [ "$version" != "$tag" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match extension version ${version}."
+            echo "Tag ${RELEASE_TAG} does not match extension version ${version}."
             exit 1
           fi
 
@@ -97,21 +119,62 @@ jobs:
         run: xvfb-run -a npm run test:integration
 
       - name: Package VSIX
+        id: package
         run: npm run package
 
       - name: Name the VSIX
+        id: vsix
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          mv codeflow.vsix "codeflow-${version}.vsix"
+          version="$(node -p "require('./packages/extension/package.json').version")"
+          file="codeflow-${version}.vsix"
+          mv codeflow.vsix "$file"
+          echo "file=${file}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      # Do not echo OVSX_PAT or VSCE_PAT. GitHub masks secret values; these
+      # steps still avoid printing the variables.
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VSIX: ${{ steps.vsix.outputs.file }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OVSX_PAT:-}" ]; then
+            echo "::warning title=Open VSX skipped::OVSX_PAT is not set. Skipping Open VSX. The VSIX is still attached to the GitHub Release. See docs/PUBLISHING.md."
+            exit 0
+          fi
+          if ! npx --yes ovsx create-namespace rezis-work --pat "$OVSX_PAT"; then
+            echo "::warning title=Open VSX namespace::ovsx create-namespace did not succeed. If the namespace already exists, publish continues."
+          fi
+          npx --yes ovsx publish "$VSIX" --pat "$OVSX_PAT" --skip-duplicate
+
+      - name: Publish to the VS Code Marketplace
+        if: ${{ !cancelled() && steps.vsix.outcome == 'success' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VSIX: ${{ steps.vsix.outputs.file }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VSCE_PAT:-}" ]; then
+            echo "::warning title=Marketplace skipped::VSCE_PAT is not set. Skipping the VS Code Marketplace. Upload the VSIX at https://marketplace.visualstudio.com/manage — see docs/PUBLISHING.md."
+            exit 0
+          fi
+          npx --yes @vscode/vsce publish --packagePath "$VSIX" --pat "$VSCE_PAT" --skip-duplicate
+
+      - name: Publish the GitHub Release
+        if: ${{ !cancelled() && steps.vsix.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          VSIX: ${{ steps.vsix.outputs.file }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          gh release create "${GITHUB_REF_NAME}" \
-            "codeflow-${version}.vsix" \
-            --title "CodeFlow ${GITHUB_REF_NAME}" \
-            --notes "Install \`codeflow-${version}.vsix\` in VS Code or Cursor from Extensions: Install from VSIX. CodeFlow does not publish to the Marketplace or Open VSX from this workflow."
+          notes="Install \`${VSIX}\` from this release, or from Open VSX and the VS Code Marketplace (extension id \`rezis-work.codeflow\`) after those publishes succeed. Cursor installs from Open VSX. A missing token skips that registry. See docs/PUBLISHING.md."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$VSIX" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$VSIX" \
+              --title "CodeFlow ${RELEASE_TAG}" \
+              --notes "$notes"
+          fi

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
 
 ### Large-repo performance
 
@@ -26,6 +26,11 @@
 - A loop or a branch from control flow is a `loop` or `alt` frame when the call sits in that range. An `alt` frame is one box, not a separate else compartment. `&&`, `||`, `?.`, and `??` are not frames.
 - Recursion draws the call and its return once and does not walk the body again. The walk stops at `codeflow.editor.callDepth` (default 2) or at 80 calls, and the panel says the diagram was truncated. A request sequence follows the request trace, including a sink past that depth, and says so when the trace left calls out.
 - The payload is `sequence` version 1 in `packages/shared`. The layout is a sequence layout, not ELK.
+
+### Publish
+
+- Version 1.0.0. The extension id is `rezis-work.codeflow` (publisher `rezis-work`).
+- Pushing the tag `v1.0.0` runs the release workflow. It packages one VSIX, publishes that file to Open VSX when `OVSX_PAT` is set and to the VS Code Marketplace when `VSCE_PAT` is set, and attaches the same VSIX to the GitHub Release. A missing secret skips that registry and warns. See `docs/PUBLISHING.md`.
 
 ## 0.2.0
 
