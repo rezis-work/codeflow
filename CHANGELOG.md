@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- The Marketplace display name is **Rezis CodeFlow**. Version 1.0.1 was rejected because the display name `CodeFlow` is already taken. The extension id stays `rezis-work.rezis-codeflow` (`name` `rezis-codeflow`, publisher `rezis-work`).
+- Command titles, `codeflow.*` settings, view ids, and the other contribution ids are unchanged. The packaged file is `rezis-codeflow-1.0.2.vsix`.
+
 ## 1.0.1
 
 - The extension id is `rezis-work.rezis-codeflow` (`name` `rezis-codeflow`, publisher `rezis-work`). The VS Code Marketplace rejected the name `codeflow` because it is already taken. `displayName` stays CodeFlow.
