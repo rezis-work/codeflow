@@ -18,7 +18,7 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
   });
   private readonly subscriptions: vscode.Disposable[] = [];
 
-  public constructor() {
+  public constructor(private readonly interest?: (document: vscode.TextDocument) => void) {
     this.subscriptions.push(
       this.emitter,
       onWorkspaceGraphChanged(() => {
@@ -36,6 +36,10 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
     if (!codeLensEnabled() || document.uri.scheme !== 'file') {
       return [];
     }
+    const interested = document;
+    setTimeout(() => {
+      this.interest?.(interested);
+    }, 0);
     const graph = getWorkspaceGraph().snapshot();
     return codeLensEntries(graph, {
       callers: SHOW_CALLERS_COMMAND,

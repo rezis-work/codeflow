@@ -63,8 +63,9 @@ describe('cursor follow', () => {
       { uri: point.uri, line: 0, character: 0 },
       { ...selection, startLine: 0, startCharacter: 0, endLine: 0, endCharacter: 0 },
     );
+    expect(ran).toHaveLength(1);
+    expect(followed).toEqual([]);
     follow.onCursor(point, selection);
-    expect(ran).toEqual([]);
     expect(followed).toEqual([]);
 
     const later: CursorPoint = { uri: point.uri, line: 12, character: 1 };

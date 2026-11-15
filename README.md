@@ -56,6 +56,8 @@ These appear in the Command Palette. The four call and import commands also appe
 | CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                                             |
 | CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                                  |
 | CodeFlow: Copy Mermaid                             | Copy that Mermaid source to the clipboard                                                 |
+| CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                                         |
+| CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                                |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
@@ -75,6 +77,7 @@ These appear in the Command Palette. The four call and import commands also appe
 | `codeflow.export.background`           | `theme`                                   | `theme` follows the color theme. `light` forces a white background for PNG and SVG                                                     |
 | `codeflow.exclude`                     | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
 | `codeflow.maxFiles`                    | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
+| `codeflow.cache.enabled`               | `true`                                    | Store per-file analysis on disk. **CodeFlow: Clear Cache** deletes it. Off skips the disk and leaves an existing cache in place        |
 
 ## Requirements
 
@@ -96,13 +99,18 @@ lovepet was not capped and produced no warnings. The route handler `handle` in `
 
 ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse its edition 2024 manifest, and the Cargo.toml fallback still indexed all 102 files (901 ms, 7,217 edges). The diagram above is `rg::search::SearchWorker::search_reader`.
 
+A later measurement of the first diagram, against a full index of TypeScript 5.7.2, ripgrep 14.1.1, and tokio 1.41.1, is in [docs/benchmark.md](docs/benchmark.md) and `benchmarks/report.md`.
+
 ## Known limitations
 
 - Macros are not expanded. A `name!()` call is an uncertain edge only when `name` is a workspace function. `#[cfg]` is not evaluated, so both branches are kept when they parse as items.
 - CodeLens counts direct call edges, not the depth used by Show Callers. A function passed as an argument is an uncertain callee of the caller. The function that receives it does not list every function that might be passed in. A closure that is not a named function or method has no CodeLens.
 - Calls are not a whole-program type inference. TypeScript marks a call `certain` when the checker names one workspace function. Rust marks a call `certain` from syntax or, for the symbol you just showed, from rust-analyzer.
 - External packages and the Rust standard library are not nodes. An import edge stops at the workspace.
-- `codeflow.maxNodes` (default 300) caps what is drawn. `codeflow.maxFiles` (default 2500) caps what is analyzed.
+- The first diagram is a neighbourhood of at most 64 files at depth 2, and at most 2.5 MB of source. The rest of the workspace indexes in the background. Cancelling stops between files. A TypeScript program build that has already started finishes, and then the index stops. Show Trait Map waits for that index so it can list every impl, then replaces the diagram.
+- `codeflow.view.maxNodes` (default 300) is how many nodes are drawn at first. **Show 100 more** raises that up to 2,000. Snapshots larger than 2,000 nodes are not posted. `codeflow.maxFiles` (default 2500) caps what the background index analyzes.
+- Rust still parses the `mod` tree to find that neighbourhood. A cache hit then skips rebuilding the fragments. The cache does not skip the parse.
+- `npm run bench` on the pinned repositories is not part of CI. CI runs `npm run bench -- --quick` on the fixtures in this repository. See `docs/benchmark.md`.
 - Git worktrees, where `.git` is a file, are not watched for branch switches. A normal checkout's `HEAD` is.
 - The diagram reveal ignores the cursor move it just caused. A later move in that editor is followed.
 - Control flow does not branch on `?.`, `??`, `&&`, or `||`. A ternary is a decision only when it is the whole statement, the arrow body, the return value, or a single binding. Nested functions stay one collapsed block. Implicit exceptions from calls are not drawn. A function with more than 500 blocks is truncated. Anonymous functions are refreshed from the range they had when the flowchart opened.
@@ -153,7 +161,7 @@ Then:
 
 The panel shows the diagram. The React view sends `ready`. The extension answers `ack`, then the current theme and the current view of the graph. Click a node to open that symbol in the editor. The expand button asks for its neighbours. **CodeFlow: Show Flow for Symbol at Cursor** centers a depth-2 neighbourhood of the symbol under the cursor. The toolbar switches that focus view, the whole workspace graph, the trait map, and the request flow. If the panel says the diagram view is not built, run `npm run build` from the repository root.
 
-Indexing starts after the window is up and does not block activation. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, including `paths`, and a folder with neither uses a plain JavaScript project. Workspace packages are read from `package.json` `workspaces` and from `pnpm-workspace.yaml`. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits, saves, watcher events, and git `HEAD` changes are re-analyzed after a short pause, and a burst of paths is one pass. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists. The status bar shows analyzing, the node count, or an error, and opens the panel when clicked.
+Opening the window does not analyze. Analysis starts when a CodeFlow command, the side panel, or CodeLens needs it. The file you asked for is analyzed first. The rest of the workspace indexes in the background, with progress in the status bar. `codeflow.cache.enabled` stores those results on disk. TypeScript and JavaScript follow `tsconfig.json` and `jsconfig.json`, including `paths`, and a folder with neither uses a plain JavaScript project. Workspace packages are read from `package.json` `workspaces` and from `pnpm-workspace.yaml`. Rust follows `cargo metadata` when cargo is installed, and otherwise reads `Cargo.toml` and `src/`. Edits, saves, watcher events, and git `HEAD` changes are re-analyzed after a short pause, and a burst of paths is one pass. `codeflow.exclude` and `files.exclude` skip files, `node_modules` is always skipped, Rust also skips `target/`, and `codeflow.maxFiles` caps how many files each language contributes in a workspace folder (the default is 2500). The two languages share one graph and keep their own file lists. The status bar shows indexing progress while the background index runs, and clicking it cancels that index. While idle it shows analyzing, the node count, or an error, and opens the panel when clicked. `npm run bench` measures large repositories. See [docs/benchmark.md](docs/benchmark.md).
 
 ```bash
 npm run lint

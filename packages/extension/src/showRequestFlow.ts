@@ -8,6 +8,8 @@
 import { FRAMEWORK_LABEL } from '@codeflow/shared';
 import type { EntryPoint } from '@codeflow/shared';
 import * as vscode from 'vscode';
+import { isRustSourcePath } from './analyzers/rust/extensions';
+import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { entryAtPosition, getEntryCatalog } from './entryCatalog';
 import { DiagramPanel } from './diagramPanel';
 import { readCallDepth } from './editorSettings';
@@ -26,11 +28,19 @@ export async function showRequestFlow(
   rust: RustIndexer,
   entryId?: string,
 ): Promise<void> {
-  await typescript.whenReady();
-  await rust.whenReady();
+  await focusOpenFile(typescript, rust);
   const catalog = getEntryCatalog();
-  const chosen = typeof entryId === 'string' ? catalog.get(entryId) : undefined;
-  const entry = chosen ?? entryUnderCursor(catalog.list()) ?? (await pickEntry(catalog.list()));
+  let chosen = typeof entryId === 'string' ? catalog.get(entryId) : undefined;
+  const underCursor = chosen ? undefined : entryUnderCursor(catalog.list());
+  if (!chosen && typeof entryId === 'string') {
+    await typescript.whenReady(true);
+    await rust.whenReady(true);
+    chosen = catalog.get(entryId);
+  }
+  const entry =
+    chosen ??
+    underCursor ??
+    (typeof entryId === 'string' ? undefined : await pickAfterIndex(typescript, rust));
   if (!entry) {
     if (!chosen && catalog.list().length === 0 && typeof entryId !== 'string') {
       void vscode.window.showInformationMessage(EMPTY);
@@ -61,6 +71,28 @@ export function openRequest(context: vscode.ExtensionContext, entry: EntryPoint)
   };
   DiagramPanel.open(context);
   DiagramPanel.showSpec(spec);
+}
+
+async function focusOpenFile(typescript: TypeScriptIndexer, rust: RustIndexer): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.uri.scheme !== 'file') {
+    return;
+  }
+  const file = editor.document.uri.fsPath;
+  if (!isSupportedSourcePath(file) && !isRustSourcePath(file)) {
+    return;
+  }
+  const indexer = isRustSourcePath(file) ? rust : typescript;
+  await indexer.focusDocument(editor.document, readCallDepth(), true);
+}
+
+async function pickAfterIndex(
+  typescript: TypeScriptIndexer,
+  rust: RustIndexer,
+): Promise<EntryPoint | undefined> {
+  await typescript.whenReady(true);
+  await rust.whenReady(true);
+  return pickEntry(getEntryCatalog().list());
 }
 
 function entryUnderCursor(entries: readonly EntryPoint[]): EntryPoint | undefined {

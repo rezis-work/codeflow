@@ -14,11 +14,33 @@ export interface IndexRoot {
   readonly maxNodes?: number;
 }
 
+/** Where analyzed files are stored. Omitted, or `enabled: false`, skips the disk. */
+export interface CacheDirective {
+  readonly enabled: boolean;
+  readonly directory?: string;
+}
+
 export type HostToWorkerMessage =
   | {
       readonly type: 'index';
       readonly id: number;
       readonly roots: readonly IndexRoot[];
+      readonly cache?: CacheDirective;
+      /** Test hook. The index waits until a `release` message with the same id. */
+      readonly hold?: boolean;
+    }
+  | {
+      readonly type: 'focus';
+      readonly id: number;
+      readonly filePath: string;
+      readonly content?: string;
+      readonly version?: number;
+      readonly depth: number;
+      readonly maxFiles: number;
+      readonly rootDir: string;
+      readonly excludeGlobs: readonly string[];
+      readonly maxFanout?: number;
+      readonly cache?: CacheDirective;
     }
   | {
       readonly type: 'updateFile';
@@ -32,6 +54,8 @@ export type HostToWorkerMessage =
       readonly id: number;
       readonly filePath: string;
     }
+  | { readonly type: 'cancel'; readonly id: number }
+  | { readonly type: 'release'; readonly id: number }
   | {
       readonly type: 'controlFlow';
       readonly id: number;
@@ -60,6 +84,17 @@ export interface WorkerDoneMessage {
   readonly capped: boolean;
   readonly warnings: readonly string[];
   readonly removedPaths: readonly string[];
+  readonly cacheHits?: number;
+  readonly cacheMisses?: number;
+  /** The host keeps fragments already applied and does not drop the other files. */
+  readonly cancelled?: boolean;
+}
+
+export interface WorkerProgressMessage {
+  readonly type: 'progress';
+  readonly id: number;
+  readonly completed: number;
+  readonly total: number;
 }
 
 export interface WorkerFailedMessage {
@@ -91,6 +126,16 @@ export function isControlFlowResult(value: unknown): value is ControlFlowResultM
     return typeof value.result.message === 'string';
   }
   return isRecord(value.result.graph);
+}
+
+export function isWorkerProgress(value: unknown): value is WorkerProgressMessage {
+  return (
+    isRecord(value) &&
+    value.type === 'progress' &&
+    typeof value.id === 'number' &&
+    typeof value.completed === 'number' &&
+    typeof value.total === 'number'
+  );
 }
 
 export function isWorkerToHostMessage(value: unknown): value is WorkerToHostMessage {

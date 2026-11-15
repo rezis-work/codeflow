@@ -183,6 +183,8 @@ export interface AckMessage {
 export interface GraphSnapshotMessage {
   readonly type: 'graphSnapshot';
   readonly graph: CodeGraph;
+  /** Nodes left out of this snapshot because it was larger than the post cap. */
+  readonly omittedNodes?: number;
 }
 
 export interface GraphDeltaMessage {
@@ -423,7 +425,19 @@ function parseSnapshot(value: Record<string, unknown>): GraphSnapshotMessage | u
   if (!graph.ok) {
     return undefined;
   }
-  return { type: 'graphSnapshot', graph: graph.value };
+  const omitted = omittedCount(value.omittedNodes);
+  return {
+    type: 'graphSnapshot',
+    graph: graph.value,
+    ...(omitted > 0 ? { omittedNodes: omitted } : {}),
+  };
+}
+
+function omittedCount(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.floor(value);
 }
 
 function parseDeltaMessage(value: Record<string, unknown>): GraphDeltaMessage | undefined {

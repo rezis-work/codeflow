@@ -84,6 +84,7 @@ if (watch) {
   await esbuild.build(rustWorkerOptions);
   assertCompilerStaysInWorker();
   assertTreeSitterStaysInWorker();
+  assertRustWorkerSkipsTypeScript();
   await smokeTestWorker();
   await smokeTestRustWorker();
 }
@@ -131,6 +132,13 @@ function assertCompilerStaysInWorker() {
   const extension = readFileSync(path.join(here, 'dist', 'extension.js'), 'utf8');
   if (extension.includes('getDefaultLibFileName') || extension.includes('createProgram')) {
     throw new Error('dist/extension.js bundled the TypeScript compiler. Keep it in the worker.');
+  }
+}
+
+function assertRustWorkerSkipsTypeScript() {
+  const rust = readFileSync(path.join(here, 'dist', 'rust-worker.js'), 'utf8');
+  if (rust.includes('createProgram') || rust.includes('getDefaultLibFileName')) {
+    throw new Error('dist/rust-worker.js bundled the TypeScript compiler.');
   }
 }
 

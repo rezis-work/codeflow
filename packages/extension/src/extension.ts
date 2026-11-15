@@ -1,7 +1,12 @@
 import type { EntryPoint, ExtensionToDiagramWebviewMessage } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { installAnalysisStatus } from './analysisStatus';
+import { analysisCacheDir, clearAnalysisCache } from './cache/settings';
+import { isRustSourcePath } from './analyzers/rust/extensions';
+import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import {
+  CANCEL_INDEX_COMMAND,
+  CLEAR_CACHE_COMMAND,
   EDITOR_LANGUAGE_IDS,
   OPEN_DIAGRAM_COMMAND,
   SHOW_CALLEES_COMMAND,
@@ -53,6 +58,13 @@ export interface CodeFlowExtensionApi {
   postSidebar(message: unknown): void;
   savedFlows(): readonly { readonly id: string; readonly name: string; readonly kind: string }[];
   reloadSavedFlows(): void;
+  analysisStarted(): boolean;
+  indexFinished(): boolean;
+  heldIndexFinished(): boolean;
+  cacheHitCount(): number;
+  holdNextIndex(): void;
+  releaseIndex(): void;
+  dropMemory(): Promise<void>;
 }
 
 /**
@@ -69,8 +81,6 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     const graph = getWorkspaceGraph().snapshot();
     return { nodes: graph.nodes.length, edges: graph.edges.length };
   });
-  typescript.start();
-  rust.start();
   bindControlFlowEngines({ typescript, rust });
   const savedFlows = installSavedFlows(context, { typescript, rust });
 
@@ -83,7 +93,17 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       rust.applyExternal(changes);
     }),
     vscode.commands.registerCommand(OPEN_DIAGRAM_COMMAND, () => {
+      typescript.scheduleBackground(true);
+      rust.scheduleBackground(true);
       DiagramPanel.open(context);
+    }),
+    vscode.commands.registerCommand(CLEAR_CACHE_COMMAND, () => {
+      clearAnalysisCache(analysisCacheDir(context));
+      void vscode.window.showInformationMessage('CodeFlow cleared its analysis cache.');
+    }),
+    vscode.commands.registerCommand(CANCEL_INDEX_COMMAND, () => {
+      typescript.cancelBackground();
+      rust.cancelBackground();
     }),
     vscode.commands.registerCommand(SAVE_FLOW_COMMAND, (name?: unknown) =>
       savedFlows.save(typeof name === 'string' ? name : undefined),
@@ -145,7 +165,18 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       void showCalleesAtCursor(context, typescript, rust, target);
     }),
     (() => {
-      const codeLens = new CodeFlowCodeLensProvider();
+      const codeLens = new CodeFlowCodeLensProvider((document) => {
+        if (document.uri.scheme !== 'file') {
+          return;
+        }
+        if (isRustSourcePath(document.uri.fsPath)) {
+          void rust.focusDocument(document, 1);
+          return;
+        }
+        if (isSupportedSourcePath(document.uri.fsPath)) {
+          void typescript.focusDocument(document, 1);
+        }
+      });
       return vscode.Disposable.from(
         codeLens,
         vscode.languages.registerCodeLensProvider(
@@ -163,9 +194,16 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
         void showDependencies(context, typescript, rust, resource, resources);
       },
     ),
-    vscode.window.registerWebviewViewProvider(SIDEBAR_VIEW_ID, new SidebarProvider(), {
-      webviewOptions: { retainContextWhenHidden: true },
-    }),
+    vscode.window.registerWebviewViewProvider(
+      SIDEBAR_VIEW_ID,
+      new SidebarProvider(() => {
+        typescript.scheduleBackground(true);
+        rust.scheduleBackground(true);
+      }),
+      {
+        webviewOptions: { retainContextWhenHidden: true },
+      },
+    ),
     new vscode.Disposable(() => {
       DiagramPanel.current?.dispose();
     }),
@@ -187,6 +225,22 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     savedFlows: () => savedFlows.list(),
     reloadSavedFlows: () => {
       savedFlows.reload();
+    },
+    analysisStarted: () => typescript.analysisStarted() || rust.analysisStarted(),
+    indexFinished: () => typescript.indexFinished() && rust.indexFinished(),
+    heldIndexFinished: () => typescript.heldIndexFinished() && rust.heldIndexFinished(),
+    cacheHitCount: () => typescript.cacheHitCount() + rust.cacheHitCount(),
+    holdNextIndex: () => {
+      typescript.holdNextIndex();
+      rust.holdNextIndex();
+    },
+    releaseIndex: () => {
+      typescript.releaseIndex();
+      rust.releaseIndex();
+    },
+    dropMemory: async () => {
+      await typescript.dropMemory();
+      await rust.dropMemory();
     },
   };
 }

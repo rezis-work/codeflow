@@ -605,8 +605,10 @@ export class DiagramPanel {
   }
 
   /**
-   * Recomputes the focused neighbourhood and patches the webview. A snapshot
-   * is sent only when the panel has not published a view yet.
+   * Recomputes the focused neighbourhood and patches the webview. Trait maps
+   * and request traces are posted again as snapshots once the graph grows, so
+   * a late impl or route replaces the diagram. Other views are patched with a
+   * delta. A snapshot is also sent when the panel has not published a view yet.
    */
   private publishFocusDelta(): void {
     const spec = this.spec;
@@ -621,7 +623,10 @@ export class DiagramPanel {
       return;
     }
     const previous = this.viewGraph;
-    if (!previous) {
+    if (!previous || spec.kind === 'traits' || spec.kind === 'request') {
+      if (previous && isEmptyDelta(diffGraphs(previous, next))) {
+        return;
+      }
       if (this.focusId) {
         this.post({ type: 'focusNode', nodeId: this.focusId });
       }

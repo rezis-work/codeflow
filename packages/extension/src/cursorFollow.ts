@@ -37,6 +37,7 @@ export function createCursorFollow(options: {
   const now = options.now ?? Date.now;
   const guardMs = options.guardMs ?? 800;
   let guard: Guard | undefined;
+  let pending: CursorPoint | undefined;
   let timer: { cancel(): void } | undefined;
   let disposed = false;
 
@@ -48,23 +49,37 @@ export function createCursorFollow(options: {
   return {
     noteReveal(selection: CursorSelection): void {
       guard = { ...selection, until: now() + guardMs };
+      pending = undefined;
       cancelTimer();
     },
     onCursor(point: CursorPoint, selection: CursorSelection): void {
       if (disposed) {
         return;
       }
-      if (guard) {
+      if (guard && now() < guard.until) {
         if (sameSelection(guard, selection)) {
-          guard = undefined;
-          cancelTimer();
           return;
         }
-        if (now() < guard.until) {
+        pending = point;
+        if (timer) {
           return;
         }
-        guard = undefined;
+        timer = options.schedule(
+          () => {
+            timer = undefined;
+            guard = undefined;
+            const held = pending;
+            pending = undefined;
+            if (!disposed && held) {
+              options.follow(held);
+            }
+          },
+          Math.max(0, guard.until - now()),
+        );
+        return;
       }
+      guard = undefined;
+      pending = undefined;
       cancelTimer();
       timer = options.schedule(() => {
         timer = undefined;
@@ -76,6 +91,7 @@ export function createCursorFollow(options: {
     dispose(): void {
       disposed = true;
       guard = undefined;
+      pending = undefined;
       cancelTimer();
     },
   };

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Large-repo performance
+
+- The first diagram analyzes the file you asked for and a depth-2 neighbourhood of at most 64 files and 2.5 MB of source. The rest of the workspace indexes in the background. CodeLens and Entry Points show what is ready and refresh as more files land. **Show Trait Map** waits for that index so every impl in the workspace is listed, then replaces the diagram. The status bar shows `CodeFlow: indexing completed/total` while that index runs, and clicking it cancels. **CodeFlow: Cancel Indexing** does the same. A cancelled index keeps the files already shown.
+- TypeScript and Rust each use two worker threads: one for the diagram you asked for, and one for the background index. Activation still does not analyze. Analysis starts when a CodeFlow command, the side panel, or CodeLens needs it.
+- Results are stored under the window's storage (`storageUri`, or global storage when that is missing), keyed by a content hash plus the analyzer version and the toolchain (tsconfig, package versions, lockfiles, or `Cargo.lock`). A bad file is ignored and analyzed again. The cache stops at 256 MB and drops the least recently used results. `codeflow.cache.enabled` (default on) turns this off without deleting it. **CodeFlow: Clear Cache** deletes it.
+- A diagram draws `codeflow.view.maxNodes` nodes (default 300). **Show 100 more** raises that up to 2,000. A snapshot bigger than 2,000 nodes is not posted, and the panel says how many were left out.
+- `npm run bench` times a full index, a cold neighbourhood, a cached neighbourhood, an incremental edit, and peak memory on TypeScript 5.7.2, ripgrep 14.1.1, and tokio 1.41.1. `npm run bench -- --quick` times the in-repo fixtures. CI runs only the quick benchmark. See `docs/benchmark.md`.
+
 ### Saved flows and export
 
 - **Save flow** is on every diagram: call graph, callers, callees, file dependencies, control flow, trait map, request flow, and sequence. It asks for a name and stores the view, the root symbol or entry point, and the options (depth, granularity, uncertain and inferred switches, collapsed nodes, and a viewport after you pan or zoom). Opening it analyzes the current code. The last picture is kept only for when that root is gone, and the panel then says the flow is stale.

@@ -8,6 +8,17 @@ export const SHOW_CONTROL_FLOW_COMMAND = 'codeflow.showControlFlowAtCursor';
 export const SHOW_TRAIT_MAP_COMMAND = 'codeflow.showTraitMap';
 export const SHOW_REQUEST_FLOW_COMMAND = 'codeflow.showRequestFlow';
 export const SHOW_SEQUENCE_COMMAND = 'codeflow.showSequence';
+export const CLEAR_CACHE_COMMAND = 'codeflow.clearCache';
+export const CANCEL_INDEX_COMMAND = 'codeflow.cancelIndexing';
+/** Files read for the first diagram, before the rest of the workspace. */
+export const FOCUS_FILE_CAP = 64;
+/**
+ * Source characters in that neighbourhood. A few very large files would
+ * otherwise make the first type-check slower than opening the diagram.
+ */
+export const FOCUS_BYTE_CAP = 2_500_000;
+/** Synchronous host work yields before it reaches this. */
+export const HOST_BUDGET_MS = 32;
 export const SAVE_FLOW_COMMAND = 'codeflow.saveFlow';
 export const OPEN_SAVED_FLOW_COMMAND = 'codeflow.openSavedFlow';
 export const EXPORT_PNG_COMMAND = 'codeflow.exportPng';

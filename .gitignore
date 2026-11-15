@@ -5,6 +5,11 @@ coverage/
 *.vsix
 *.tsbuildinfo
 .vscode-test/
+benchmarks/repos/
+benchmarks/bench-entry.cjs
+benchmarks/bench-entry.cjs.map
+benchmarks/bench-entry.mjs
+benchmarks/bench-entry.mjs.map
 packages/extension/media/webview/
 packages/extension/LICENSE
 .DS_Store

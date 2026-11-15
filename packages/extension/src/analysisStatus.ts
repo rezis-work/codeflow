@@ -5,7 +5,7 @@
  */
 
 import * as vscode from 'vscode';
-import { OPEN_DIAGRAM_COMMAND } from './constants';
+import { CANCEL_INDEX_COMMAND, OPEN_DIAGRAM_COMMAND } from './constants';
 
 interface GraphCounts {
   readonly nodes: number;
@@ -18,6 +18,7 @@ let inflight = 0;
 let nodes = 0;
 let edges = 0;
 const errors = new Map<string, string>();
+const progress = new Map<string, { readonly completed: number; readonly total: number }>();
 
 export function installAnalysisStatus(
   context: vscode.ExtensionContext,
@@ -33,6 +34,19 @@ export function installAnalysisStatus(
   context.subscriptions.push(item);
   render();
   item.show();
+}
+
+/** Background index progress. Clearing it returns the status bar to the node count. */
+export function setIndexProgress(
+  language: string,
+  value: { readonly completed: number; readonly total: number } | undefined,
+): void {
+  if (!value) {
+    progress.delete(language);
+  } else {
+    progress.set(language, value);
+  }
+  render();
 }
 
 export async function trackAnalysis<T>(language: string, work: () => Promise<T>): Promise<T> {
@@ -61,6 +75,22 @@ function render(): void {
   if (!item) {
     return;
   }
+  if (progress.size > 0) {
+    let completed = 0;
+    let total = 0;
+    for (const entry of progress.values()) {
+      completed += entry.completed;
+      total += entry.total;
+    }
+    item.command = CANCEL_INDEX_COMMAND;
+    item.text =
+      total > 0
+        ? `$(loading~spin) CodeFlow: indexing ${completed}/${total}`
+        : '$(loading~spin) CodeFlow: indexing';
+    item.tooltip = 'CodeFlow is indexing the rest of the workspace. Click to cancel.';
+    return;
+  }
+  item.command = OPEN_DIAGRAM_COMMAND;
   if (inflight > 0) {
     item.text = '$(loading~spin) CodeFlow: analyzing';
     item.tooltip = 'CodeFlow is analyzing the workspace. Click to open the diagram.';
