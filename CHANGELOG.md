@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Sequence view
+
+- **CodeFlow: Show as Sequence** turns a function's calls, or a request trace, into a timeline. Lifelines group by file, by class, impl, or struct, or by module or crate. Calls run downward, with a return arrow and an activation bar. A nested call sits inside the call that made it.
+- The command is in the Command Palette and in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. The side panel's Entry Points list has a Sequence button on each row. A request-flow diagram has a Sequence button, and the sequence has a Graph button back.
+- Clicking a message or a lifeline selects that source. An uncertain call stays dashed. Its tooltip is the same reason used on the call graph: callback / higher-order, dependency injection, dynamic dispatch, generic bound, macro, or dynamic property. An older note without a category stays as that note.
+- A loop or a branch from control flow is a `loop` or `alt` frame when the call sits in that range. An `alt` frame is one box, not a separate else compartment. `&&`, `||`, `?.`, and `??` are not frames.
+- Recursion draws the call and its return once and does not walk the body again. The walk stops at `codeflow.editor.callDepth` (default 2) or at 80 calls, and the panel says the diagram was truncated. A request sequence follows the request trace, including a sink past that depth, and says so when the trace left calls out.
+- The payload is `sequence` version 1 in `packages/shared`. The layout is a sequence layout, not ELK.
+
 ## 0.2.0
 
 ### CodeLens and uncertainty

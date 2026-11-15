@@ -63,6 +63,19 @@ export {
   parseEntryPoint,
 } from './requestFlow';
 export {
+  SEQUENCE_DEPTH_LIMIT,
+  SEQUENCE_FRAME_KINDS,
+  SEQUENCE_GRANULARITIES,
+  SEQUENCE_MESSAGE_KINDS,
+  SEQUENCE_MESSAGE_LIMIT,
+  SEQUENCE_PARTICIPANT_KINDS,
+  SEQUENCE_SOURCES,
+  SEQUENCE_VERSION,
+  isSequenceErrorCode,
+  isSequenceGranularity,
+  parseSequenceDiagram,
+} from './sequence';
+export {
   DIAGRAM_ERROR_CODES,
   DIAGRAM_MAX_NODES_LIMIT,
   DIAGRAM_THEMES,
@@ -124,6 +137,19 @@ export type {
   ControlFlowNode,
 } from './controlFlow';
 export type {
+  SequenceActivation,
+  SequenceDiagram,
+  SequenceErrorCode,
+  SequenceFrame,
+  SequenceFrameKind,
+  SequenceGranularity,
+  SequenceMessage,
+  SequenceMessageKind,
+  SequenceParticipant,
+  SequenceParticipantKind,
+  SequenceSource,
+} from './sequence';
+export type {
   AckMessage,
   ConfigMessage,
   ControlFlowCursorMessage,
@@ -134,6 +160,7 @@ export type {
   DiagramViewMode,
   DiagramWebviewToExtensionMessage,
   DismissControlFlowMessage,
+  DismissSequenceMessage,
   ErrorMessage,
   ExpandNodeMessage,
   ExtensionToDiagramWebviewMessage,
@@ -143,6 +170,8 @@ export type {
   ReadyMessage,
   RequestControlFlowMessage,
   RequestGraphMessage,
+  RequestSequenceMessage,
   RevealLocationMessage,
+  SequenceDiagramMessage,
   SetViewModeMessage,
 } from './messages';

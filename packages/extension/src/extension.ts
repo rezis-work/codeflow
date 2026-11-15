@@ -12,6 +12,7 @@ import {
   SHOW_FLOW_COMMAND,
   SHOW_TRAIT_MAP_COMMAND,
   SHOW_REQUEST_FLOW_COMMAND,
+  SHOW_SEQUENCE_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -26,6 +27,7 @@ import {
   showTraitMapAtCursor,
 } from './showFlow';
 import { showRequestFlow } from './showRequestFlow';
+import { showSequence } from './showSequence';
 import { getEntryCatalog } from './entryCatalog';
 import { showControlFlowAtCursor } from './showControlFlow';
 import { SidebarProvider } from './sidebar';
@@ -84,6 +86,14 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     }),
     vscode.commands.registerCommand(SHOW_REQUEST_FLOW_COMMAND, (entryId?: unknown) => {
       void showRequestFlow(
+        context,
+        typescript,
+        rust,
+        typeof entryId === 'string' ? entryId : undefined,
+      );
+    }),
+    vscode.commands.registerCommand(SHOW_SEQUENCE_COMMAND, (entryId?: unknown) => {
+      void showSequence(
         context,
         typescript,
         rust,

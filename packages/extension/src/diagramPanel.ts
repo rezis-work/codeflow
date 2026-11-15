@@ -1,4 +1,9 @@
-import { applyDelta, emptyGraph, isDiagramWebviewToExtensionMessage } from '@codeflow/shared';
+import {
+  SEQUENCE_VERSION,
+  applyDelta,
+  emptyGraph,
+  isDiagramWebviewToExtensionMessage,
+} from '@codeflow/shared';
 import type {
   CodeGraph,
   ControlFlowMessage,
@@ -6,6 +11,7 @@ import type {
   ExtensionToDiagramWebviewMessage,
   GraphDelta,
   NodeId,
+  SequenceDiagramMessage,
   SourceLocation,
 } from '@codeflow/shared';
 import * as vscode from 'vscode';
@@ -27,6 +33,8 @@ import { noteDiagramReveal } from './revealGuard';
 import { readMaxNodes, readViewMode } from './viewSettings';
 import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './controlFlowHost';
 import type { FlowEngines, FlowSession } from './controlFlowHost';
+import { sequenceDiagramFor } from './sequenceHost';
+import type { SequenceSession } from './sequenceHost';
 import { fileUriToPath } from './analyzers/typescript/uri';
 import { getWorkspaceGraph } from './workspaceGraph';
 
@@ -95,6 +103,9 @@ export class DiagramPanel {
       return;
     }
     panel.scheduleFocusRefresh();
+    if (panel.sequenceVisible) {
+      void panel.publishSequence();
+    }
   }
 
   /** Shows one function's flowchart. Queued until the webview has said ready. */
@@ -112,6 +123,11 @@ export class DiagramPanel {
     void DiagramPanel.current?.refreshControlFlow(document);
   }
 
+  /** Shows a call or request sequence. Queued until the webview has said ready. */
+  public static showSequence(session: SequenceSession): void {
+    DiagramPanel.current?.showSequence(session);
+  }
+
   private readonly disposables: vscode.Disposable[] = [];
   private disposed = false;
   private webviewReady = false;
@@ -125,6 +141,10 @@ export class DiagramPanel {
   private pendingFlow: ControlFlowMessage | undefined;
   private pendingNotice: string | undefined;
   private flowGeneration = 0;
+  private sequenceSession: SequenceSession | undefined;
+  private sequenceVisible = false;
+  private sequenceGeneration = 0;
+  private pendingSequence: SequenceDiagramMessage | undefined;
 
   public static open(context: vscode.ExtensionContext): void {
     if (DiagramPanel.current) {
@@ -231,7 +251,14 @@ export class DiagramPanel {
     this.showSpec({ kind: 'flow', nodeId, depth: SYMBOL_FLOW_DEPTH });
   }
 
+  public showSequence(session: SequenceSession): void {
+    this.sequenceSession = session;
+    this.sequenceVisible = true;
+    void this.publishSequence();
+  }
+
   public showSpec(spec: FocusSpec): void {
+    this.sequenceVisible = false;
     this.pendingNotice = undefined;
     this.spec =
       spec.kind === 'traits' || spec.kind === 'request'
@@ -296,6 +323,9 @@ export class DiagramPanel {
   }
 
   public publishDelta(delta: GraphDelta): void {
+    if (this.sequenceVisible) {
+      void this.publishSequence();
+    }
     if (!this.webviewReady || this.disposed || isEmptyDelta(delta)) {
       return;
     }
@@ -390,6 +420,9 @@ export class DiagramPanel {
     }
     if (ready && this.pendingFlow) {
       this.post(this.pendingFlow);
+    }
+    if (ready && this.pendingSequence && this.sequenceVisible) {
+      this.post(this.pendingSequence);
     }
     if (ready && this.pendingNotice) {
       this.post({ type: 'error', message: this.pendingNotice });
@@ -492,7 +525,55 @@ export class DiagramPanel {
         this.flowSession = undefined;
         this.pendingFlow = undefined;
       },
+      requestSequence: (message) => {
+        this.answerSequence(message.granularity);
+      },
+      dismissSequence: () => {
+        this.sequenceVisible = false;
+        this.pendingSequence = undefined;
+      },
     };
+  }
+
+  private answerSequence(granularity: SequenceSession['granularity'] | undefined): void {
+    const next = granularity ?? this.sequenceSession?.granularity ?? 'type';
+    if (this.sequenceSession) {
+      this.showSequence({ ...this.sequenceSession, granularity: next });
+      return;
+    }
+    if (this.spec?.kind === 'request') {
+      this.showSequence({ source: 'request', entryId: this.spec.entryId, granularity: next });
+      return;
+    }
+    if ((this.spec?.kind === 'calls' || this.spec?.kind === 'flow') && this.focusId) {
+      this.showSequence({ source: 'call', nodeId: this.focusId, granularity: next });
+      return;
+    }
+    this.sequenceVisible = true;
+    this.post({
+      type: 'sequence',
+      version: SEQUENCE_VERSION,
+      error: {
+        code: 'not-found',
+        message: 'Open a request flow, or run CodeFlow: Show as Sequence on a function.',
+      },
+    });
+  }
+
+  private async publishSequence(): Promise<void> {
+    const session = this.sequenceSession;
+    if (!session || !this.sequenceVisible || this.disposed) {
+      return;
+    }
+    const generation = (this.sequenceGeneration += 1);
+    const message = await sequenceDiagramFor(session, flowEngines);
+    if (this.disposed || !this.sequenceVisible || generation !== this.sequenceGeneration) {
+      return;
+    }
+    this.pendingSequence = message;
+    if (this.webviewReady) {
+      this.post(message);
+    }
   }
 
   private async answerControlFlow(

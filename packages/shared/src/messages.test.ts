@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONTROL_FLOW_VERSION } from './controlFlow';
+import { SEQUENCE_VERSION } from './sequence';
 import { createEdge, createNode, emptyGraph } from './graph';
 import type { CodeNode, GraphDelta } from './graph';
 import { nodeId } from './ids';
@@ -86,6 +87,14 @@ describe('webview to extension messages', () => {
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'request' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'all' })).toBe(false);
     expect(isDiagramWebviewToExtensionMessage({ type: 'dismissControlFlow' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'dismissSequence' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'requestSequence' })).toBe(true);
+    expect(
+      isDiagramWebviewToExtensionMessage({ type: 'requestSequence', granularity: 'module' }),
+    ).toBe(true);
+    expect(
+      isDiagramWebviewToExtensionMessage({ type: 'requestSequence', granularity: 'crate' }),
+    ).toBe(false);
     expect(
       isDiagramWebviewToExtensionMessage({
         type: 'requestControlFlow',
@@ -148,6 +157,7 @@ describe('webview to extension messages', () => {
       { type: 'requestControlFlow', version: 2, nodeId: symbol.id },
       { type: 'requestControlFlow', version: 1, uri: URI },
       { type: 'requestControlFlow', nodeId: 'not-an-id' },
+      { type: 'requestSequence', granularity: 'package' },
     ];
     for (const value of malformed) {
       expect(isDiagramWebviewToExtensionMessage(value)).toBe(false);
@@ -240,6 +250,29 @@ describe('extension to webview messages', () => {
         position: { line: 1, character: 0 },
       }),
     ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'sequence',
+        version: SEQUENCE_VERSION,
+        diagram: {
+          version: SEQUENCE_VERSION,
+          title: 'main',
+          granularity: 'file',
+          source: 'call',
+          participants: [{ id: 'p0', kind: 'function', label: 'main' }],
+          messages: [],
+          activations: [],
+          frames: [],
+        },
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'sequence',
+        version: SEQUENCE_VERSION,
+        error: { code: 'not-a-function', message: 'Sequence is drawn for a function.' },
+      }),
+    ).toBe(true);
   });
 
   it('rejects malformed messages', () => {
@@ -300,6 +333,28 @@ describe('extension to webview messages', () => {
       { type: 'controlFlowCursor', version: 1, uri: URI },
       {
         type: 'controlFlow',
+        version: 1,
+        error: { code: 'nope', message: 'bad' },
+      },
+      { type: 'sequence', version: 1 },
+      { type: 'sequence', version: 2, error: { code: 'internal', message: 'nope' } },
+      {
+        type: 'sequence',
+        version: 1,
+        diagram: {
+          version: 1,
+          title: 'main',
+          granularity: 'file',
+          source: 'call',
+          participants: [],
+          messages: [],
+          activations: [],
+          frames: [],
+        },
+        error: { code: 'internal', message: 'both' },
+      },
+      {
+        type: 'sequence',
         version: 1,
         error: { code: 'nope', message: 'bad' },
       },

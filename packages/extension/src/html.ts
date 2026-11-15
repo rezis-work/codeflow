@@ -171,6 +171,13 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
         open.addEventListener('click', () => {
           vscode.postMessage({ type: 'showRequestFlow', entryId: entry.id });
         });
+        const sequence = document.createElement('button');
+        sequence.type = 'button';
+        sequence.className = 'entry-source';
+        sequence.textContent = 'Sequence';
+        sequence.addEventListener('click', () => {
+          vscode.postMessage({ type: 'showSequence', entryId: entry.id });
+        });
         const source = document.createElement('button');
         source.type = 'button';
         source.className = 'entry-source';
@@ -179,6 +186,7 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
           vscode.postMessage({ type: 'revealEntry', entryId: entry.id });
         });
         row.appendChild(open);
+        row.appendChild(sequence);
         row.appendChild(source);
         list.appendChild(row);
       }

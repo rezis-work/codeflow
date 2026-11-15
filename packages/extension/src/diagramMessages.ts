@@ -8,6 +8,7 @@ import type {
   GraphStore,
   NodeId,
   RequestControlFlowMessage,
+  RequestSequenceMessage,
   SourceLocation,
 } from '@codeflow/shared';
 import { SYMBOL_FLOW_DEPTH } from './constants';
@@ -30,6 +31,8 @@ export interface DiagramHost {
   focusView?(): { readonly graph: CodeGraph | undefined; readonly explicit: boolean };
   requestControlFlow?(message: RequestControlFlowMessage): void;
   dismissControlFlow?(): void;
+  requestSequence?(message: RequestSequenceMessage): void;
+  dismissSequence?(): void;
 }
 
 const SHOW_INFERRED_EDGES = true;
@@ -121,6 +124,12 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
       return;
     case 'dismissControlFlow':
       host.dismissControlFlow?.();
+      return;
+    case 'requestSequence':
+      host.requestSequence?.(message);
+      return;
+    case 'dismissSequence':
+      host.dismissSequence?.();
       return;
     default: {
       const unreachable: never = message;

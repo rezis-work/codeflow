@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a Rust trait and impl map, a request traced from its route to the data layer, and file or crate dependency maps. Later phases add sequence views and runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a sequence of calls between files, classes, or modules, a Rust trait and impl map, a request traced from its route to the data layer, and file or crate dependency maps. Later phases add runtime traces.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
@@ -23,6 +23,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 - Control flow for the function at the cursor: `if`, `switch`, loops, `try`/`catch`/`finally`, early returns, `await`, and `yield`, for TypeScript, JavaScript, and Rust.
 - Rust trait map: a trait and every workspace impl, or a type and the traits it implements. `dyn Trait`, generic bounds, and `impl Trait` call targets are drawn dashed and marked uncertain.
 - Request flow: Next.js, NestJS, Axum, and Actix entry points, traced from the route through the handler's calls to a data-layer sink. The side panel lists those entry points.
+- Sequence view: the same request, or the calls from one function, as a timeline. Lifelines can be the file, the class, impl, or struct, or the module or crate. Uncertain calls stay dashed.
 - Import diagram for the current file, and a dependency diagram for a file or folder in the explorer.
 - Click a node to open its source in the text editor's column, with the symbol selected and centered. A missing file is reported in the panel instead of failing the command.
 - Cursor following. The innermost function, method, or type at the caret is highlighted. The file module is the fallback. The diagram pans to it and does not lay out again.
@@ -33,7 +34,7 @@ Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol 
 
 ## Commands
 
-These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor** and **Show Request Flow** appear in that menu for those languages. Control flow is also on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map. The side panel lists entry points and opens a request flow from one of them.
+These appear in the Command Palette. The four call and import commands also appear in the editor context menu for TypeScript, TSX, JavaScript, JSX, and Rust. **Show Control Flow for Function at Cursor**, **Show Request Flow**, and **Show as Sequence** appear in that menu for those languages. Control flow is also on a function or method node in the call diagram. **CodeFlow: Show Trait Map** appears in that menu for Rust. **CodeFlow: Show Dependencies** appears on files and folders in the explorer. The diagram toolbar and the side panel can switch to the trait map. The side panel lists entry points. A row opens a request flow, and its Sequence button opens that route as a sequence.
 
 | Command                                            | What it draws                                                                             |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -45,6 +46,7 @@ These appear in the Command Palette. The four call and import commands also appe
 | CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)                |
 | CodeFlow: Show Trait Map                           | Rust trait, its impls and methods, or a type and the traits it implements                 |
 | CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer calls those functions make |
+| CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence of calls and returns           |
 | CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                            |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
@@ -55,7 +57,7 @@ These appear in the Command Palette. The four call and import commands also appe
 | --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `codeflow.editor.followCursor`    | `true`                                    | Highlight the symbol at the cursor in the open diagram                                                                                 |
 | `codeflow.editor.refocusOnCursor` | `false`                                   | In focus mode, rebuild the neighbourhood when the symbol is not in the current diagram. Otherwise the panel says "Not in this diagram" |
-| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers, Show Callees, and a request flow (1–32). The route itself is not a step                                   |
+| `codeflow.editor.callDepth`       | `2`                                       | Call steps for Show Callers, Show Callees, a request flow, and a sequence (1–32). The route itself is not a step                       |
 | `codeflow.view.defaultMode`       | `focus`                                   | `focus` or `workspace`. Trait map and request flow are opened by their own commands                                                    |
 | `codeflow.view.maxNodes`          | `300`                                     | Nodes drawn at once. Also caps trait-method fan-out and a request flow                                                                 |
 | `codeflow.rust.useRustAnalyzer`   | `true`                                    | Upgrade the focused symbol's calls when rust-analyzer is already running                                                               |
@@ -97,6 +99,9 @@ ripgrep was read with `cargo metadata` (Cargo 1.100). Cargo 1.83 cannot parse it
 - NestJS constructor injection of a concrete class is a certain call. Injection of an interface, an abstract class, or an `@Inject` token is an uncertain edge to the providers that match. Those edges are stored on the controller file, so they refresh when that file is reanalyzed. A decorator imported from a package that is not part of the program is recognized by the imported name.
 - Drizzle `select` / `insert` / `update` / `delete` match a named receiver such as `db`. A repository call such as `this.usersRepository.delete` is TypeORM. A Mongoose model is a capitalized name; a receiver ending in `Factory` is left alone.
 - Request-flow data sinks are name matches (`prisma.pet.findMany`, `sqlx::query!`, `pets::table.load`, and the other rows in the detector table). The database client itself is not a call-graph node. A `fetch` to an `http` or `https` URL is an external sink.
+- A sequence is the trace turned on its side. It does not discover new calls. A recursive call is drawn once. The diagram stops at `codeflow.editor.callDepth` or at 80 calls and says it was truncated. A request sequence keeps a sink that the trace attached past that depth, and says so when the trace left other calls out.
+- An `alt` frame is one box around a decision, not a separate else compartment. `&&`, `||`, `?.`, and `??` are not frames. Frames are attached for up to eight functions on the trace, and only when that function's control flow can be built. The box can include the gap between the blocks it covers.
+- At class, impl, or struct granularity, a free function is its own lifeline. A route and a data sink stay their own lifelines at every granularity. A Rust file module is labelled as the crate.
 
 ## Layout
 
@@ -184,10 +189,10 @@ Analyzers should put each edge in the file where the relationship is written. Em
 
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
-- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`.
-- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`.
+- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`, `requestSequence`, `dismissSequence`.
+- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`, `sequence`.
 
-`requestControlFlow` asks for one function, by a call-graph node id or by a file URI and a cursor position. `controlFlow` answers with a versioned graph (`version: 1`) or an error. `dismissControlFlow` leaves the flowchart. `controlFlowCursor` is the caret, so the open flowchart can highlight the block that contains it. Older messages are unchanged.
+`requestControlFlow` asks for one function, by a call-graph node id or by a file URI and a cursor position. `controlFlow` answers with a versioned graph (`version: 1`) or an error. `dismissControlFlow` leaves the flowchart. `controlFlowCursor` is the caret, so the open flowchart can highlight the block that contains it. `requestSequence` asks for the open request or the open function as a sequence, optionally at `file`, `type`, or `module` granularity. `sequence` answers with a versioned diagram (`version: 1`) or an error (`not-found`, `not-a-function`, or `internal`). `dismissSequence` leaves the sequence. Older messages are unchanged.
 
 `ready` receives `ack`, then the theme and the current view. In focus mode with a symbol, that view is the depth-2 neighbourhood and a `focusNode`. Otherwise it is the whole workspace graph. A snapshot replaces the diagram's current view. A delta patches it. `requestGraph` answers with the subgraph around that symbol. `expandNode` patches in a wider one. `setViewMode` switches the session between `focus` and `workspace` and sends that view again. `config` may include `viewMode` and `maxNodes`. The workspace graph lives in `packages/extension/src/workspaceGraph.ts`. Analyzers should call `getWorkspaceGraph().ingest(fragment)` and `invalidate(uri)`.
 
@@ -207,7 +212,33 @@ A Rust `mod` declaration and the file it points at are two nodes joined by an im
 
 While the host has not sent a graph, the panel says it is analyzing if it is already connected, and otherwise that there is no diagram yet. An `error` message replaces the canvas with that text.
 
+A request-flow diagram has a Sequence button. It opens the same trace as a sequence. The sequence toolbar switches File, Type, and Module, and Graph returns to the call diagram. The sequence layout is not ELK: lifelines are columns and message order is the row. See [Sequence](#sequence).
+
 A function or method node has a Flow button. It opens a top-to-bottom flowchart of that function (ELK layered, direction down). Decisions and switches are marked, loops are dashed, entry and exit are rounded, returns and throws use their own borders, and exception edges are dashed. Back edges leave the right side of a block. Clicking a block selects its source range. The breadcrumb returns to the call graph. Saving the file rebuilds the flowchart. If the function is gone, the panel says so. A function with more than 500 blocks shows the first 500 and a notice. The same command is **CodeFlow: Show Control Flow for Function at Cursor**. It works for TypeScript, JavaScript, and Rust.
+
+## Sequence
+
+**CodeFlow: Show as Sequence** draws one traced path as a timeline. On a function it walks the outgoing calls. On an entry point it walks the request trace: the route, the handler, the calls, and the sinks. The side panel's Sequence button and the request diagram's Sequence button open the request. Graph on the sequence returns to the call diagram.
+
+Lifelines are chosen with File, Type, or Module:
+
+- File is one lifeline per file. Two methods in the same file share it.
+- Type is a class, impl, struct, enum, trait, or interface. A class is preferred over the impl that contains the method, so `PetsController`, `PetsService`, and `PetsRepository` stay apart. A free function is its own lifeline. This is the default.
+- Module is the closest module. A Rust file module is noted as the crate.
+
+Calls run downward. Each call has a return arrow and an activation bar, and a nested call opens its bar inside the caller's bar. A self-call hooks back onto the same lifeline. An uncertain call is dashed. Its tooltip is the call-graph reason (`uncertain: dependency injection`, `uncertain: dynamic dispatch / dyn Trait`, and the other categories). A note that has no category stays as that note. Clicking a message or a lifeline selects that source.
+
+A loop or a branch becomes a `loop` or `alt` frame when a call's location sits inside the control-flow range. The frame is attached after the calls are drawn, for up to eight functions, and a flowchart that cannot be built leaves those calls unframed. An `alt` frame is one box around the decision, not a separate else compartment. `&&`, `||`, `?.`, and `??` are not frames, because control flow does not make them decisions.
+
+A call whose target is already on the stack is marked recursive and is not expanded again. The walk stops at `codeflow.editor.callDepth` or at 80 calls and sets `truncated` with a note. A request sequence follows every call the request trace kept, so a sink past the depth cap is still drawn, and the note says when the trace left other calls out. Route and sink lifelines stay separate at every granularity.
+
+The shared model is `SequenceDiagram` in `packages/shared`. Participants, messages (`call` or `return`), activations, and frames are checked by hand. The payload version is `1`.
+
+![NestJS GET /api/pets as a sequence](docs/images/nestjs-request-sequence.png)
+
+![Axum GET /pets as a sequence](docs/images/axum-request-sequence.png)
+
+![App.start as a sequence](docs/images/function-call-sequence.png)
 
 ## Request flow
 
@@ -281,6 +312,7 @@ Not read yet: macro expansion, `include!`, full type inference, the bodies of st
 - **2.2 Control flow for Rust** (done): the same flowchart for Rust functions, methods, and trait defaults. See [Control flow](#control-flow).
 - **2.3 Trait and impl map** (unreleased): Rust traits, every workspace impl, and the possible targets of a trait-method call. `dyn Trait`, generic bounds, and `impl Trait` are uncertain. See [Rust](#rust).
 - **2.4 Request flow and entry points** (unreleased): Next.js, NestJS, Axum, and Actix routes, a trace from the route to a data-layer sink, and the side-panel entry list. See [Request flow](#request-flow).
+- **3.1 Sequence view** (unreleased): a request trace or a function's calls as a timeline of lifelines, calls, and returns. See [Sequence](#sequence).
 
 ## License
 

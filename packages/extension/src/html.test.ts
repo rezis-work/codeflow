@@ -74,6 +74,8 @@ describe('renderSidebarHtml', () => {
     expect(html).toContain('Entry Points');
     expect(html).toContain('No entry points yet');
     expect(html).toContain("type: 'showRequestFlow'");
+    expect(html).toContain("type: 'showSequence'");
+    expect(html).toContain('Sequence');
     expect(html).toContain("type: 'revealEntry'");
     expect(html).not.toContain('unsafe-inline');
     expect(html).not.toContain('http://');
