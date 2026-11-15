@@ -93,7 +93,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: codeflow-vsix
-          path: codeflow.vsix
+          path: rezis-codeflow.vsix
           if-no-files-found: error
 
   benchmark:

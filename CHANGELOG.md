@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- The extension id is `rezis-work.rezis-codeflow` (`name` `rezis-codeflow`, publisher `rezis-work`). The VS Code Marketplace rejected the name `codeflow` because it is already taken. `displayName` stays CodeFlow.
+- Command ids, `codeflow.*` settings, view ids, and the other contribution ids are unchanged, so existing settings still apply.
+- Open VSX 1.0.0 was published as `rezis-work.codeflow`. Version 1.0.1 is a new extension id. The packaged file is `rezis-codeflow-1.0.1.vsix`.
+
 ## 1.0.0
 
 ### Large-repo performance

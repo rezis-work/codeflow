@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = resolve(root, 'packages/extension');
-const vsix = resolve(root, 'codeflow.vsix');
+const vsix = resolve(root, 'rezis-codeflow.vsix');
 const licenseTarget = resolve(extensionDir, 'LICENSE');
 const readmeTarget = resolve(extensionDir, 'README.md');
 const changelogTarget = resolve(extensionDir, 'CHANGELOG.md');
