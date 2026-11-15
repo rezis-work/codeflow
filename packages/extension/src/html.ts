@@ -105,12 +105,16 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     .entry-open { flex: 1; text-align: left; margin: 0; background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
     .entry-meta { display: block; font-size: 11px; color: var(--vscode-descriptionForeground); }
     .entry-source { margin: 0; padding: 4px 8px; background: transparent; color: var(--vscode-textLink-foreground); }
+    #flows-empty[hidden] { display: none; }
   </style>`,
     body: `<main>
     <h1>CodeFlow</h1>
     <p>Open a diagram panel beside the editor to see how the symbols in this workspace connect.</p>
     <button type="button" id="open">Open Diagram</button>
     <button type="button" id="traits">Show Trait Map</button>
+    <h1>Saved Flows</h1>
+    <p id="flows-empty">No saved flows yet. Use Save flow on a diagram.</p>
+    <div id="flows"></div>
     <h1>Entry Points</h1>
     <p id="count" class="count">0 entry points</p>
     <input id="search" type="search" placeholder="Filter routes" aria-label="Filter entry points" />
@@ -131,7 +135,10 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
     const count = document.getElementById('count');
     const empty = document.getElementById('empty');
     const search = document.getElementById('search');
+    const flowList = document.getElementById('flows');
+    const flowsEmpty = document.getElementById('flows-empty');
     let entries = [];
+    let flows = [];
     const labels = { next: 'Next.js', nestjs: 'NestJS', axum: 'Axum', actix: 'Actix' };
     function render() {
       const query = String(search && search.value || '').trim().toLowerCase();
@@ -191,16 +198,66 @@ export function renderSidebarHtml(options: HostHtmlOptions): string {
         list.appendChild(row);
       }
     }
-    window.addEventListener('message', (event) => {
-      const message = event.data;
-      if (!message || message.type !== 'entries' || !Array.isArray(message.entries)) {
+    function renderFlows() {
+      if (flowsEmpty) {
+        flowsEmpty.hidden = flows.length !== 0;
+      }
+      if (!flowList) {
         return;
       }
-      entries = message.entries;
-      render();
+      flowList.textContent = '';
+      for (const flow of flows) {
+        const row = document.createElement('div');
+        row.className = 'entry';
+        const openFlow = document.createElement('button');
+        openFlow.type = 'button';
+        openFlow.className = 'entry-open';
+        openFlow.textContent = flow.name;
+        const meta = document.createElement('span');
+        meta.className = 'entry-meta';
+        meta.textContent = flow.kindLabel;
+        openFlow.appendChild(meta);
+        openFlow.addEventListener('click', () => {
+          vscode.postMessage({ type: 'openSavedFlow', id: flow.id });
+        });
+        const rename = document.createElement('button');
+        rename.type = 'button';
+        rename.className = 'entry-source';
+        rename.textContent = 'Rename';
+        rename.addEventListener('click', () => {
+          vscode.postMessage({ type: 'renameSavedFlow', id: flow.id });
+        });
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'entry-source';
+        remove.textContent = 'Delete';
+        remove.addEventListener('click', () => {
+          vscode.postMessage({ type: 'deleteSavedFlow', id: flow.id });
+        });
+        row.appendChild(openFlow);
+        row.appendChild(rename);
+        row.appendChild(remove);
+        flowList.appendChild(row);
+      }
+    }
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      if (!message) {
+        return;
+      }
+      if (message.type === 'entries' && Array.isArray(message.entries)) {
+        entries = message.entries;
+        render();
+        return;
+      }
+      if (message.type === 'savedFlows' && Array.isArray(message.flows)) {
+        flows = message.flows;
+        renderFlows();
+      }
     });
     search?.addEventListener('input', render);
     render();
+    renderFlows();
   </script>`,
   });
 }

@@ -6,13 +6,22 @@ import {
 } from '@codeflow/shared';
 import type {
   CodeGraph,
+  ControlFlowGraph,
   ControlFlowMessage,
   DiagramViewMode,
+  EdgeKind,
+  ExportDiagramMessage,
   ExtensionToDiagramWebviewMessage,
   GraphDelta,
   NodeId,
+  PresentationMessage,
+  SaveFlowMessage,
+  SavedFlow,
+  SavedFlowBannerMessage,
+  SequenceDiagram,
   SequenceDiagramMessage,
   SourceLocation,
+  ViewStateMessage,
 } from '@codeflow/shared';
 import * as vscode from 'vscode';
 import { hasWebviewBundle } from './bundle';
@@ -35,6 +44,35 @@ import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './con
 import type { FlowEngines, FlowSession } from './controlFlowHost';
 import { sequenceDiagramFor } from './sequenceHost';
 import type { SequenceSession } from './sequenceHost';
+
+export type DiagramSurface = 'graph' | 'flow' | 'sequence';
+
+export interface DiagramViewState {
+  readonly collapsedNodeIds: readonly string[];
+  readonly viewport?: { readonly x: number; readonly y: number; readonly zoom: number };
+  readonly showUncertain: boolean;
+  readonly showInferred: boolean;
+  readonly hiddenEdgeKinds: readonly EdgeKind[];
+}
+
+export interface DiagramCapture {
+  readonly surface: DiagramSurface;
+  readonly viewMode: DiagramViewMode;
+  readonly spec?: FocusSpec;
+  readonly focusId?: NodeId;
+  readonly graph?: CodeGraph;
+  readonly controlFlow?: ControlFlowGraph;
+  readonly flowSession?: FlowSession;
+  readonly sequence?: SequenceDiagram;
+  readonly sequenceSession?: SequenceSession;
+}
+
+const EMPTY_VIEW_STATE: DiagramViewState = {
+  collapsedNodeIds: [],
+  showUncertain: true,
+  showInferred: true,
+  hiddenEdgeKinds: [],
+};
 import { fileUriToPath } from './analyzers/typescript/uri';
 import { getWorkspaceGraph } from './workspaceGraph';
 
@@ -64,6 +102,19 @@ export class DiagramPanel {
   public static deliver(message: unknown): void {
     DiagramPanel.current?.onMessage(message);
   }
+
+  /** Save, export, and view-state hooks. `activate` replaces these. */
+  public static actions: {
+    viewState(message: ViewStateMessage): void;
+    saveFlow(message: SaveFlowMessage): void;
+    exportDiagram(message: ExportDiagramMessage): void;
+    copyMermaid(): void;
+  } = {
+    viewState: () => undefined,
+    saveFlow: () => undefined,
+    exportDiagram: () => undefined,
+    copyMermaid: () => undefined,
+  };
 
   private static posted: ExtensionToDiagramWebviewMessage[] = [];
 
@@ -145,6 +196,11 @@ export class DiagramPanel {
   private sequenceVisible = false;
   private sequenceGeneration = 0;
   private pendingSequence: SequenceDiagramMessage | undefined;
+  private surface: DiagramSurface = 'graph';
+  private viewStateValue: DiagramViewState = EMPTY_VIEW_STATE;
+  private pendingBanner: SavedFlowBannerMessage | undefined;
+  private pendingPresentation: PresentationMessage | undefined;
+  private holdingStale = false;
 
   public static open(context: vscode.ExtensionContext): void {
     if (DiagramPanel.current) {
@@ -254,11 +310,17 @@ export class DiagramPanel {
   public showSequence(session: SequenceSession): void {
     this.sequenceSession = session;
     this.sequenceVisible = true;
+    this.surface = 'sequence';
+    this.holdingStale = false;
+    this.clearSavedBanner();
     void this.publishSequence();
   }
 
   public showSpec(spec: FocusSpec): void {
     this.sequenceVisible = false;
+    this.surface = 'graph';
+    this.holdingStale = false;
+    this.clearSavedBanner();
     this.pendingNotice = undefined;
     this.spec =
       spec.kind === 'traits' || spec.kind === 'request'
@@ -367,6 +429,12 @@ export class DiagramPanel {
   private applyFlow(message: ControlFlowMessage): void {
     this.flowSession = sessionFrom(message);
     this.pendingFlow = message;
+    if (message.graph) {
+      this.surface = 'flow';
+      this.sequenceVisible = false;
+      this.holdingStale = false;
+      this.clearSavedBanner();
+    }
     if (!this.webviewReady || this.disposed) {
       return;
     }
@@ -427,6 +495,103 @@ export class DiagramPanel {
     if (ready && this.pendingNotice) {
       this.post({ type: 'error', message: this.pendingNotice });
     }
+    if (ready && this.holdingStale) {
+      this.repostStale();
+    }
+    if (ready) {
+      this.flushSavedChrome();
+    }
+  }
+
+  public capture(): DiagramCapture | undefined {
+    if (this.surface === 'sequence' && this.pendingSequence?.diagram && this.sequenceSession) {
+      return {
+        surface: 'sequence',
+        viewMode: this.viewMode,
+        sequence: this.pendingSequence.diagram,
+        sequenceSession: this.sequenceSession,
+        ...(this.spec ? { spec: this.spec } : {}),
+        ...(this.focusId ? { focusId: this.focusId } : {}),
+      };
+    }
+    if (this.surface === 'flow' && this.pendingFlow?.graph && this.flowSession) {
+      return {
+        surface: 'flow',
+        viewMode: this.viewMode,
+        controlFlow: this.pendingFlow.graph,
+        flowSession: this.flowSession,
+        ...(this.spec ? { spec: this.spec } : {}),
+        ...(this.focusId ? { focusId: this.focusId } : {}),
+      };
+    }
+    if (this.surface === 'graph' && this.viewGraph && this.viewGraph.nodes.length > 0) {
+      return {
+        surface: 'graph',
+        viewMode: this.viewMode,
+        graph: this.viewGraph,
+        ...(this.spec ? { spec: this.spec } : {}),
+        ...(this.focusId ? { focusId: this.focusId } : {}),
+      };
+    }
+    return undefined;
+  }
+
+  public viewState(): DiagramViewState {
+    return this.viewStateValue;
+  }
+
+  public useWorkspace(): void {
+    this.viewMode = 'workspace';
+    this.surface = 'graph';
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post(this.configMessage());
+    publishDiagramView(this.asHost(), 'workspace');
+  }
+
+  /** Reopening a saved flow found the symbol. Apply its presentation. */
+  public showSavedPresentation(flow: SavedFlow): void {
+    this.queueSavedChrome(flow, false, undefined);
+  }
+
+  /** The root is gone. Show the last picture and say so. */
+  public showStale(flow: SavedFlow, message: string): void {
+    this.holdingStale = true;
+    this.spec = undefined;
+    this.sequenceVisible = false;
+    this.flowSession = undefined;
+    this.pendingNotice = undefined;
+    if (flow.snapshot.kind === 'sequence') {
+      this.surface = 'sequence';
+      this.pendingSequence = {
+        type: 'sequence',
+        version: SEQUENCE_VERSION,
+        diagram: flow.snapshot.diagram,
+      };
+      if (this.webviewReady) {
+        this.post(this.pendingSequence);
+      }
+    } else if (flow.snapshot.kind === 'controlFlow') {
+      this.surface = 'flow';
+      const control: ControlFlowMessage = {
+        type: 'controlFlow',
+        version: 1,
+        functionId: flow.snapshot.graph.functionId,
+        graph: flow.snapshot.graph,
+      };
+      this.pendingFlow = control;
+      if (this.webviewReady) {
+        this.post(control);
+      }
+    } else {
+      this.surface = 'graph';
+      this.viewGraph = flow.snapshot.graph;
+      if (this.webviewReady) {
+        this.post({ type: 'graphSnapshot', graph: flow.snapshot.graph });
+      }
+    }
+    this.queueSavedChrome(flow, true, message);
   }
 
   private scheduleFocusRefresh(): void {
@@ -524,6 +689,9 @@ export class DiagramPanel {
       dismissControlFlow: () => {
         this.flowSession = undefined;
         this.pendingFlow = undefined;
+        if (this.surface === 'flow') {
+          this.surface = 'graph';
+        }
       },
       requestSequence: (message) => {
         this.answerSequence(message.granularity);
@@ -531,8 +699,97 @@ export class DiagramPanel {
       dismissSequence: () => {
         this.sequenceVisible = false;
         this.pendingSequence = undefined;
+        if (this.surface === 'sequence') {
+          this.surface = 'graph';
+        }
+      },
+      viewState: (message) => {
+        this.noteViewState(message);
+      },
+      saveFlow: (message) => {
+        this.noteViewState(message);
+        DiagramPanel.actions.saveFlow(message);
+      },
+      exportDiagram: (message) => {
+        DiagramPanel.actions.exportDiagram(message);
+      },
+      copyMermaid: () => {
+        DiagramPanel.actions.copyMermaid();
       },
     };
+  }
+
+  private noteViewState(message: ViewStateMessage | SaveFlowMessage): void {
+    this.viewStateValue = {
+      collapsedNodeIds: message.collapsedNodeIds,
+      showUncertain: message.showUncertain,
+      showInferred: message.showInferred,
+      hiddenEdgeKinds: message.hiddenEdgeKinds,
+      ...(message.viewport ? { viewport: message.viewport } : {}),
+    };
+  }
+
+  private clearSavedBanner(): void {
+    this.pendingBanner = { type: 'savedFlowBanner', stale: false };
+    if (this.webviewReady && !this.disposed) {
+      this.post(this.pendingBanner);
+    }
+  }
+
+  private queueSavedChrome(flow: SavedFlow, stale: boolean, message: string | undefined): void {
+    this.pendingBanner = {
+      type: 'savedFlowBanner',
+      stale,
+      ...(message ? { message } : {}),
+    };
+    this.pendingPresentation = {
+      type: 'presentation',
+      collapsedNodeIds: [...flow.collapsedNodeIds],
+      ...(flow.viewport ? { viewport: flow.viewport } : {}),
+      ...(flow.options.showUncertain !== undefined
+        ? { showUncertain: flow.options.showUncertain }
+        : {}),
+      ...(flow.options.showInferred !== undefined
+        ? { showInferred: flow.options.showInferred }
+        : {}),
+      ...(flow.options.hiddenEdgeKinds
+        ? { hiddenEdgeKinds: [...flow.options.hiddenEdgeKinds] }
+        : {}),
+    };
+    this.viewStateValue = {
+      collapsedNodeIds: flow.collapsedNodeIds,
+      showUncertain: flow.options.showUncertain ?? true,
+      showInferred: flow.options.showInferred ?? true,
+      hiddenEdgeKinds: flow.options.hiddenEdgeKinds ?? [],
+      ...(flow.viewport ? { viewport: flow.viewport } : {}),
+    };
+    this.flushSavedChrome();
+  }
+
+  private repostStale(): void {
+    if (this.surface === 'sequence' && this.pendingSequence) {
+      this.post(this.pendingSequence);
+      return;
+    }
+    if (this.surface === 'flow' && this.pendingFlow) {
+      this.post(this.pendingFlow);
+      return;
+    }
+    if (this.viewGraph) {
+      this.post({ type: 'graphSnapshot', graph: this.viewGraph });
+    }
+  }
+
+  private flushSavedChrome(): void {
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    if (this.pendingBanner) {
+      this.post(this.pendingBanner);
+    }
+    if (this.pendingPresentation) {
+      this.post(this.pendingPresentation);
+    }
   }
 
   private answerSequence(granularity: SequenceSession['granularity'] | undefined): void {

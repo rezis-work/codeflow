@@ -182,6 +182,36 @@ describe('diagram', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
     expect(postMessage).toHaveBeenCalledWith({ type: 'setViewMode', mode: 'workspace' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse main' }));
+    expect(screen.queryByRole('button', { name: 'function format' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save flow' }));
+    expect(postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'saveFlow',
+        showUncertain: true,
+        collapsedNodeIds: [mainNode.id],
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy Mermaid' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'copyMermaid' });
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'PNG, white background' }));
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'exportDiagram',
+      format: 'png',
+      background: 'light',
+    });
+
+    send({
+      type: 'savedFlowBanner',
+      stale: true,
+      message: 'This saved flow is stale.',
+    });
+    expect((await screen.findByTestId('stale-banner')).textContent).toBe(
+      'This saved flow is stale.',
+    );
   });
 });
 

@@ -36,12 +36,13 @@ import {
 import type { SequenceDiagram, SequenceErrorCode, SequenceGranularity } from './sequence';
 import {
   asEdgeId,
+  isEdgeKind,
   parseCodeEdge,
   parseCodeGraph,
   parseCodeNode,
   parseSourceLocation,
 } from './graph';
-import type { CodeGraph, GraphDelta, Position, SourceLocation } from './graph';
+import type { CodeGraph, EdgeKind, GraphDelta, Position, SourceLocation } from './graph';
 
 /** Largest depth the webview may request. The store itself is only bounded by the graph. */
 export const PROTOCOL_MAX_DEPTH = 32;
@@ -124,6 +125,42 @@ export interface DismissSequenceMessage {
   readonly type: 'dismissSequence';
 }
 
+/** Collapsed nodes, viewport, and toggles for the open diagram. */
+export interface ViewStateMessage {
+  readonly type: 'viewState';
+  readonly collapsedNodeIds: readonly string[];
+  readonly viewport?: DiagramViewport;
+  readonly showUncertain: boolean;
+  readonly showInferred: boolean;
+  readonly hiddenEdgeKinds: readonly EdgeKind[];
+}
+
+/** Asks the host to name and store the open diagram. */
+export interface SaveFlowMessage {
+  readonly type: 'saveFlow';
+  readonly collapsedNodeIds: readonly string[];
+  readonly viewport?: DiagramViewport;
+  readonly showUncertain: boolean;
+  readonly showInferred: boolean;
+  readonly hiddenEdgeKinds: readonly EdgeKind[];
+}
+
+export interface ExportDiagramMessage {
+  readonly type: 'exportDiagram';
+  readonly format: 'png' | 'svg' | 'mermaid';
+  readonly background?: 'theme' | 'light';
+}
+
+export interface CopyMermaidMessage {
+  readonly type: 'copyMermaid';
+}
+
+export interface DiagramViewport {
+  readonly x: number;
+  readonly y: number;
+  readonly zoom: number;
+}
+
 export type DiagramWebviewToExtensionMessage =
   | ReadyMessage
   | RequestGraphMessage
@@ -133,7 +170,11 @@ export type DiagramWebviewToExtensionMessage =
   | RequestControlFlowMessage
   | DismissControlFlowMessage
   | RequestSequenceMessage
-  | DismissSequenceMessage;
+  | DismissSequenceMessage
+  | ViewStateMessage
+  | SaveFlowMessage
+  | ExportDiagramMessage
+  | CopyMermaidMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -195,6 +236,23 @@ export interface ControlFlowMessage {
  * One traced path as a sequence. `diagram` and `error` are alternatives.
  * `version` is {@link SEQUENCE_VERSION}.
  */
+/** Shown when a saved flow's root no longer resolves, or cleared when it does. */
+export interface SavedFlowBannerMessage {
+  readonly type: 'savedFlowBanner';
+  readonly stale: boolean;
+  readonly message?: string;
+}
+
+/** Restores collapsed nodes, an optional viewport, and the uncertain toggle. */
+export interface PresentationMessage {
+  readonly type: 'presentation';
+  readonly collapsedNodeIds: readonly string[];
+  readonly viewport?: DiagramViewport;
+  readonly showUncertain?: boolean;
+  readonly showInferred?: boolean;
+  readonly hiddenEdgeKinds?: readonly EdgeKind[];
+}
+
 export interface SequenceDiagramMessage {
   readonly type: 'sequence';
   readonly version: typeof SEQUENCE_VERSION;
@@ -223,7 +281,9 @@ export type ExtensionToDiagramWebviewMessage =
   | ErrorMessage
   | ControlFlowMessage
   | ControlFlowCursorMessage
-  | SequenceDiagramMessage;
+  | SequenceDiagramMessage
+  | SavedFlowBannerMessage
+  | PresentationMessage;
 
 export function isDiagramWebviewToExtensionMessage(
   value: unknown,
@@ -260,6 +320,14 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return parseRequestSequence(value);
     case 'dismissSequence':
       return { type: 'dismissSequence' };
+    case 'viewState':
+      return parseViewState(value, 'viewState');
+    case 'saveFlow':
+      return parseViewState(value, 'saveFlow');
+    case 'exportDiagram':
+      return parseExportDiagram(value);
+    case 'copyMermaid':
+      return { type: 'copyMermaid' };
     default:
       return undefined;
   }
@@ -290,6 +358,10 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parseControlFlowCursor(value);
     case 'sequence':
       return parseSequenceMessage(value);
+    case 'savedFlowBanner':
+      return parseSavedFlowBanner(value);
+    case 'presentation':
+      return parsePresentation(value);
     default:
       return undefined;
   }
@@ -669,6 +741,160 @@ function isDiagramMaxNodes(value: unknown): value is number {
 
 function isDiagramErrorCode(value: unknown): value is DiagramErrorCode {
   return typeof value === 'string' && (DIAGRAM_ERROR_CODES as readonly string[]).includes(value);
+}
+
+function parseViewState(
+  value: Record<string, unknown>,
+  type: 'viewState' | 'saveFlow',
+): ViewStateMessage | SaveFlowMessage | undefined {
+  const collapsed = parseCollapsedIds(value.collapsedNodeIds);
+  if (
+    !collapsed ||
+    typeof value.showUncertain !== 'boolean' ||
+    typeof value.showInferred !== 'boolean'
+  ) {
+    return undefined;
+  }
+  const hidden = parseHiddenEdgeKinds(value.hiddenEdgeKinds);
+  if (!hidden) {
+    return undefined;
+  }
+  const viewport = value.viewport === undefined ? undefined : parseDiagramViewport(value.viewport);
+  if (value.viewport !== undefined && !viewport) {
+    return undefined;
+  }
+  return {
+    type,
+    collapsedNodeIds: collapsed,
+    showUncertain: value.showUncertain,
+    showInferred: value.showInferred,
+    hiddenEdgeKinds: hidden,
+    ...(viewport ? { viewport } : {}),
+  };
+}
+
+function parseExportDiagram(value: Record<string, unknown>): ExportDiagramMessage | undefined {
+  if (value.format !== 'png' && value.format !== 'svg' && value.format !== 'mermaid') {
+    return undefined;
+  }
+  if (
+    value.background !== undefined &&
+    value.background !== 'theme' &&
+    value.background !== 'light'
+  ) {
+    return undefined;
+  }
+  return {
+    type: 'exportDiagram',
+    format: value.format,
+    ...(value.background === 'theme' || value.background === 'light'
+      ? { background: value.background }
+      : {}),
+  };
+}
+
+function parseSavedFlowBanner(value: Record<string, unknown>): SavedFlowBannerMessage | undefined {
+  if (typeof value.stale !== 'boolean') {
+    return undefined;
+  }
+  if (value.message !== undefined && typeof value.message !== 'string') {
+    return undefined;
+  }
+  const message = typeof value.message === 'string' ? value.message.trim() : undefined;
+  return {
+    type: 'savedFlowBanner',
+    stale: value.stale,
+    ...(message ? { message } : {}),
+  };
+}
+
+function parsePresentation(value: Record<string, unknown>): PresentationMessage | undefined {
+  const collapsed = parseCollapsedIds(value.collapsedNodeIds);
+  if (!collapsed) {
+    return undefined;
+  }
+  const viewport = value.viewport === undefined ? undefined : parseDiagramViewport(value.viewport);
+  if (value.viewport !== undefined && !viewport) {
+    return undefined;
+  }
+  if (value.showUncertain !== undefined && typeof value.showUncertain !== 'boolean') {
+    return undefined;
+  }
+  if (value.showInferred !== undefined && typeof value.showInferred !== 'boolean') {
+    return undefined;
+  }
+  const hidden =
+    value.hiddenEdgeKinds === undefined ? undefined : parseHiddenEdgeKinds(value.hiddenEdgeKinds);
+  if (value.hiddenEdgeKinds !== undefined && !hidden) {
+    return undefined;
+  }
+  return {
+    type: 'presentation',
+    collapsedNodeIds: collapsed,
+    ...(viewport ? { viewport } : {}),
+    ...(typeof value.showUncertain === 'boolean' ? { showUncertain: value.showUncertain } : {}),
+    ...(typeof value.showInferred === 'boolean' ? { showInferred: value.showInferred } : {}),
+    ...(hidden && hidden.length > 0 ? { hiddenEdgeKinds: hidden } : {}),
+  };
+}
+
+function parseCollapsedIds(value: unknown): string[] | undefined {
+  if (!Array.isArray(value) || value.length > 400) {
+    return undefined;
+  }
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item.length === 0 || item.length > 2_000) {
+      return undefined;
+    }
+    if (hasControlCharacter(item)) {
+      return undefined;
+    }
+    ids.push(item);
+  }
+  return ids;
+}
+
+function parseHiddenEdgeKinds(value: unknown): EdgeKind[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const kinds: EdgeKind[] = [];
+  for (const item of value) {
+    if (!isEdgeKind(item) || kinds.includes(item)) {
+      return undefined;
+    }
+    kinds.push(item);
+  }
+  return kinds;
+}
+
+function parseDiagramViewport(value: unknown): DiagramViewport | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (!isCoord(value.x) || !isCoord(value.y) || !isZoom(value.zoom)) {
+    return undefined;
+  }
+  return { x: value.x, y: value.y, zoom: value.zoom };
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1e || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isCoord(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1_000_000;
+}
+
+function isZoom(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 8;
 }
 
 function isControlFlowErrorCode(value: unknown): value is ControlFlowErrorCode {

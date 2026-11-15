@@ -48,6 +48,24 @@ export function SymbolNodeView({ data }: NodeProps<SymbolFlowNode>) {
           Flow
         </button>
       ) : null}
+      {data.canCollapse ? (
+        <button
+          type="button"
+          className="code-node-collapse nodrag nopan"
+          aria-pressed={data.collapsed === true}
+          aria-label={data.collapsed ? `Expand group ${data.title}` : `Collapse ${data.title}`}
+          title={data.collapsed ? 'Expand contents' : 'Collapse contents'}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onToggleCollapse?.(data.nodeId);
+          }}
+        >
+          {data.collapsed ? '▸' : '▾'}
+        </button>
+      ) : null}
       <button
         type="button"
         className="code-node-expand nodrag nopan"

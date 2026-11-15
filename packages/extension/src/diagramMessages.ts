@@ -7,9 +7,13 @@ import type {
   ExtensionToDiagramWebviewMessage,
   GraphStore,
   NodeId,
+  CopyMermaidMessage,
+  ExportDiagramMessage,
   RequestControlFlowMessage,
   RequestSequenceMessage,
+  SaveFlowMessage,
   SourceLocation,
+  ViewStateMessage,
 } from '@codeflow/shared';
 import { SYMBOL_FLOW_DEPTH } from './constants';
 
@@ -33,6 +37,10 @@ export interface DiagramHost {
   dismissControlFlow?(): void;
   requestSequence?(message: RequestSequenceMessage): void;
   dismissSequence?(): void;
+  viewState?(message: ViewStateMessage): void;
+  saveFlow?(message: SaveFlowMessage): void;
+  exportDiagram?(message: ExportDiagramMessage): void;
+  copyMermaid?(message: CopyMermaidMessage): void;
 }
 
 const SHOW_INFERRED_EDGES = true;
@@ -130,6 +138,18 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
       return;
     case 'dismissSequence':
       host.dismissSequence?.();
+      return;
+    case 'viewState':
+      host.viewState?.(message);
+      return;
+    case 'saveFlow':
+      host.saveFlow?.(message);
+      return;
+    case 'exportDiagram':
+      host.exportDiagram?.(message);
+      return;
+    case 'copyMermaid':
+      host.copyMermaid?.(message);
       return;
     default: {
       const unreachable: never = message;
