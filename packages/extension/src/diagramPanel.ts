@@ -103,6 +103,29 @@ export class DiagramPanel {
     DiagramPanel.current?.onMessage(message);
   }
 
+  /** True while a diagram panel is open. */
+  public static isOpen(): boolean {
+    return DiagramPanel.current !== undefined && !DiagramPanel.current.disposed;
+  }
+
+  /** Posts to the open diagram. Returns false when the panel is closed. */
+  public static publish(message: ExtensionToDiagramWebviewMessage): boolean {
+    if (!DiagramPanel.isOpen() || !DiagramPanel.current) {
+      return false;
+    }
+    DiagramPanel.current.post(message);
+    return true;
+  }
+
+  /** Clear and replay hooks for the runtime trace. `activate` replaces these. */
+  public static runtimeTrace: {
+    clear(): void;
+    republish(): void;
+  } = {
+    clear: () => undefined,
+    republish: () => undefined,
+  };
+
   /** Save, export, and view-state hooks. `activate` replaces these. */
   public static actions: {
     viewState(message: ViewStateMessage): void;
@@ -500,6 +523,7 @@ export class DiagramPanel {
     }
     if (ready) {
       this.flushSavedChrome();
+      DiagramPanel.runtimeTrace.republish();
     }
   }
 
@@ -720,6 +744,9 @@ export class DiagramPanel {
       },
       copyMermaid: () => {
         DiagramPanel.actions.copyMermaid();
+      },
+      clearRuntimeTrace: () => {
+        DiagramPanel.runtimeTrace.clear();
       },
     };
   }

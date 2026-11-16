@@ -109,4 +109,25 @@ describe('control flow mapping', () => {
     });
     expect(hidden.edges.some((edge) => edge.target === 'n2')).toBe(false);
   });
+
+  it('numbers a block and prefixes the edge that was taken', () => {
+    const positions = new Map(
+      ['entry', 'n0', 'n1', 'n2', 'exit'].map((id, index) => [id, { x: 0, y: index * 80 }]),
+    );
+    const flow = controlFlowToFlow({
+      graph: graph(),
+      positions,
+      reducedMotion: true,
+      onReveal: () => undefined,
+      onOpenNested: () => undefined,
+      runtimeBlockOrders: new Map([
+        ['n0', 1],
+        ['n1', 2],
+      ]),
+      runtimeEdgeOrders: new Map([['e1', [2]]]),
+    });
+    expect(flow.nodes.find((node) => node.id === 'n0')?.data.runtimeOrder).toBe(1);
+    expect(flow.edges.find((edge) => edge.id === 'e1')?.label).toBe('2 · true');
+    expect(flow.edges.find((edge) => edge.id === 'e1')?.data?.runtimeOrder).toBe('2');
+  });
 });

@@ -1,5 +1,6 @@
 import { MarkerType, Position } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
+import { formatTraceOrders } from '@codeflow/shared';
 import type {
   CodeNode,
   EdgeKind,
@@ -25,6 +26,7 @@ export interface SymbolNodeData {
   readonly language: CodeNode['language'];
   readonly focused: boolean;
   readonly location: SourceLocation;
+  readonly runtimeOrder?: number;
   readonly onReveal: (location: SourceLocation) => void;
   readonly onExpand: (nodeId: NodeId) => void;
   readonly canCollapse?: boolean;
@@ -41,6 +43,7 @@ export interface RelationEdgeData {
   readonly tooltip?: string;
   readonly incident: boolean;
   readonly dimmed: boolean;
+  readonly runtimeOrder?: string;
   [key: string]: unknown;
 }
 
@@ -60,6 +63,8 @@ export function toFlow(input: {
   readonly collapsibleIds?: ReadonlySet<NodeId>;
   readonly collapsedIds?: ReadonlySet<string>;
   readonly onToggleCollapse?: (nodeId: NodeId) => void;
+  readonly runtimeNodeOrders?: ReadonlyMap<string, number>;
+  readonly runtimeEdgeOrders?: ReadonlyMap<string, readonly number[]>;
 }): { readonly nodes: SymbolFlowNode[]; readonly edges: RelationFlowEdge[] } {
   const nodes: SymbolFlowNode[] = [];
   for (const node of input.nodes) {
@@ -70,6 +75,7 @@ export function toFlow(input: {
     const text = nodeText(node, input.fileNames.get(node.id));
     const box = nodeBox(text.title, text.detail);
     const focused = input.focusId === node.id;
+    const runtimeOrder = input.runtimeNodeOrders?.get(node.id);
     nodes.push({
       id: node.id,
       type: 'symbol',
@@ -89,6 +95,7 @@ export function toFlow(input: {
         language: node.language,
         focused,
         location: node.location,
+        ...(runtimeOrder ? { runtimeOrder } : {}),
         onReveal: input.onReveal,
         onExpand: input.onExpand,
         canCollapse: input.collapsibleIds?.has(node.id) === true,
@@ -114,6 +121,9 @@ export function toFlow(input: {
       ...(edge.reason ? { reason: edge.reason } : {}),
       ...(edge.detail ? { detail: edge.detail } : {}),
     });
+    const runtimeOrders = input.runtimeEdgeOrders?.get(edge.id);
+    const runtimeLabel =
+      runtimeOrders && runtimeOrders.length > 0 ? formatTraceOrders(runtimeOrders) : undefined;
     const incident =
       input.hoveredId !== undefined &&
       (edge.from === input.hoveredId || edge.to === input.hoveredId);
@@ -133,10 +143,24 @@ export function toFlow(input: {
         dimmed,
         ...(edge.reason ? { reason: edge.reason } : {}),
         ...(appearance.tooltip ? { tooltip: appearance.tooltip } : {}),
+        ...(runtimeLabel ? { runtimeOrder: runtimeLabel } : {}),
       },
+      ...(runtimeLabel
+        ? {
+            label: runtimeLabel,
+            labelStyle: {
+              fill: 'var(--vscode-charts-green, #89d185)',
+              fontSize: 11,
+              fontWeight: 700,
+            },
+            labelBgStyle: { fill: 'var(--vscode-editor-background, #1e1e1e)', fillOpacity: 0.92 },
+            labelBgPadding: [4, 2] as [number, number],
+            labelBgBorderRadius: 2,
+          }
+        : {}),
       style: {
-        stroke: appearance.color,
-        strokeWidth: incident ? 2.5 : 1.5,
+        stroke: runtimeLabel ? 'var(--vscode-charts-green, #89d185)' : appearance.color,
+        strokeWidth: incident || runtimeLabel ? 2.5 : 1.5,
         opacity: dimmed ? 0.15 : appearance.opacity,
         ...(appearance.dashed ? { strokeDasharray: '6 4' } : {}),
       },

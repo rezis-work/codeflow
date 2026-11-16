@@ -170,8 +170,12 @@ describe('extension manifest', () => {
     expect(codeLens).toMatchObject({ type: 'boolean', default: true });
     const cache = settingsOf(manifest)?.['codeflow.cache.enabled'];
     expect(cache).toMatchObject({ type: 'boolean', default: true });
-    expect(manifest.contributes?.commands?.map((command) => command.command)).toContain(
-      'codeflow.clearCache',
+    expect(manifest.contributes?.commands?.map((command) => command.command)).toEqual(
+      expect.arrayContaining([
+        'codeflow.clearCache',
+        'codeflow.toggleRuntimeTrace',
+        'codeflow.clearRuntimeTrace',
+      ]),
     );
   });
 

@@ -76,6 +76,14 @@ export {
   parseSequenceDiagram,
 } from './sequence';
 export {
+  RUNTIME_TRACE_STEP_LIMIT,
+  buildRuntimeTrace,
+  fileKey,
+  formatTraceOrders,
+  parseRuntimeTraceData,
+  traceControlFlow,
+} from './runtimeTrace';
+export {
   DIAGRAM_ERROR_CODES,
   DIAGRAM_MAX_NODES_LIMIT,
   DIAGRAM_THEMES,
@@ -184,6 +192,16 @@ export type {
   ExportSubject,
 } from './exportDiagram';
 export type {
+  ControlFlowTrace,
+  RuntimeTraceCall,
+  RuntimeTraceData,
+  RuntimeTraceEdgeMark,
+  RuntimeTraceFrame,
+  RuntimeTraceNodeMark,
+  RuntimeTraceStep,
+  RuntimeTraceSymbol,
+} from './runtimeTrace';
+export type {
   AckMessage,
   ConfigMessage,
   ControlFlowCursorMessage,
@@ -193,6 +211,7 @@ export type {
   DiagramTheme,
   DiagramViewMode,
   DiagramWebviewToExtensionMessage,
+  ClearRuntimeTraceMessage,
   CopyMermaidMessage,
   DiagramViewport,
   DismissControlFlowMessage,
@@ -210,6 +229,7 @@ export type {
   RequestGraphMessage,
   RequestSequenceMessage,
   RevealLocationMessage,
+  RuntimeTraceMessage,
   SaveFlowMessage,
   SavedFlowBannerMessage,
   SequenceDiagramMessage,

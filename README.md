@@ -34,6 +34,10 @@ Open a supported file and run **CodeFlow: Show Flow for Symbol at Cursor** (righ
 
 **CodeFlow: Show Control Flow for Function at Cursor** draws a top-to-bottom flowchart of the function at the cursor, for TypeScript, JavaScript, and Rust. Decisions, switches, loops, `try` / `catch` / `finally`, early returns, `await`, and `yield` are blocks. Rust also covers `match`, `loop`, `?`, and `unwrap` / `expect` (the panic edge is uncertain). A function or method node in the call graph has a Flow button that opens the same view. Click a block to select its source.
 
+### Runtime trace
+
+**CodeFlow: Start/Stop Runtime Trace** records the path a debug session actually takes. It watches the Node debugger (`node`, `pwa-node`, `node2`, `node-terminal`) and CodeLLDB (`lldb`, `codelldb`). Each stop appends the first TypeScript, JavaScript, or Rust frame that is not inside `node_modules`. The call graph numbers those symbols in the order they were reached, and numbers a call edge when execution went from its caller to its callee. The open flowchart does the same for blocks and the edge between consecutive blocks. The badge is the first visit. An edge label lists each later visit. **CodeFlow: Clear Runtime Trace** removes the numbers and stops recording. Stops are ignored until you start a trace. Nothing is sent off the machine, and a diagram with no trace looks the same as before.
+
 ![Control flow of branch, with caller and callee counts in the editor](https://raw.githubusercontent.com/rezis-work/codeflow/main/docs/images/control-flow-branch.png)
 
 ### Trait map
@@ -130,6 +134,8 @@ rust-analyzer is optional. When it is already running, CodeFlow uses it to mark 
 | CodeFlow: Copy Mermaid                             | Copy that Mermaid source                                                   |
 | CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                          |
 | CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                 |
+| CodeFlow: Start/Stop Runtime Trace                 | Record debugger stops onto the open call graph and flowchart, or pause     |
+| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                |
 
 Show Flow does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts. On a Linux text console, Ctrl+Alt+Fn switches virtual terminals. Ctrl+Alt+F does not do that in a graphical session.
 

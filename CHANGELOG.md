@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Runtime trace
+
+- **CodeFlow: Start/Stop Runtime Trace** records debugger stops from the Node debugger (`node`, `pwa-node`, `node2`, `node-terminal`) and CodeLLDB (`lldb`, `codelldb`). Each stop appends the first TypeScript, JavaScript, or Rust frame outside `node_modules`. The call graph numbers those symbols in order, and numbers a call edge when the path goes from its caller to its callee. An open flowchart numbers the blocks and the edge between consecutive blocks the same way. The badge is the first visit. An edge lists later visits.
+- **CodeFlow: Clear Runtime Trace** removes that overlay and stops recording. Stops are ignored until a trace is started. The trace stays on this machine. Command ids, settings, and existing diagrams are otherwise unchanged.
+
 ## 1.0.2
 
 - The Marketplace display name is **Rezis CodeFlow**. Version 1.0.1 was rejected because the display name `CodeFlow` is already taken. The extension id stays `rezis-work.rezis-codeflow` (`name` `rezis-codeflow`, publisher `rezis-work`).

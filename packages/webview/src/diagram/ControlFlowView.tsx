@@ -1,5 +1,11 @@
-import { CONTROL_FLOW_BLOCK_LIMIT, controlFlowBlockAt } from '@codeflow/shared';
-import type { ControlFlowGraph, DiagramTheme, Position, SourceRange } from '@codeflow/shared';
+import { CONTROL_FLOW_BLOCK_LIMIT, controlFlowBlockAt, traceControlFlow } from '@codeflow/shared';
+import type {
+  ControlFlowGraph,
+  DiagramTheme,
+  Position,
+  RuntimeTraceStep,
+  SourceRange,
+} from '@codeflow/shared';
 import { Background, Controls, ReactFlow, getSmoothStepPath } from '@xyflow/react';
 import type { EdgeProps, NodeProps } from '@xyflow/react';
 import { Handle, Position as HandlePosition } from '@xyflow/react';
@@ -19,6 +25,7 @@ export function ControlFlowView(props: {
   readonly showUncertain: boolean;
   readonly onToggleUncertain?: () => void;
   readonly cursor?: Position;
+  readonly traceSteps?: readonly RuntimeTraceStep[];
   readonly onReveal: (range: SourceRange) => void;
   readonly onOpenNested: (range: SourceRange) => void;
   readonly onBack: () => void;
@@ -30,6 +37,7 @@ export function ControlFlowView(props: {
     showUncertain,
     onToggleUncertain,
     cursor,
+    traceSteps,
     onReveal,
     onOpenNested,
     onBack,
@@ -40,6 +48,21 @@ export function ControlFlowView(props: {
   const [positions, setPositions] = useState<ReadonlyMap<string, LayoutPoint>>();
   const [layoutError, setLayoutError] = useState<string>();
   const activeId = cursor && graph.uri ? controlFlowBlockAt(graph, cursor) : undefined;
+  const traced = useMemo(() => traceControlFlow(graph, traceSteps ?? []), [graph, traceSteps]);
+  const runtimeBlockOrders = useMemo(() => {
+    const orders = new Map<string, number>();
+    for (const block of traced.blocks) {
+      orders.set(block.blockId, block.order);
+    }
+    return orders;
+  }, [traced.blocks]);
+  const runtimeEdgeOrders = useMemo(() => {
+    const orders = new Map<string, readonly number[]>();
+    for (const edge of traced.edges) {
+      orders.set(edge.edgeId, edge.orders);
+    }
+    return orders;
+  }, [traced.edges]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,8 +103,20 @@ export function ControlFlowView(props: {
       },
       onOpenNested,
       ...(activeId ? { activeId } : {}),
+      ...(runtimeBlockOrders.size > 0 ? { runtimeBlockOrders } : {}),
+      ...(runtimeEdgeOrders.size > 0 ? { runtimeEdgeOrders } : {}),
     });
-  }, [graph, positions, activeId, reducedMotion, showUncertain, onReveal, onOpenNested]);
+  }, [
+    graph,
+    positions,
+    activeId,
+    reducedMotion,
+    showUncertain,
+    onReveal,
+    onOpenNested,
+    runtimeBlockOrders,
+    runtimeEdgeOrders,
+  ]);
 
   const limit = graph.blockLimit ?? CONTROL_FLOW_BLOCK_LIMIT;
   const title =
@@ -146,6 +181,7 @@ function FlowEdge(props: EdgeProps<ControlFlowEdgeView>) {
       style={props.style}
       markerEnd={props.markerEnd}
       data-uncertain={props.data?.uncertain ? 'true' : 'false'}
+      data-runtime-order={props.data?.runtimeOrder}
     >
       {tooltip ? <title>{tooltip}</title> : null}
     </path>
@@ -160,6 +196,7 @@ function ControlBlock({ data }: NodeProps<ControlBlockNode>) {
       data-unreachable={data.unreachable ? 'true' : 'false'}
       data-uncertain={data.uncertain ? 'true' : 'false'}
       data-active={data.active ? 'true' : 'false'}
+      data-runtime-order={data.runtimeOrder ?? undefined}
       data-testid="flow-block"
     >
       <Handle type="target" position={HandlePosition.Top} id="in" />
@@ -167,6 +204,11 @@ function ControlBlock({ data }: NodeProps<ControlBlockNode>) {
       <button type="button" className="flow-block-open" onClick={() => data.onReveal()}>
         <span className="flow-kicker">
           {data.uncertain ? `${data.kind} · uncertain` : data.kind}
+          {data.runtimeOrder ? (
+            <span className="runtime-order" data-testid="runtime-order">
+              {data.runtimeOrder}
+            </span>
+          ) : null}
         </span>
         <span className="flow-label">{data.label}</span>
       </button>

@@ -9,6 +9,7 @@ import type {
   EdgeKind,
   NodeId,
   Position,
+  RuntimeTraceMessage,
   SequenceDiagramMessage,
   SequenceGranularity,
 } from '@codeflow/shared';
@@ -23,6 +24,7 @@ import { SequenceView } from './diagram/SequenceView';
 import {
   onExtensionMessage,
   postDismissControlFlow,
+  postClearRuntimeTrace,
   postCopyMermaid,
   postDismissSequence,
   postExpandNode,
@@ -53,6 +55,7 @@ export function App() {
   const [omittedNodes, setOmittedNodes] = useState(0);
   const [error, setError] = useState<string | undefined>(undefined);
   const [cursorHint, setCursorHint] = useState<string | undefined>(undefined);
+  const [runtimeTrace, setRuntimeTrace] = useState<RuntimeTraceMessage | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<ReadonlySet<EdgeKind>>(() => new Set());
   const [showMinimap, setShowMinimap] = useState(true);
@@ -144,6 +147,9 @@ export function App() {
         case 'savedFlowBanner':
           setStale(message.stale);
           setStaleMessage(message.message);
+          return;
+        case 'runtimeTrace':
+          setRuntimeTrace(message.recording || message.steps.length > 0 ? message : undefined);
           return;
         case 'presentation':
           setCollapsedNodeIds(message.collapsedNodeIds);
@@ -240,6 +246,20 @@ export function App() {
     postViewState(presentation);
   }, [presentation]);
 
+  const runtimeNodeOrders = useMemo(() => {
+    const orders = new Map<string, number>();
+    for (const mark of runtimeTrace?.nodes ?? []) {
+      orders.set(mark.nodeId, mark.order);
+    }
+    return orders;
+  }, [runtimeTrace]);
+  const runtimeEdgeOrders = useMemo(() => {
+    const orders = new Map<string, readonly number[]>();
+    for (const mark of runtimeTrace?.edges ?? []) {
+      orders.set(mark.edgeId, mark.orders);
+    }
+    return orders;
+  }, [runtimeTrace]);
   const focusNode = focusId ? graph?.nodes.find((node) => node.id === focusId) : undefined;
   const focusLabel = focusNode ? nodeText(focusNode).qualified : 'unknown symbol';
   const canSave =
@@ -365,6 +385,16 @@ export function App() {
         {error ? (
           <p className="graph-error" role="alert" data-testid="graph-error">
             {error}
+          </p>
+        ) : null}
+        {runtimeTrace ? (
+          <p className="runtime-trace" role="status" data-testid="runtime-trace">
+            Runtime trace {runtimeTrace.recording ? 'recording' : 'paused'} ·{' '}
+            {runtimeTrace.steps.length} {runtimeTrace.steps.length === 1 ? 'step' : 'steps'}
+            {runtimeTrace.truncated ? ' (stopped at the step limit)' : ''}
+            <button type="button" onClick={postClearRuntimeTrace}>
+              Clear
+            </button>
           </p>
         ) : null}
       </div>
@@ -504,6 +534,7 @@ export function App() {
               {...(flowCursor && flowCursor.uri === flow.graph.uri
                 ? { cursor: flowCursor.position }
                 : {})}
+              {...(runtimeTrace ? { traceSteps: runtimeTrace.steps } : {})}
             />
           ) : (
             <div className="empty" data-testid="flow-missing">
@@ -567,6 +598,8 @@ export function App() {
               onViewport={onViewport}
               {...(viewport ? { viewport } : {})}
               {...(focusId ? { focusId } : {})}
+              {...(runtimeNodeOrders.size > 0 ? { runtimeNodeOrders } : {})}
+              {...(runtimeEdgeOrders.size > 0 ? { runtimeEdgeOrders } : {})}
             />
           ) : connected && !graph ? (
             <div className="empty" data-testid="analyzing">

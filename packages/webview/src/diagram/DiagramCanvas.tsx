@@ -63,6 +63,8 @@ export interface DiagramCanvasProps {
     readonly y: number;
     readonly zoom: number;
   }) => void;
+  readonly runtimeNodeOrders?: ReadonlyMap<string, number>;
+  readonly runtimeEdgeOrders?: ReadonlyMap<string, readonly number[]>;
 }
 
 export function DiagramCanvas(props: DiagramCanvasProps) {
@@ -96,6 +98,8 @@ function DiagramSurface({
   viewportToken,
   holdViewport,
   onViewport,
+  runtimeNodeOrders,
+  runtimeEdgeOrders,
 }: DiagramCanvasProps) {
   const collapsed = useMemo(() => collapseRustModules(graph), [graph]);
   const userHidden = useMemo(
@@ -205,6 +209,8 @@ function DiagramSurface({
         onToggleCollapse,
         ...(focusTarget ? { focusId: focusTarget } : {}),
         ...(hovered ? { hoveredId: hovered } : {}),
+        ...(runtimeNodeOrders ? { runtimeNodeOrders } : {}),
+        ...(runtimeEdgeOrders ? { runtimeEdgeOrders } : {}),
       }),
     [
       filtered.nodes,
@@ -218,6 +224,8 @@ function DiagramSurface({
       collapsedNodeIds,
       focusTarget,
       hovered,
+      runtimeNodeOrders,
+      runtimeEdgeOrders,
     ],
   );
 

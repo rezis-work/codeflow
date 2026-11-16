@@ -8,7 +8,7 @@ The installed extension id is `rezis-work.rezis-codeflow`. Version 1.0.1 uses th
 
 [![CI](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml/badge.svg)](https://github.com/rezis-work/codeflow/actions/workflows/ci.yml)
 
-CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a sequence of calls between files, classes, or modules, a Rust trait and impl map, a request traced from its route to the data layer, and file or crate dependency maps. Later phases add runtime traces.
+CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows interactive diagrams of how that code flows: call graphs, a flowchart for one function, a sequence of calls between files, classes, or modules, a Rust trait and impl map, a request traced from its route to the data layer, file or crate dependency maps, and an opt-in runtime trace of a debug session.
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
@@ -64,6 +64,8 @@ These appear in the Command Palette. The four call and import commands also appe
 | CodeFlow: Copy Mermaid                             | Copy that Mermaid source to the clipboard                                                 |
 | CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                                         |
 | CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                                |
+| CodeFlow: Start/Stop Runtime Trace                 | Record Node or CodeLLDB stops onto the call graph and the open flowchart, or pause        |
+| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                               |
 
 **Ctrl+Alt+F** (**Cmd+Alt+F** on macOS) runs Show Flow while a supported editor has focus. It does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts (Ctrl/Cmd+L, Ctrl/Cmd+K, Ctrl/Cmd+I). On a Linux TTY, Ctrl+Alt+Fn switches virtual terminals; Ctrl+Alt+F does not.
 
@@ -215,8 +217,8 @@ Analyzers should put each edge in the file where the relationship is written. Em
 
 The webview protocol is a discriminated union checked by hand, so the bundle does not take on a schema library:
 
-- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`, `requestSequence`, `dismissSequence`, `viewState`, `saveFlow`, `exportDiagram`, `copyMermaid`.
-- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`, `sequence`, `savedFlowBanner`, `presentation`.
+- Webview to extension: `ready`, `requestGraph`, `revealLocation`, `expandNode`, `setViewMode`, `requestControlFlow`, `dismissControlFlow`, `requestSequence`, `dismissSequence`, `viewState`, `saveFlow`, `exportDiagram`, `copyMermaid`, `clearRuntimeTrace`.
+- Extension to webview: `ack`, `graphSnapshot`, `graphDelta`, `focusNode`, `config`, `cursorHint`, `error`, `controlFlow`, `controlFlowCursor`, `sequence`, `savedFlowBanner`, `presentation`, `runtimeTrace`.
 
 `requestControlFlow` asks for one function, by a call-graph node id or by a file URI and a cursor position. `controlFlow` answers with a versioned graph (`version: 1`) or an error. `dismissControlFlow` leaves the flowchart. `controlFlowCursor` is the caret, so the open flowchart can highlight the block that contains it. `requestSequence` asks for the open request or the open function as a sequence, optionally at `file`, `type`, or `module` granularity. `sequence` answers with a versioned diagram (`version: 1`) or an error (`not-found`, `not-a-function`, or `internal`). `dismissSequence` leaves the sequence. Older messages are unchanged.
 
@@ -245,6 +247,14 @@ A request-flow diagram has a Sequence button. It opens the same trace as a seque
 **Export** in the same header saves PNG, SVG, or Mermaid, or copies the Mermaid source. PNG uses `codeflow.export.pngScale`. The menu's white-background PNG, and `codeflow.export.background` set to `light`, paint a white page instead of the theme. SVG embeds its styles, falls back through `"Segoe UI", "Helvetica Neue", Arial, sans-serif`, and keeps uncertain edges dashed. Mermaid uses `flowchart` for a call graph, file dependencies, a trait map, and a request flow, with a subgraph per file and per module. Uncertain edges are `-.->`. A sequence is a `sequenceDiagram`. Control flow is a top-to-bottom `flowchart`, with diamonds for decisions and dashed exception edges. Identifiers and labels are escaped.
 
 A function or method node has a Flow button. It opens a top-to-bottom flowchart of that function (ELK layered, direction down). Decisions and switches are marked, loops are dashed, entry and exit are rounded, returns and throws use their own borders, and exception edges are dashed. Back edges leave the right side of a block. Clicking a block selects its source range. The breadcrumb returns to the call graph. Saving the file rebuilds the flowchart. If the function is gone, the panel says so. A function with more than 500 blocks shows the first 500 and a notice. The same command is **CodeFlow: Show Control Flow for Function at Cursor**. It works for TypeScript, JavaScript, and Rust.
+
+## Runtime trace
+
+**CodeFlow: Start/Stop Runtime Trace** is off until the command starts it. While it is recording, a `DebugAdapterTracker` on `node`, `node2`, `pwa-node`, `node-terminal`, `lldb`, and `codelldb` watches DAP `stopped` events. CodeFlow then asks that session for `stackTrace` (`startFrame: 0`, `levels: 20`) and keeps the first frame whose path ends in `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, or `.rs` and does not sit under `node_modules`. DAP lines and columns are 1-based and are stored 0-based. The same stop twice in a row is one step. The trace stops at 400 steps and says so.
+
+`runtimeTrace` carries `recording`, the steps, the first order of each mapped symbol, and the orders of each call edge whose ends are two consecutive symbols. Mapping uses the tightest workspace symbol whose range contains the stop, the same rule as cursor follow. A call edge is marked only when the graph already has that caller-to-callee edge. The webview draws a green order badge on those nodes and a green label on those edges. It does not lay the graph out again.
+
+On an open flowchart, the same steps are mapped with `controlFlowBlockAt`. A block's badge is its first visit. An edge label is prefixed with the orders of stops that arrived across it (`2 · true`). `clearRuntimeTrace`, from the command or the diagram's Clear button, drops the steps, stops recording, and posts an empty trace. A diagram that has never received `runtimeTrace` is unchanged. The trace is not saved, not exported, and not sent anywhere. Frames without a filesystem path, other debug adapters, and library frames are not recorded. A stop is a breakpoint or a step, not every instruction.
 
 ## Sequence
 

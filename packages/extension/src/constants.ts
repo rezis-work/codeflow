@@ -25,6 +25,8 @@ export const EXPORT_PNG_COMMAND = 'codeflow.exportPng';
 export const EXPORT_SVG_COMMAND = 'codeflow.exportSvg';
 export const EXPORT_MERMAID_COMMAND = 'codeflow.exportMermaid';
 export const COPY_MERMAID_COMMAND = 'codeflow.copyMermaid';
+export const TOGGLE_RUNTIME_TRACE_COMMAND = 'codeflow.toggleRuntimeTrace';
+export const CLEAR_RUNTIME_TRACE_COMMAND = 'codeflow.clearRuntimeTrace';
 /** Editor languages that have a CodeFlow context menu. */
 export const EDITOR_LANGUAGE_IDS = [
   'typescript',

@@ -12,6 +12,7 @@ export function SymbolNodeView({ data }: NodeProps<SymbolFlowNode>) {
       data-type-kind={data.typeKind}
       data-language={data.language}
       data-focused={data.focused ? 'true' : 'false'}
+      data-runtime-order={data.runtimeOrder ?? undefined}
       data-testid="symbol-node"
     >
       <Handle type="target" position={Position.Left} />
@@ -27,6 +28,15 @@ export function SymbolNodeView({ data }: NodeProps<SymbolFlowNode>) {
         <span className="code-node-kicker">
           <span className="code-badge">{data.kindLabel}</span>
           <span className="code-badge code-badge-lang">{data.languageBadge}</span>
+          {data.runtimeOrder ? (
+            <span
+              className="code-badge runtime-order"
+              data-testid="runtime-order"
+              title={`Executed at step ${data.runtimeOrder}`}
+            >
+              {data.runtimeOrder}
+            </span>
+          ) : null}
         </span>
         <span className="code-node-title">{data.title}</span>
         {data.detail ? <span className="code-node-detail">{data.detail}</span> : null}
