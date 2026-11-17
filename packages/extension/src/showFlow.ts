@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { upgradeFocusedRustSymbol } from './analyzers/rust/rustAnalyzer';
 import { findSymbolAt } from './analyzers/typescript/findSymbol';
@@ -9,6 +10,7 @@ import { readCallDepth } from './editorSettings';
 import { readMaxNodes } from './viewSettings';
 import { fileModuleNode, graphForFocus, nodesInFile } from './focusQuery';
 import type { FocusSpec } from './focusQuery';
+import type { PythonIndexer } from './pythonIndexer';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { isSymbolCommandTarget } from './codeLensModel';
@@ -21,6 +23,7 @@ export async function showTraitMapAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file' || !isRustDocument(editor.document)) {
@@ -29,7 +32,7 @@ export async function showTraitMapAtCursor(
     DiagramPanel.showMessage(RUST_TRAIT_MAP);
     return;
   }
-  const prepared = await prepareEditor(typescript, rust, true);
+  const prepared = await prepareEditor(typescript, rust, python, true);
   if (!prepared) {
     return;
   }
@@ -57,9 +60,10 @@ export async function showFlowAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   target?: unknown,
 ): Promise<void> {
-  const editor = await prepareEditor(typescript, rust, true, target);
+  const editor = await prepareEditor(typescript, rust, python, true, target);
   if (!editor) {
     return;
   }
@@ -75,27 +79,30 @@ export async function showCallersAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   target?: unknown,
 ): Promise<void> {
-  await showCalls(context, typescript, rust, 'callers', target);
+  await showCalls(context, typescript, rust, python, 'callers', target);
 }
 
 export async function showCalleesAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   target?: unknown,
 ): Promise<void> {
-  await showCalls(context, typescript, rust, 'callees', target);
+  await showCalls(context, typescript, rust, python, 'callees', target);
 }
 
 export async function showFileDependencies(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   resource?: vscode.Uri,
 ): Promise<void> {
-  const target = await resolveFile(typescript, rust, resource);
+  const target = await resolveFile(typescript, rust, python, resource);
   if (!target) {
     return;
   }
@@ -111,13 +118,14 @@ export async function showDependencies(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   resource?: vscode.Uri,
   resources?: readonly vscode.Uri[],
 ): Promise<void> {
   const target = resource ?? resources?.[0] ?? vscode.window.activeTextEditor?.document.uri;
   if (!target || target.scheme !== 'file') {
     void vscode.window.showInformationMessage(
-      'Choose a TypeScript, JavaScript, or Rust file or folder.',
+      'Choose a TypeScript, JavaScript, Python, or Rust file or folder.',
     );
     return;
   }
@@ -131,6 +139,7 @@ export async function showDependencies(
   if ((stat.type & vscode.FileType.Directory) !== 0) {
     await typescript.whenReady();
     await rust.whenReady();
+    await python.whenReady();
     const folder = graphForFocus(getWorkspaceGraph(), {
       kind: 'folder',
       folderPath: target.fsPath,
@@ -142,17 +151,18 @@ export async function showDependencies(
     openSpec(context, { kind: 'folder', folderPath: target.fsPath });
     return;
   }
-  await showFileDependencies(context, typescript, rust, target);
+  await showFileDependencies(context, typescript, rust, python, target);
 }
 
 async function showCalls(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   direction: 'callers' | 'callees',
   target?: unknown,
 ): Promise<void> {
-  const editor = await prepareEditor(typescript, rust, false, target);
+  const editor = await prepareEditor(typescript, rust, python, false, target);
   if (!editor) {
     return;
   }
@@ -172,6 +182,7 @@ async function showCalls(
 async function prepareEditor(
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   upgradeRust: boolean,
   target?: unknown,
 ): Promise<vscode.TextEditor | undefined> {
@@ -194,14 +205,15 @@ async function prepareEditor(
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
     void vscode.window.showInformationMessage(
-      'Open a TypeScript, JavaScript, or Rust file to show its flow.',
+      'Open a TypeScript, JavaScript, Python, or Rust file to show its flow.',
     );
     return undefined;
   }
   const rustFile = isRustDocument(editor.document);
-  if (!rustFile && !isSupportedSourcePath(editor.document.uri.fsPath)) {
+  const pythonFile = isPythonDocument(editor.document);
+  if (!rustFile && !pythonFile && !isSupportedSourcePath(editor.document.uri.fsPath)) {
     void vscode.window.showInformationMessage(
-      'CodeFlow shows flow for TypeScript, JavaScript, and Rust files.',
+      'CodeFlow shows flow for TypeScript, JavaScript, Python, and Rust files.',
     );
     return undefined;
   }
@@ -212,11 +224,8 @@ async function prepareEditor(
         title: 'CodeFlow: Reading symbol',
       },
       async () => {
-        await (rustFile ? rust : typescript).focusDocument(
-          editor.document,
-          SYMBOL_FLOW_DEPTH,
-          true,
-        );
+        const indexer = rustFile ? rust : pythonFile ? python : typescript;
+        await indexer.focusDocument(editor.document, SYMBOL_FLOW_DEPTH, true);
         if (!rustFile || !upgradeRust) {
           return;
         }
@@ -239,23 +248,33 @@ async function prepareEditor(
 async function resolveFile(
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   resource: vscode.Uri | undefined,
 ): Promise<vscode.Uri | undefined> {
   const target = resource ?? vscode.window.activeTextEditor?.document.uri;
   if (!target || target.scheme !== 'file') {
     void vscode.window.showInformationMessage(
-      'Open a TypeScript, JavaScript, or Rust file to show its dependencies.',
+      'Open a TypeScript, JavaScript, Python, or Rust file to show its dependencies.',
     );
     return undefined;
   }
-  if (!isSupportedSourcePath(target.fsPath) && !isRustSourcePath(target.fsPath)) {
+  if (
+    !isSupportedSourcePath(target.fsPath) &&
+    !isRustSourcePath(target.fsPath) &&
+    !isPythonSourcePath(target.fsPath)
+  ) {
     void vscode.window.showInformationMessage(
-      'CodeFlow shows dependencies for TypeScript, JavaScript, and Rust files.',
+      'CodeFlow shows dependencies for TypeScript, JavaScript, Python, and Rust files.',
     );
     return undefined;
   }
   const document = await vscode.workspace.openTextDocument(target);
-  await (isRustDocument(document) ? rust : typescript).syncDocument(document);
+  const indexer = isRustDocument(document)
+    ? rust
+    : isPythonDocument(document)
+      ? python
+      : typescript;
+  await indexer.syncDocument(document);
   return target;
 }
 
@@ -276,4 +295,8 @@ function openSpec(context: vscode.ExtensionContext, spec: FocusSpec): void {
 
 function isRustDocument(document: vscode.TextDocument): boolean {
   return document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath);
+}
+
+function isPythonDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === 'python' || isPythonSourcePath(document.uri.fsPath);
 }

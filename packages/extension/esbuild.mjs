@@ -55,6 +55,21 @@ const workerOptions = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const pythonWorkerOptions = {
+  absWorkingDir: here,
+  entryPoints: ['src/analyzers/python/worker.ts'],
+  bundle: true,
+  outfile: 'dist/python-worker.js',
+  format: 'cjs',
+  platform: 'node',
+  target: 'node18',
+  sourcemap: true,
+  minify: false,
+  legalComments: 'eof',
+  logLevel: 'info',
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const rustWorkerOptions = {
   absWorkingDir: here,
   entryPoints: ['src/analyzers/rust/worker.ts'],
@@ -77,16 +92,20 @@ if (watch) {
   const extension = await esbuild.context(extensionOptions);
   const worker = await esbuild.context(workerOptions);
   const rustWorker = await esbuild.context(rustWorkerOptions);
-  await Promise.all([extension.watch(), worker.watch(), rustWorker.watch()]);
+  const pythonWorker = await esbuild.context(pythonWorkerOptions);
+  await Promise.all([extension.watch(), worker.watch(), rustWorker.watch(), pythonWorker.watch()]);
 } else {
   await esbuild.build(extensionOptions);
   await esbuild.build(workerOptions);
   await esbuild.build(rustWorkerOptions);
+  await esbuild.build(pythonWorkerOptions);
   assertCompilerStaysInWorker();
   assertTreeSitterStaysInWorker();
   assertRustWorkerSkipsTypeScript();
+  assertPythonWorkerSkipsTypeScript();
   await smokeTestWorker();
   await smokeTestRustWorker();
+  await smokeTestPythonWorker();
 }
 
 function workerModuleUrl() {
@@ -122,10 +141,12 @@ function copyTypescriptLibs() {
 function copyTreeSitterWasm() {
   const runtime = require.resolve('web-tree-sitter/tree-sitter.wasm');
   const grammar = require.resolve('tree-sitter-rust/tree-sitter-rust.wasm');
+  const python = require.resolve('tree-sitter-python/tree-sitter-python.wasm');
   const destination = path.join(here, 'dist');
   mkdirSync(destination, { recursive: true });
   cpSync(runtime, path.join(destination, 'tree-sitter.wasm'));
   cpSync(grammar, path.join(destination, 'tree-sitter-rust.wasm'));
+  cpSync(python, path.join(destination, 'tree-sitter-python.wasm'));
 }
 
 function assertCompilerStaysInWorker() {
@@ -139,6 +160,13 @@ function assertRustWorkerSkipsTypeScript() {
   const rust = readFileSync(path.join(here, 'dist', 'rust-worker.js'), 'utf8');
   if (rust.includes('createProgram') || rust.includes('getDefaultLibFileName')) {
     throw new Error('dist/rust-worker.js bundled the TypeScript compiler.');
+  }
+}
+
+function assertPythonWorkerSkipsTypeScript() {
+  const python = readFileSync(path.join(here, 'dist', 'python-worker.js'), 'utf8');
+  if (python.includes('createProgram') || python.includes('getDefaultLibFileName')) {
+    throw new Error('dist/python-worker.js bundled the TypeScript compiler.');
   }
 }
 
@@ -248,6 +276,60 @@ async function smokeTestRustWorker() {
         }
         if (message?.type === 'done') {
           finish(reject, new Error('Rust worker smoke test did not find smoke::answer.'));
+        }
+      });
+      worker.postMessage({
+        type: 'index',
+        id: 1,
+        roots: [{ rootDir: directory, excludeGlobs: [], maxFiles: 10 }],
+      });
+    });
+  } finally {
+    try {
+      worker.postMessage({ type: 'shutdown' });
+    } catch {
+      // The worker may already have stopped.
+    }
+    await worker.terminate();
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+async function smokeTestPythonWorker() {
+  const directory = mkdtempSync(path.join(tmpdir(), 'codeflow-python-worker-'));
+  const worker = new Worker(path.join(here, 'dist', 'python-worker.js'));
+  try {
+    writeFileSync(path.join(directory, 'answer.py'), 'def answer():\n    return 1\n');
+    await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (settle, value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        settle(value);
+      };
+      const timer = setTimeout(() => {
+        finish(reject, new Error('Python analyzer worker smoke test timed out.'));
+      }, 30_000);
+      worker.on('error', (error) => {
+        finish(reject, error);
+      });
+      worker.on('message', (message) => {
+        if (message?.type === 'fragments') {
+          const found = message.fragments?.some((fragment) =>
+            fragment.nodes?.some((node) => node.qualifiedName === 'answer'),
+          );
+          if (found) {
+            finish(resolve, undefined);
+          }
+        }
+        if (message?.type === 'failed') {
+          finish(reject, new Error(message.message ?? 'Python analyzer worker failed.'));
+        }
+        if (message?.type === 'done') {
+          finish(reject, new Error('Python worker smoke test did not find answer.'));
         }
       });
       worker.postMessage({

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Python adapter
+
+- Python is a third language on the same graph. The worker uses tree-sitter-python (WASM). A Python runtime is not required and is not invoked. `.py` files are analyzed. `.pyi` stubs are not.
+- Functions, methods, classes, nested functions, and lambdas are nodes. A nested function or lambda stays collapsed on the flowchart, the same way a closure does. Decorators are a note on the function (`@cached`); the decorator is not expanded.
+- Imports become file edges: absolute, relative (`from .` and `from ..`), `from` imports, and aliases. A star import links the file and does not bind names.
+- A call is certain when the name, an imported alias, `self` / `cls`, or a module attribute names one workspace function. `obj.method()` on an unknown receiver fans out to methods of that name and is uncertain (`dynamic dispatch`). `getattr(obj, "literal")` fans out to methods and functions of that name (`dynamic property`). A non-literal `getattr` has no edge. There is no method-resolution order beyond a short walk of base names.
+- Control flow covers `if` / `elif` / `else`, `match` / `case`, `for` and `while` with `else`, `break` / `continue`, `try` / `except` / `else` / `finally`, `with`, `async with`, `async for`, `return`, `raise`, `yield`, `await`, and `assert` (the failing edge raises `AssertionError`). Code after `return`, `raise`, `break`, or `continue` stays in the graph and is marked unreachable.
+- **CodeFlow: Show Request Flow** does not detect FastAPI, Flask, or Django routes. On a Python file it says so. Call graphs, callers, callees, import diagrams, flowcharts, sequence, and CodeLens still work.
+- Runtime trace also watches debugpy (`debugpy` and `python`). A `.py` frame is kept when it is outside `site-packages`, `dist-packages`, `venv`, `.venv`, and `__pycache__`.
+- The extension activates on `onLanguage:python` and contributes the `python` language id for `.py` files, without a grammar, so it merges with the Python extension when that is installed.
+
 ### AI flow summaries
 
 - **Explain** on the diagram, and **CodeFlow: Explain Flow**, write a plain-language summary of the open diagram: a call graph, a control-flow flowchart, a sequence, a request flow, and a trait map or file-dependency diagram when that is what is open. This stays off until `codeflow.ai.enabled` is on. While it is off, nothing is sent.

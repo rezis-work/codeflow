@@ -1,7 +1,7 @@
 /**
  * Turns an editor position or a call-graph symbol into a control-flow message.
- * The TypeScript or Rust worker builds the graph. This module does not import
- * the compiler or the Rust parser.
+ * The TypeScript, Rust, or Python worker builds the graph. This module does
+ * not import the compiler or a parser.
  */
 
 import { CONTROL_FLOW_VERSION, parseControlFlowGraph, parseNodeId } from '@codeflow/shared';
@@ -12,8 +12,10 @@ import type {
   SourceRange,
 } from '@codeflow/shared';
 import * as vscode from 'vscode';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { languageForPath } from './analyzers/typescript/extensions';
+import type { PythonIndexer } from './pythonIndexer';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { getWorkspaceGraph } from './workspaceGraph';
@@ -21,17 +23,19 @@ import { getWorkspaceGraph } from './workspaceGraph';
 export const CONTROL_FLOW_MISSING = 'Place the cursor inside a function to show its control flow.';
 export const CONTROL_FLOW_GONE = 'This function is no longer in the file.';
 export const CONTROL_FLOW_NOT_A_FUNCTION = 'Control flow is drawn for a function or a method.';
-const CONTROL_FLOW_OPEN = 'Open a TypeScript, JavaScript, or Rust file first.';
-const CONTROL_FLOW_LANGUAGE = 'Control flow is available for TypeScript, JavaScript, and Rust.';
+const CONTROL_FLOW_OPEN = 'Open a TypeScript, JavaScript, Python, or Rust file first.';
+const CONTROL_FLOW_LANGUAGE =
+  'Control flow is available for TypeScript, JavaScript, Python, and Rust.';
 
 export interface FlowEngines {
   readonly typescript: TypeScriptIndexer;
   readonly rust: RustIndexer;
+  readonly python: PythonIndexer;
 }
 
 export interface FlowSession {
   readonly uri: string;
-  readonly language: 'ts' | 'js' | 'rust';
+  readonly language: 'ts' | 'js' | 'rust' | 'python';
   readonly functionId: string;
   readonly qualifiedName: string;
   readonly range: SourceRange;
@@ -184,9 +188,12 @@ function flowError(
   };
 }
 
-function flowLanguage(document: vscode.TextDocument): 'ts' | 'js' | 'rust' | undefined {
+function flowLanguage(document: vscode.TextDocument): 'ts' | 'js' | 'rust' | 'python' | undefined {
   if (document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath)) {
     return 'rust';
+  }
+  if (document.languageId === 'python' || isPythonSourcePath(document.uri.fsPath)) {
+    return 'python';
   }
   const language = languageForPath(document.uri.fsPath);
   if (language === 'ts' || language === 'js') {
@@ -198,7 +205,7 @@ function flowLanguage(document: vscode.TextDocument): 'ts' | 'js' | 'rust' | und
 async function requestFlow(
   engines: FlowEngines,
   document: vscode.TextDocument,
-  language: 'ts' | 'js' | 'rust',
+  language: 'ts' | 'js' | 'rust' | 'python',
   input: {
     readonly position?: { readonly line: number; readonly character: number };
     readonly range?: SourceRange;
@@ -218,12 +225,21 @@ async function requestFlow(
   if (language === 'rust') {
     return engines.rust.controlFlow({ ...query, language: 'rust' });
   }
+  if (language === 'python') {
+    return engines.python.controlFlow({ ...query, language: 'python' });
+  }
   return engines.typescript.controlFlow({ ...query, language });
 }
 
 export function sessionFrom(message: ControlFlowMessage): FlowSession | undefined {
   const graph = message.graph;
-  if (!graph || (graph.language !== 'ts' && graph.language !== 'js' && graph.language !== 'rust')) {
+  if (
+    !graph ||
+    (graph.language !== 'ts' &&
+      graph.language !== 'js' &&
+      graph.language !== 'rust' &&
+      graph.language !== 'python')
+  ) {
     return undefined;
   }
   return {

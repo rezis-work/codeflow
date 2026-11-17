@@ -14,6 +14,8 @@ export function languageBadge(language: Language): string {
       return 'JS';
     case 'rust':
       return 'RS';
+    case 'python':
+      return 'PY';
     default: {
       const unreachable: never = language;
       return unreachable;

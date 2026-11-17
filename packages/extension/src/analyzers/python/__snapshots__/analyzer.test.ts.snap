@@ -1,0 +1,62 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Python adapter > resolves imports, aliases, relative modules, and call certainty 1`] = `
+[
+  {
+    "confidence": "certain",
+    "from": "alias_call",
+    "kind": "call",
+    "reason": undefined,
+    "to": "format_name",
+    "toFile": "app/greet.py",
+  },
+  {
+    "confidence": "certain",
+    "from": "Base.hello",
+    "kind": "call",
+    "reason": undefined,
+    "to": "greet",
+    "toFile": "app/greet.py",
+  },
+  {
+    "confidence": "certain",
+    "from": "direct",
+    "kind": "call",
+    "reason": undefined,
+    "to": "unused",
+    "toFile": "app/handlers.py",
+  },
+  {
+    "confidence": "inferred",
+    "from": "dynamic",
+    "kind": "call",
+    "reason": "dynamic-property",
+    "to": "Base.hello",
+    "toFile": "app/service.py",
+  },
+  {
+    "confidence": "certain",
+    "from": "Greeter.via_self",
+    "kind": "call",
+    "reason": undefined,
+    "to": "Base.hello",
+    "toFile": "app/service.py",
+  },
+  {
+    "confidence": "certain",
+    "from": "imported_unused",
+    "kind": "call",
+    "reason": undefined,
+    "to": "unused",
+    "toFile": "app/handlers.py",
+  },
+  {
+    "confidence": "inferred",
+    "from": "run",
+    "kind": "call",
+    "reason": "dynamic-dispatch",
+    "to": "Base.hello",
+    "toFile": "app/service.py",
+  },
+]
+`;

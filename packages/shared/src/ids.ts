@@ -10,12 +10,12 @@
  *
  * Qualified names belong to the analyzer. The store does not parse them.
  * The file itself is a module node whose qualified name is
- * `FILE_MODULE_QUALIFIED_NAME` (`.`). TypeScript and JavaScript should join
- * scopes with `.` (`App.start`). Rust should join them with `::`
+ * `FILE_MODULE_QUALIFIED_NAME` (`.`). TypeScript, JavaScript, and Python
+ * should join scopes with `.` (`App.start`). Rust should join them with `::`
  * (`app::App::start`).
  */
 
-export const LANGUAGES = ['ts', 'js', 'rust'] as const;
+export const LANGUAGES = ['ts', 'js', 'rust', 'python'] as const;
 export type Language = (typeof LANGUAGES)[number];
 
 export const NODE_ID_SEPARATOR = '\u001f';

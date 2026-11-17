@@ -2,6 +2,7 @@ import type { EntryPoint, ExtensionToDiagramWebviewMessage } from '@codeflow/sha
 import * as vscode from 'vscode';
 import { installAnalysisStatus } from './analysisStatus';
 import { analysisCacheDir, clearAnalysisCache } from './cache/settings';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import {
@@ -51,6 +52,7 @@ import { getEntryCatalog } from './entryCatalog';
 import { showControlFlowAtCursor } from './showControlFlow';
 import { installSavedFlows } from './savedFlows';
 import { SidebarProvider } from './sidebar';
+import { PythonIndexer } from './pythonIndexer';
 import { RustIndexer } from './rustIndexer';
 import { TypeScriptIndexer } from './typescriptIndexer';
 import { CodeFlowCodeLensProvider } from './codeLens';
@@ -85,33 +87,37 @@ export interface CodeFlowExtensionApi {
 /**
  * CodeFlow extension host.
  *
- * TypeScript, JavaScript, and Rust each run in their own worker thread and
- * publish file fragments into the same workspace graph. The diagram webview
- * only hears about the graph through @codeflow/shared messages.
+ * TypeScript, JavaScript, Rust, and Python each run in their own worker thread
+ * and publish file fragments into the same workspace graph. The diagram
+ * webview only hears about the graph through @codeflow/shared messages.
  */
 export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi {
   DiagramPanel.bind(context);
   const typescript = new TypeScriptIndexer(context);
   const rust = new RustIndexer(context);
+  const python = new PythonIndexer(context);
   installAnalysisStatus(context, () => {
     const graph = getWorkspaceGraph().snapshot();
     return { nodes: graph.nodes.length, edges: graph.edges.length };
   });
-  bindControlFlowEngines({ typescript, rust });
-  const savedFlows = installSavedFlows(context, { typescript, rust });
+  bindControlFlowEngines({ typescript, rust, python });
+  const savedFlows = installSavedFlows(context, { typescript, rust, python });
   const runtimeTrace = installRuntimeTrace(context);
 
   context.subscriptions.push(
     typescript,
     rust,
+    python,
     startEditorSync(),
     watchGitChanges((changes) => {
       typescript.applyExternal(changes);
       rust.applyExternal(changes);
+      python.applyExternal(changes);
     }),
     vscode.commands.registerCommand(OPEN_DIAGRAM_COMMAND, () => {
       typescript.scheduleBackground(true);
       rust.scheduleBackground(true);
+      python.scheduleBackground(true);
       DiagramPanel.open(context);
     }),
     vscode.commands.registerCommand(CLEAR_CACHE_COMMAND, () => {
@@ -121,6 +127,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     vscode.commands.registerCommand(CANCEL_INDEX_COMMAND, () => {
       typescript.cancelBackground();
       rust.cancelBackground();
+      python.cancelBackground();
     }),
     vscode.commands.registerCommand(SAVE_FLOW_COMMAND, (name?: unknown) =>
       savedFlows.save(typeof name === 'string' ? name : undefined),
@@ -162,13 +169,13 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       }
     }),
     vscode.commands.registerCommand(SHOW_FLOW_COMMAND, (target?: unknown) => {
-      void showFlowAtCursor(context, typescript, rust, target);
+      void showFlowAtCursor(context, typescript, rust, python, target);
     }),
     vscode.commands.registerCommand(SHOW_CONTROL_FLOW_COMMAND, () => {
-      void showControlFlowAtCursor(context, typescript, rust);
+      void showControlFlowAtCursor(context, typescript, rust, python);
     }),
     vscode.commands.registerCommand(SHOW_TRAIT_MAP_COMMAND, () => {
-      void showTraitMapAtCursor(context, typescript, rust);
+      void showTraitMapAtCursor(context, typescript, rust, python);
     }),
     vscode.commands.registerCommand(SHOW_REQUEST_FLOW_COMMAND, (entryId?: unknown) => {
       void showRequestFlow(
@@ -183,6 +190,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
         context,
         typescript,
         rust,
+        python,
         typeof entryId === 'string' ? entryId : undefined,
       );
     }),
@@ -190,10 +198,10 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       DiagramPanel.refreshControlFlow(document);
     }),
     vscode.commands.registerCommand(SHOW_CALLERS_COMMAND, (target?: unknown) => {
-      void showCallersAtCursor(context, typescript, rust, target);
+      void showCallersAtCursor(context, typescript, rust, python, target);
     }),
     vscode.commands.registerCommand(SHOW_CALLEES_COMMAND, (target?: unknown) => {
-      void showCalleesAtCursor(context, typescript, rust, target);
+      void showCalleesAtCursor(context, typescript, rust, python, target);
     }),
     (() => {
       const codeLens = new CodeFlowCodeLensProvider((document) => {
@@ -202,6 +210,10 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
         }
         if (isRustSourcePath(document.uri.fsPath)) {
           void rust.focusDocument(document, 1);
+          return;
+        }
+        if (isPythonSourcePath(document.uri.fsPath)) {
+          void python.focusDocument(document, 1);
           return;
         }
         if (isSupportedSourcePath(document.uri.fsPath)) {
@@ -217,12 +229,12 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       );
     })(),
     vscode.commands.registerCommand(SHOW_FILE_DEPENDENCIES_COMMAND, (resource?: vscode.Uri) => {
-      void showFileDependencies(context, typescript, rust, resource);
+      void showFileDependencies(context, typescript, rust, python, resource);
     }),
     vscode.commands.registerCommand(
       SHOW_DEPENDENCIES_COMMAND,
       (resource?: vscode.Uri, resources?: vscode.Uri[]) => {
-        void showDependencies(context, typescript, rust, resource, resources);
+        void showDependencies(context, typescript, rust, python, resource, resources);
       },
     ),
     vscode.window.registerWebviewViewProvider(
@@ -230,6 +242,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       new SidebarProvider(() => {
         typescript.scheduleBackground(true);
         rust.scheduleBackground(true);
+        python.scheduleBackground(true);
       }),
       {
         webviewOptions: { retainContextWhenHidden: true },
@@ -257,21 +270,27 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     reloadSavedFlows: () => {
       savedFlows.reload();
     },
-    analysisStarted: () => typescript.analysisStarted() || rust.analysisStarted(),
-    indexFinished: () => typescript.indexFinished() && rust.indexFinished(),
-    heldIndexFinished: () => typescript.heldIndexFinished() && rust.heldIndexFinished(),
-    cacheHitCount: () => typescript.cacheHitCount() + rust.cacheHitCount(),
+    analysisStarted: () =>
+      typescript.analysisStarted() || rust.analysisStarted() || python.analysisStarted(),
+    indexFinished: () =>
+      typescript.indexFinished() && rust.indexFinished() && python.indexFinished(),
+    heldIndexFinished: () =>
+      typescript.heldIndexFinished() && rust.heldIndexFinished() && python.heldIndexFinished(),
+    cacheHitCount: () => typescript.cacheHitCount() + rust.cacheHitCount() + python.cacheHitCount(),
     holdNextIndex: () => {
       typescript.holdNextIndex();
       rust.holdNextIndex();
+      python.holdNextIndex();
     },
     releaseIndex: () => {
       typescript.releaseIndex();
       rust.releaseIndex();
+      python.releaseIndex();
     },
     dropMemory: async () => {
       await typescript.dropMemory();
       await rust.dropMemory();
+      await python.dropMemory();
     },
     runtimeRecording: () => runtimeTrace.recording(),
     recordRuntimeFrames: (frames) => runtimeTrace.recordStack(frames),

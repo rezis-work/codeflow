@@ -1,0 +1,221 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Python control flow > branches if / elif / else 1`] = `
+"branch [python] cf:branch
+  entry entry "entry" @0:0-0:0
+    next -> n0
+  n0 decision if "if value > 0" @1:4-2:8
+    true "yes" -> n1
+    false "no" -> n2
+  n1 return "return \\"pos\\"" @2:8-2:20
+    next -> exit
+  n2 decision if "elif value == 0" @3:4-4:8
+    true "yes" -> n3
+    false "no" -> n4
+  n3 return "return \\"zero\\"" @4:8-4:21
+    next -> exit
+  n4 return "return \\"neg\\"" @6:8-6:20
+    next -> exit
+  exit exit "exit" @6:20-6:20
+"
+`;
+
+exports[`Python control flow > collapses a nested function and a lambda 1`] = `
+"nested [python] cf:nested
+  entry entry "entry" @92:0-92:0
+    next -> n0
+  n0 statement "def inner(times):" @93:4-94:28 nested inner
+    next -> n1
+  n1 statement "scale = lambda factor: inner(factor)" @96:4-96:40 nested <lambda>
+    next -> n2
+  n2 return "return scale(2)" @97:4-97:19 calls scale(2)
+    next -> exit
+  exit exit "exit" @97:19-97:19
+"
+`;
+
+exports[`Python control flow > dims code after return 1`] = `
+"after_return [python] cf:dead
+  entry entry "entry" @87:0-87:0
+    next -> n0
+  n0 return "return 1" @88:4-88:12
+    next -> exit
+  n1 return unreachable "return 2" @89:4-89:12
+  exit exit "exit" @89:12-89:12
+"
+`;
+
+exports[`Python control flow > draws with, async with, yield, and async for 1`] = `
+"opened [python] cf:with
+  entry entry "entry" @59:0-59:0
+    next -> n0
+  n0 statement "with path as handle" @60:4-61:8
+    next -> n1
+  n1 return "return handle.read()" @61:8-61:28 calls handle.read()
+    next -> exit
+  exit exit "exit" @61:28-61:28
+"
+`;
+
+exports[`Python control flow > draws with, async with, yield, and async for 2`] = `
+"async_opened [python] cf:asyncwith
+  entry entry "entry" @64:0-64:0
+    next -> n0
+  n0 await suspension "async with path as handle" @65:4-66:8
+    next -> n1
+  n1 await suspension "data = await handle.read()" @66:8-66:34 calls handle.read()
+    next -> n2
+  n2 return "return data" @67:8-67:19
+    next -> exit
+  exit exit "exit" @67:19-67:19
+"
+`;
+
+exports[`Python control flow > draws with, async with, yield, and async for 3`] = `
+"gen [python] cf:yield
+  entry entry "entry" @70:0-70:0
+    next -> n0
+  n0 loop for "for item in items" @71:4-72:8
+    loop-body -> n1
+    loop-exit -> exit
+  n1 yield suspension "yield item" @72:8-72:18
+    back -> n0
+  exit exit "exit" @72:18-72:18
+"
+`;
+
+exports[`Python control flow > draws with, async with, yield, and async for 4`] = `
+"async_items [python] cf:asyncfor
+  entry entry "entry" @75:0-75:0
+    next -> n0
+  n0 statement "total = 0" @76:4-76:13
+    next -> n1
+  n1 loop for suspension "async for item in items" @77:4-78:8
+    loop-body -> n2
+    loop-exit -> n3
+  n2 await suspension "total += await item" @78:8-78:27
+    back -> n1
+  n3 return "return total" @79:4-79:16
+    next -> exit
+  exit exit "exit" @79:16-79:16
+"
+`;
+
+exports[`Python control flow > fails an assert on the false edge 1`] = `
+"checked [python] cf:assert
+  entry entry "entry" @82:0-82:0
+    next -> n0
+  n0 decision if "assert value > 0" @83:4-83:20
+    false "fail" -> n1
+    true "ok" -> n2
+  n1 throw "AssertionError" @83:4-83:20
+    exception -> exit
+  n2 return "return value" @84:4-84:16
+    next -> exit
+  exit exit "exit" @84:16-84:16
+"
+`;
+
+exports[`Python control flow > loops with for/else, break, and continue 1`] = `
+"loop_for [python] cf:for
+  entry entry "entry" @21:0-21:0
+    next -> n0
+  n0 statement "total = 0" @22:4-22:13
+    next -> n1
+  n1 loop for "for item in items" @23:4-24:8
+    loop-body -> n2
+    loop-exit "else" -> n7
+  n2 decision if "if item < 0" @24:8-25:12
+    true "yes" -> n3
+    false "no" -> n4
+  n3 break "break" @25:12-25:17
+    next -> n8
+  n4 decision if "if item == 0" @26:8-27:12
+    true "yes" -> n5
+    false "no" -> n6
+  n5 continue "continue" @27:12-27:20
+    back -> n1
+  n6 statement "total += item" @28:8-28:21
+    back -> n1
+  n7 statement "total += 1" @30:8-30:18
+    next -> n8
+  n8 return "return total" @31:4-31:16
+    next -> exit
+  exit exit "exit" @31:16-31:16
+"
+`;
+
+exports[`Python control flow > loops with while/else 1`] = `
+"loop_while [python] cf:while
+  entry entry "entry" @34:0-34:0
+    next -> n0
+  n0 loop while "while n > 0" @35:4-36:8
+    loop-body -> n1
+    loop-exit "else" -> n6
+  n1 statement "n -= 1" @36:8-36:14
+    next -> n2
+  n2 decision if "if n == 3" @37:8-38:12
+    true "yes" -> n3
+    false "no" -> n4
+  n3 continue "continue" @38:12-38:20
+    back -> n0
+  n4 decision if "if n == 1" @39:8-40:12
+    true "yes" -> n5
+    false "no" -> n0
+  n5 break "break" @40:12-40:17
+    next -> n7
+  n6 statement "n = -1" @42:8-42:14
+    next -> n7
+  n7 return "return n" @43:4-43:12
+    next -> exit
+  exit exit "exit" @43:12-43:12
+"
+`;
+
+exports[`Python control flow > matches cases, a guarded wildcard, and a default 1`] = `
+"matched [python] cf:match
+  entry entry "entry" @9:0-9:0
+    next -> n0
+  n0 switch "match value" @10:4-10:16
+    case "0" -> n1
+    case "1 | 2" -> n2
+    case "_ if value > 10" -> n3
+    default "_" -> n4
+  n1 return "return \\"zero\\"" @12:12-12:25
+    next -> exit
+  n2 return "return \\"small\\"" @14:12-14:26
+    next -> exit
+  n3 return "return \\"big\\"" @16:12-16:24
+    next -> exit
+  n4 return "return \\"other\\"" @18:12-18:26
+    next -> exit
+  exit exit "exit" @18:26-18:26
+"
+`;
+
+exports[`Python control flow > routes try, except, else, and finally 1`] = `
+"attempt [python] cf:try
+  entry entry "entry" @46:0-46:0
+    next -> n0
+  n0 try "try" @47:4-48:8
+    next -> n1
+    exception "except ValueError" -> n4
+  n1 decision if "if value < 0" @48:8-49:12
+    true "yes" -> n2
+    false "no" -> n3
+  n2 throw "raise ValueError(\\"no\\")" @49:12-49:34 calls ValueError("no")
+    exception "except ValueError" -> n4
+  n3 return "return value" @50:8-50:20
+    finally -> n7
+  n4 catch "except ValueError" @51:4-52:16
+    next -> n5
+  n5 return "return 0" @52:8-52:16
+    finally -> n7
+  n6 return unreachable "return 1" @54:8-54:16
+  n7 finally "finally" @55:4-56:17
+    next -> n8
+  n8 statement "value = 0" @56:8-56:17
+    next -> exit
+  exit exit "exit" @56:17-56:17
+"
+`;

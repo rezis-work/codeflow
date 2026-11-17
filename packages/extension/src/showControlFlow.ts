@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CONTROL_FLOW_FILE_HINT, controlFlowForCursor } from './controlFlowHost';
 import { DiagramPanel } from './diagramPanel';
+import type { PythonIndexer } from './pythonIndexer';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 
@@ -9,6 +10,7 @@ export async function showControlFlowAtCursor(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.uri.scheme !== 'file') {
@@ -17,7 +19,7 @@ export async function showControlFlowAtCursor(
   }
   DiagramPanel.open(context);
   const message = await controlFlowForCursor(
-    { typescript, rust },
+    { typescript, rust, python },
     editor.document,
     editor.selection.active,
   );

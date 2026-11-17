@@ -82,7 +82,7 @@ describe('extension manifest', () => {
   });
 
   it('contributes the CodeFlow activity bar and the open-diagram command', () => {
-    expect(manifest.activationEvents).toEqual(['onStartupFinished']);
+    expect(manifest.activationEvents).toEqual(['onStartupFinished', 'onLanguage:python']);
     const commands = manifest.contributes?.commands?.map((command) => command.command) ?? [];
     expect(commands).toEqual(
       expect.arrayContaining([
@@ -154,7 +154,7 @@ describe('extension manifest', () => {
     )?.when;
     expect(flowWhen).toContain('editorLangId == typescript');
     expect(flowWhen).toContain('editorLangId == rust');
-    expect(manifest.activationEvents).toEqual(['onStartupFinished']);
+    expect(manifest.activationEvents).toEqual(['onStartupFinished', 'onLanguage:python']);
     const traitWhen = manifest.contributes?.menus?.['editor/context']?.find(
       (item) => item.command === SHOW_TRAIT_MAP_COMMAND,
     )?.when;

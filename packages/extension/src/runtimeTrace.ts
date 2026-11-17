@@ -1,7 +1,7 @@
 /**
  * Records debugger stops and turns them into a runtime-trace message.
  *
- * The Node debugger and CodeLLDB both speak DAP. A stop does not include a
+ * The Node debugger, CodeLLDB, and debugpy speak DAP. A stop does not include a
  * location; the stackTrace that follows does. This module does not talk to
  * VS Code. The host asks for the stack, then calls {@link RuntimeTraceController.recordStack}.
  * Recording is opt-in. Stops before Start, and stops after Stop, are ignored.
@@ -24,9 +24,19 @@ export const RUNTIME_TRACE_DEBUG_TYPES = [
   'node-terminal',
   'lldb',
   'codelldb',
+  'debugpy',
+  'python',
 ] as const;
 
-const USER_SOURCE = /\.(?:tsx?|jsx?|mjs|cjs|rs)$/i;
+const USER_SOURCE = /\.(?:tsx?|jsx?|mjs|cjs|rs|py)$/i;
+const SKIPPED_TRACE_SEGMENTS: ReadonlySet<string> = new Set([
+  'node_modules',
+  'site-packages',
+  'dist-packages',
+  'venv',
+  '.venv',
+  '__pycache__',
+]);
 
 export function isRuntimeTraceDebugType(type: string): boolean {
   return (RUNTIME_TRACE_DEBUG_TYPES as readonly string[]).includes(type);
@@ -35,7 +45,7 @@ export function isRuntimeTraceDebugType(type: string): boolean {
 /** Source the trace will keep. Library and generated frames are left out. */
 export function isUserTracePath(filePath: string): boolean {
   const normalized = filePath.replaceAll('\\', '/');
-  if (normalized.includes('/node_modules/')) {
+  if (normalized.split('/').some((segment) => SKIPPED_TRACE_SEGMENTS.has(segment))) {
     return false;
   }
   return USER_SOURCE.test(normalized);
@@ -79,7 +89,7 @@ export function parseDapFrames(value: unknown): readonly DapFrame[] {
   return frames;
 }
 
-/** First TypeScript, JavaScript, or Rust frame that is not inside node_modules. */
+/** First user frame outside node_modules, a virtualenv, or site-packages. */
 export function selectUserFrame(frames: readonly DapFrame[]): DapFrame | undefined {
   return frames.find((frame) => isUserTracePath(frame.path));
 }

@@ -185,15 +185,25 @@ async function regionsFor(
             functionId: node.id,
             qualifiedName: node.qualifiedName,
           })
-        : await engines.typescript.controlFlow({
-            filePath,
-            content,
-            uri: node.uri,
-            language: node.language === 'js' ? 'js' : 'ts',
-            range: node.location.range,
-            functionId: node.id,
-            qualifiedName: node.qualifiedName,
-          });
+        : node.language === 'python'
+          ? await engines.python.controlFlow({
+              filePath,
+              content,
+              uri: node.uri,
+              language: 'python',
+              range: node.location.range,
+              functionId: node.id,
+              qualifiedName: node.qualifiedName,
+            })
+          : await engines.typescript.controlFlow({
+              filePath,
+              content,
+              uri: node.uri,
+              language: node.language === 'js' ? 'js' : 'ts',
+              range: node.location.range,
+              functionId: node.id,
+              qualifiedName: node.qualifiedName,
+            });
     return result.ok ? regionsFromControlFlow(result.graph) : [];
   } catch {
     return [];

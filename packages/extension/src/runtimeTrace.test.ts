@@ -19,10 +19,15 @@ describe('runtime trace session', () => {
     expect(isRuntimeTraceDebugType('pwa-node')).toBe(true);
     expect(isRuntimeTraceDebugType('lldb')).toBe(true);
     expect(isRuntimeTraceDebugType('codelldb')).toBe(true);
+    expect(isRuntimeTraceDebugType('debugpy')).toBe(true);
+    expect(isRuntimeTraceDebugType('python')).toBe(true);
     expect(isRuntimeTraceDebugType('cppdbg')).toBe(false);
     expect(isUserTracePath('/proj/src/main.rs')).toBe(true);
     expect(isUserTracePath('C:\\proj\\src\\app.ts')).toBe(true);
+    expect(isUserTracePath('/proj/app/service.py')).toBe(true);
     expect(isUserTracePath('/proj/node_modules/leftpad/index.js')).toBe(false);
+    expect(isUserTracePath('/proj/venv/lib/site-packages/flask/app.py')).toBe(false);
+    expect(isUserTracePath('/proj/src/__pycache__/app.py')).toBe(false);
 
     const frames = parseDapFrames({
       type: 'response',
