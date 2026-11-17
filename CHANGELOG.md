@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.1.0 (2026-11-17)
+
+Version 1.1.0 packages the work since 1.0.2. The file is `rezis-codeflow-1.1.0.vsix`. It adds a runtime trace, optional explanations of the open diagram, a Python adapter, pull request diagrams on GitHub and in the editor, an agent-readable call graph, and a SvelteKit landing page.
+
 ### Agent call graph
 
 - **CodeFlow: Export Diagram for AI Agents** writes `.codeflow/flow.md`: a short guide, a Mermaid flowchart of the most-connected functions and entry points, a grep-friendly call list (`caller (file:line) -> callee (file:line) [certain|uncertain]`), a symbol index, and entry points (routes, `main`, tests, and top-level functions). On a feature branch it adds **Changed in this branch**, using the same comparison as the local pull request view.
@@ -39,12 +43,16 @@
 - **Explain** on the diagram, and **CodeFlow: Explain Flow**, write a plain-language summary of the open diagram: a call graph, a control-flow flowchart, a sequence, a request flow, and a trait map or file-dependency diagram when that is what is open. This stays off until `codeflow.ai.enabled` is on. While it is off, nothing is sent.
 - The default provider is the editor's language model through `vscode.lm` (`codeflow.ai.provider` `editor`). VS Code asks for consent on the first model request. `codeflow.ai.modelFamily` picks a family. If the editor returns no models, CodeFlow tells you to switch to `openai-compatible` or `anthropic`.
 - Those two providers use a key in VS Code Secret Storage (**CodeFlow: Set AI API Key**, **CodeFlow: Clear AI API Key**). The key is not stored in settings.json or the repository. The first explanation shows the text that will be sent. Snippets are capped by `codeflow.ai.snippetChars`.
-- `engines.vscode` is `^1.90.0` because `vscode.lm` joined the stable API in 1.90. The extension version is unchanged.
+- `engines.vscode` is `^1.90.0` because `vscode.lm` joined the stable API in 1.90.
 
 ### Runtime trace
 
 - **CodeFlow: Start/Stop Runtime Trace** records debugger stops from the Node debugger (`node`, `pwa-node`, `node2`, `node-terminal`) and CodeLLDB (`lldb`, `codelldb`). Each stop appends the first TypeScript, JavaScript, or Rust frame outside `node_modules`. The call graph numbers those symbols in order, and numbers a call edge when the path goes from its caller to its callee. An open flowchart numbers the blocks and the edge between consecutive blocks the same way. The badge is the first visit. An edge lists later visits.
 - **CodeFlow: Clear Runtime Trace** removes that overlay and stops recording. Stops are ignored until a trace is started. The trace stays on this machine. Command ids, settings, and existing diagrams are otherwise unchanged.
+
+### Landing page
+
+- A SvelteKit site introduces Rezis CodeFlow: call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces, plus the Marketplace, Open VSX, and GitHub Release install paths. Analysis stays on the machine. There is no telemetry.
 
 ## 1.0.2
 

@@ -1,6 +1,6 @@
 {
   "name": "@codeflow/pr",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Headless CodeFlow pull request diagrams. Shared by the codeflow-pr CLI and the GitHub Action.",
   "license": "MIT",
