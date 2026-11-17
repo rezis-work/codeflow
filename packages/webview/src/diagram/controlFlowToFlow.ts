@@ -1,5 +1,6 @@
 import { Position } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
+import { formatTraceOrders } from '@codeflow/shared';
 import type {
   ControlFlowEdge,
   ControlFlowGraph,
@@ -15,6 +16,7 @@ export interface ControlBlockData {
   readonly unreachable: boolean;
   readonly uncertain: boolean;
   readonly active: boolean;
+  readonly runtimeOrder?: number;
   readonly nested: readonly { readonly name: string; readonly range: SourceRange }[];
   readonly onReveal: () => void;
   readonly onOpenNested: (range: SourceRange) => void;
@@ -27,6 +29,7 @@ export type ControlFlowEdgeView = Edge<
     readonly kind: ControlFlowEdge['kind'];
     readonly tooltip?: string;
     readonly uncertain?: boolean;
+    readonly runtimeOrder?: string;
   },
   'flowEdge'
 >;
@@ -54,6 +57,8 @@ export function controlFlowToFlow(input: {
   readonly showUncertain?: boolean;
   readonly onReveal: (node: ControlFlowNode) => void;
   readonly onOpenNested: (range: SourceRange) => void;
+  readonly runtimeBlockOrders?: ReadonlyMap<string, number>;
+  readonly runtimeEdgeOrders?: ReadonlyMap<string, readonly number[]>;
 }): { readonly nodes: ControlBlockNode[]; readonly edges: ControlFlowEdgeView[] } {
   const unreachable = new Set(
     input.graph.nodes.filter((node) => node.unreachable).map((node) => node.id),
@@ -80,6 +85,9 @@ export function controlFlowToFlow(input: {
         unreachable: node.unreachable === true,
         uncertain: node.uncertain === true,
         active: input.activeId === node.id,
+        ...(input.runtimeBlockOrders?.get(node.id)
+          ? { runtimeOrder: input.runtimeBlockOrders.get(node.id) }
+          : {}),
         nested: node.nested ?? [],
         onReveal: () => {
           input.onReveal(node);
@@ -99,6 +107,11 @@ export function controlFlowToFlow(input: {
     }
     const back = edge.kind === 'back';
     const caption = edgeCaption(edge);
+    const runtimeOrders = input.runtimeEdgeOrders?.get(edge.id);
+    const runtimeText =
+      runtimeOrders && runtimeOrders.length > 0 ? formatTraceOrders(runtimeOrders) : undefined;
+    const captionText =
+      runtimeText && caption ? `${runtimeText} · ${caption}` : (runtimeText ?? caption);
     const dimmed = unreachable.has(edge.to);
     const tooltip = uncertain ? `uncertain: ${target?.label ?? 'panic'}` : undefined;
     edges.push({
@@ -108,9 +121,9 @@ export function controlFlowToFlow(input: {
       target: edge.to,
       sourceHandle: back ? 'back-out' : 'out',
       targetHandle: back ? 'back-in' : 'in',
-      ...(caption
+      ...(captionText
         ? {
-            label: caption,
+            label: captionText,
             labelStyle: { fill: 'var(--vscode-foreground, #cccccc)', fontSize: 11 },
             labelBgStyle: { fill: 'var(--vscode-editor-background, #1e1e1e)', fillOpacity: 0.92 },
             labelBgPadding: [4, 2],
@@ -130,11 +143,15 @@ export function controlFlowToFlow(input: {
       style: {
         ...(edge.kind === 'exception' || uncertain ? { strokeDasharray: '6 4' } : {}),
         ...(dimmed ? { opacity: 0.35 } : {}),
+        ...(runtimeText
+          ? { stroke: 'var(--vscode-charts-green, #89d185)', strokeWidth: 2.25 }
+          : {}),
       },
       data: {
         kind: edge.kind,
         ...(uncertain ? { uncertain: true } : {}),
         ...(tooltip ? { tooltip } : {}),
+        ...(runtimeText ? { runtimeOrder: runtimeText } : {}),
       },
     });
   }

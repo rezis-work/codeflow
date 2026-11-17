@@ -284,6 +284,7 @@ body {
 }
 
 .code-node {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -349,6 +350,33 @@ body {
 .code-node[data-focused='true'] {
   outline: 2px solid var(--vscode-focusBorder, #007fd4);
   outline-offset: 1px;
+}
+
+.code-node[data-runtime-order],
+.flow-block[data-runtime-order] {
+  box-shadow: inset 0 0 0 2px var(--vscode-charts-green, #89d185);
+}
+
+.runtime-order {
+  margin-left: 4px;
+  border-color: var(--vscode-charts-green, #89d185);
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.runtime-trace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.runtime-trace button {
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
 .code-node-open {

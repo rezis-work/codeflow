@@ -43,6 +43,8 @@ import {
   parseSourceLocation,
 } from './graph';
 import type { CodeGraph, EdgeKind, GraphDelta, Position, SourceLocation } from './graph';
+import { parseRuntimeTraceData } from './runtimeTrace';
+import type { RuntimeTraceData } from './runtimeTrace';
 
 /** Largest depth the webview may request. The store itself is only bounded by the graph. */
 export const PROTOCOL_MAX_DEPTH = 32;
@@ -155,6 +157,11 @@ export interface CopyMermaidMessage {
   readonly type: 'copyMermaid';
 }
 
+/** Drops the recorded path and stops recording. */
+export interface ClearRuntimeTraceMessage {
+  readonly type: 'clearRuntimeTrace';
+}
+
 export interface DiagramViewport {
   readonly x: number;
   readonly y: number;
@@ -174,7 +181,8 @@ export type DiagramWebviewToExtensionMessage =
   | ViewStateMessage
   | SaveFlowMessage
   | ExportDiagramMessage
-  | CopyMermaidMessage;
+  | CopyMermaidMessage
+  | ClearRuntimeTraceMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -273,6 +281,14 @@ export interface ControlFlowCursorMessage {
   readonly position: Position;
 }
 
+/**
+ * Executed path from the debugger. An empty step list clears the overlay.
+ * `recording` is true while Start/Stop Runtime Trace is recording.
+ */
+export interface RuntimeTraceMessage extends RuntimeTraceData {
+  readonly type: 'runtimeTrace';
+}
+
 export type ExtensionToDiagramWebviewMessage =
   | AckMessage
   | GraphSnapshotMessage
@@ -285,7 +301,8 @@ export type ExtensionToDiagramWebviewMessage =
   | ControlFlowCursorMessage
   | SequenceDiagramMessage
   | SavedFlowBannerMessage
-  | PresentationMessage;
+  | PresentationMessage
+  | RuntimeTraceMessage;
 
 export function isDiagramWebviewToExtensionMessage(
   value: unknown,
@@ -330,6 +347,8 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return parseExportDiagram(value);
     case 'copyMermaid':
       return { type: 'copyMermaid' };
+    case 'clearRuntimeTrace':
+      return { type: 'clearRuntimeTrace' };
     default:
       return undefined;
   }
@@ -364,6 +383,8 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parseSavedFlowBanner(value);
     case 'presentation':
       return parsePresentation(value);
+    case 'runtimeTrace':
+      return parseRuntimeTraceMessage(value);
     default:
       return undefined;
   }
@@ -850,6 +871,14 @@ function parsePresentation(value: Record<string, unknown>): PresentationMessage 
     ...(typeof value.showInferred === 'boolean' ? { showInferred: value.showInferred } : {}),
     ...(hidden && hidden.length > 0 ? { hiddenEdgeKinds: hidden } : {}),
   };
+}
+
+function parseRuntimeTraceMessage(value: Record<string, unknown>): RuntimeTraceMessage | undefined {
+  const trace = parseRuntimeTraceData(value);
+  if (!trace) {
+    return undefined;
+  }
+  return { type: 'runtimeTrace', ...trace };
 }
 
 function parseCollapsedIds(value: unknown): string[] | undefined {

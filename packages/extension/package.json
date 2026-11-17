@@ -153,6 +153,16 @@
         "command": "codeflow.showDependencies",
         "title": "CodeFlow: Show Dependencies",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "codeflow.toggleRuntimeTrace",
+        "title": "CodeFlow: Start/Stop Runtime Trace",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "codeflow.clearRuntimeTrace",
+        "title": "CodeFlow: Clear Runtime Trace",
+        "icon": "$(clear-all)"
       }
     ],
     "keybindings": [
@@ -243,6 +253,12 @@
         },
         {
           "command": "codeflow.cancelIndexing"
+        },
+        {
+          "command": "codeflow.toggleRuntimeTrace"
+        },
+        {
+          "command": "codeflow.clearRuntimeTrace"
         }
       ],
       "editor/context": [

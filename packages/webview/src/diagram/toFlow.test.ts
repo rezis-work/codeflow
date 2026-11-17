@@ -109,4 +109,59 @@ describe('toFlow', () => {
     });
     expect(flow.nodes).toEqual([]);
   });
+
+  it('marks an executed node and the call edge with their order', () => {
+    const greet = createNode({
+      kind: 'function',
+      name: 'greet',
+      qualifiedName: 'greet',
+      language: 'ts',
+      uri: 'file:///proj/a.ts',
+      range,
+    });
+    const format = createNode({
+      kind: 'function',
+      name: 'format',
+      qualifiedName: 'format',
+      language: 'ts',
+      uri: 'file:///proj/a.ts',
+      range,
+    });
+    const call = createEdge({
+      kind: 'call',
+      from: greet.id,
+      to: format.id,
+      confidence: 'certain',
+    });
+    const flow = toFlow({
+      nodes: [greet, format],
+      edges: [
+        {
+          id: call.id,
+          kind: call.kind,
+          from: call.from,
+          to: call.to,
+          confidence: call.confidence,
+        },
+      ],
+      positions: new Map([
+        [greet.id, { x: 0, y: 0 }],
+        [format.id, { x: 200, y: 0 }],
+      ]),
+      fileNames: new Map(),
+      onReveal: () => undefined,
+      onExpand: () => undefined,
+      runtimeNodeOrders: new Map([
+        [greet.id, 1],
+        [format.id, 2],
+      ]),
+      runtimeEdgeOrders: new Map([[call.id, [2]]]),
+    });
+    expect(flow.nodes.find((node) => node.id === greet.id)?.data.runtimeOrder).toBe(1);
+    expect(flow.nodes.find((node) => node.id === format.id)?.data.runtimeOrder).toBe(2);
+    const edge = flow.edges.find((item) => item.id === call.id);
+    expect(edge?.label).toBe('2');
+    expect(edge?.data?.runtimeOrder).toBe('2');
+    expect(edge?.style?.stroke).toContain('89d185');
+  });
 });

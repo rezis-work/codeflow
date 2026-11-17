@@ -26,6 +26,7 @@ import {
   COPY_MERMAID_COMMAND,
   SIDEBAR_VIEW_ID,
 } from './constants';
+import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
 import { startEditorSync } from './editorSync';
 import { watchGitChanges } from './gitWatch';
@@ -65,6 +66,8 @@ export interface CodeFlowExtensionApi {
   holdNextIndex(): void;
   releaseIndex(): void;
   dropMemory(): Promise<void>;
+  runtimeRecording(): boolean;
+  recordRuntimeFrames(frames: unknown): boolean;
 }
 
 /**
@@ -83,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   });
   bindControlFlowEngines({ typescript, rust });
   const savedFlows = installSavedFlows(context, { typescript, rust });
+  const runtimeTrace = installRuntimeTrace(context);
 
   context.subscriptions.push(
     typescript,
@@ -242,6 +246,8 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       await typescript.dropMemory();
       await rust.dropMemory();
     },
+    runtimeRecording: () => runtimeTrace.recording(),
+    recordRuntimeFrames: (frames) => runtimeTrace.recordStack(frames),
   };
 }
 

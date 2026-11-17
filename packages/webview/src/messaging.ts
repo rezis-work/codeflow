@@ -142,6 +142,10 @@ export function postCopyMermaid(): void {
   post({ type: 'copyMermaid' });
 }
 
+export function postClearRuntimeTrace(): void {
+  post({ type: 'clearRuntimeTrace' });
+}
+
 export function onExtensionMessage(
   handler: (message: ExtensionToDiagramWebviewMessage) => void,
 ): () => void {
