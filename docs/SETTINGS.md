@@ -2,7 +2,7 @@
 
 Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`.
 
-The page is six groups, in this order. Titles and descriptions in the Settings editor are the `markdownDescription` strings in `packages/extension/package.json`. Defaults below are the manifest defaults.
+The page is seven groups, in this order. Titles and descriptions in the Settings editor are the `markdownDescription` strings in `packages/extension/package.json`. Defaults below are the manifest defaults.
 
 ## Editor
 
@@ -52,3 +52,18 @@ Changing this reloads the list. A `.codeflow/flows.json` that does not parse is 
 | `codeflow.export.background` | `theme` | Background for PNG and SVG. `theme` follows the color theme. `light` forces a white background.                 |
 
 Exported diagrams use a deterministic layout, not the positions on screen. Mermaid lays the diagram out again when you render it.
+
+## AI
+
+Explain is off until `codeflow.ai.enabled` is on. The key, when a provider needs one, is **CodeFlow: Set AI API Key**. It is stored in VS Code Secret Storage, not in these settings.
+
+| Setting                    | Default  | Description                                                                                                                                                                                                                      |
+| -------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codeflow.ai.enabled`      | `false`  | Explain the open diagram in plain language. Off sends nothing.                                                                                                                                                                   |
+| `codeflow.ai.provider`     | `editor` | `editor` uses the editor's language model through `vscode.lm` and needs no API key. `openai-compatible` and `anthropic` use your key.                                                                                            |
+| `codeflow.ai.modelFamily`  | empty    | Family passed to the editor, such as `gpt-4o`. Empty uses the first model the editor returns. Used only for `editor`.                                                                                                            |
+| `codeflow.ai.model`        | empty    | Model id for an own-key provider. Empty uses `gpt-4o-mini` or `claude-3-5-haiku-20241022`.                                                                                                                                       |
+| `codeflow.ai.baseUrl`      | empty    | Base URL for an own-key provider. Empty uses `https://api.openai.com/v1` or `https://api.anthropic.com`. A local OpenAI-compatible server can be `http://127.0.0.1:11434/v1`. The value must start with `http://` or `https://`. |
+| `codeflow.ai.snippetChars` | `240`    | Maximum characters of source copied from each node. `0` sends names and edges only. Maximum 2,000.                                                                                                                               |
+
+The no-key path works in VS Code when a provider such as GitHub Copilot has registered chat models. Cursor is not documented as exposing its models through `vscode.lm`. If the editor returns none, CodeFlow tells you to switch provider and set a key. The first explanation shows the text that will be sent. Later explanations in that window skip that dialog. VS Code still shows its own consent prompt for an editor model.

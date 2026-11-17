@@ -12,7 +12,7 @@ CodeFlow is a VS Code extension that runs in Cursor. Beside the code, it shows i
 
 Phase 1 speaks TypeScript, JavaScript, and Rust. Python comes later. Every language feeds one language-neutral graph through its own adapter, so a new language does not invent a new diagram model.
 
-Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol at Cursor** (or press Ctrl+Alt+F, Cmd+Alt+F on macOS). The diagram opens beside the editor. Click a node to select that symbol and center it in the editor. Moving the cursor highlights the matching node. Saving the file updates the diagram without throwing away the layout. CodeFlow keeps analysis on your machine. It has no telemetry and it does not call paid services.
+Open a supported file, right-click, and choose **CodeFlow: Show Flow for Symbol at Cursor** (or press Ctrl+Alt+F, Cmd+Alt+F on macOS). The diagram opens beside the editor. Click a node to select that symbol and center it in the editor. Moving the cursor highlights the matching node. Saving the file updates the diagram without throwing away the layout. CodeFlow keeps analysis on your machine. It has no telemetry. An optional explanation can send the open diagram to the editor's language model, or to an API you configure with your own key. That path stays off unless `codeflow.ai.enabled` is on.
 
 ![Flow around ripgrep's SearchWorker::search_reader](images/ripgrep-search-reader.png)
 
@@ -86,11 +86,17 @@ These appear in the Command Palette. The four call and import commands also appe
 | `codeflow.exclude`                     | dist, out, build, coverage, min.js, .next | Extra skip globs, combined with `files.exclude`                                                                                        |
 | `codeflow.maxFiles`                    | `2500`                                    | Files analyzed per language, per workspace folder                                                                                      |
 | `codeflow.cache.enabled`               | `true`                                    | Store per-file analysis on disk. **CodeFlow: Clear Cache** deletes it. Off skips the disk and leaves an existing cache in place        |
+| `codeflow.ai.enabled`                  | `false`                                   | Explain the open diagram. Off sends nothing                                                                                            |
+| `codeflow.ai.provider`                 | `editor`                                  | `editor`, `openai-compatible`, or `anthropic`                                                                                          |
+| `codeflow.ai.modelFamily`              | empty                                     | Editor model family. Empty uses the first model the editor returns                                                                     |
+| `codeflow.ai.model`                    | empty                                     | Own-key model id. Empty uses `gpt-4o-mini` or `claude-3-5-haiku-20241022`                                                              |
+| `codeflow.ai.baseUrl`                  | empty                                     | Own-key base URL. Empty uses the provider default                                                                                      |
+| `codeflow.ai.snippetChars`             | `240`                                     | Source characters per node in an explanation. `0` sends names and edges only                                                           |
 
 ## Requirements
 
 - Node.js 22 or newer to build from source
-- Cursor, or VS Code 1.85 or newer
+- Cursor, or VS Code 1.90 or newer
 - For Rust, a `cargo` on `PATH` so `cargo metadata --no-deps` can name the crates. Without it, CodeFlow reads `Cargo.toml` and `src/` and shows a warning
 - rust-analyzer is optional. CodeFlow does not install it, activate it, or index the workspace through it
 
@@ -147,9 +153,9 @@ The webview production bundle is written to `packages/extension/media/webview`. 
 
 - Node.js 22 or newer (`nvm use` reads `.nvmrc`)
 - npm 10 or newer
-- Cursor, or VS Code 1.85 or newer
+- Cursor, or VS Code 1.90 or newer
 
-`engines.vscode` is `^1.85.0`. That floor is intentionally conservative so the extension loads in current Cursor, which tracks a newer VS Code. `@types/vscode` is pinned to 1.85 so the typechecker rejects newer APIs.
+`engines.vscode` is `^1.90.0`. `@types/vscode` is pinned to the same release so the typechecker rejects newer APIs. 1.90 is the first stable VS Code that includes `vscode.lm`. Explain needs that API, so the floor moved from 1.85. Current Cursor tracks a newer VS Code. A Cursor build based on a VS Code older than 1.90 cannot load the extension.
 
 Integration tests launch a real extension host. On Linux without a display, install `xvfb` and run them under `xvfb-run`.
 
@@ -255,6 +261,16 @@ A function or method node has a Flow button. It opens a top-to-bottom flowchart 
 `runtimeTrace` carries `recording`, the steps, the first order of each mapped symbol, and the orders of each call edge whose ends are two consecutive symbols. Mapping uses the tightest workspace symbol whose range contains the stop, the same rule as cursor follow. A call edge is marked only when the graph already has that caller-to-callee edge. The webview draws a green order badge on those nodes and a green label on those edges. It does not lay the graph out again.
 
 On an open flowchart, the same steps are mapped with `controlFlowBlockAt`. A block's badge is its first visit. An edge label is prefixed with the orders of stops that arrived across it (`2 · true`). `clearRuntimeTrace`, from the command or the diagram's Clear button, drops the steps, stops recording, and posts an empty trace. A diagram that has never received `runtimeTrace` is unchanged. The trace is not saved, not exported, and not sent anywhere. Frames without a filesystem path, other debug adapters, and library frames are not recorded. A stop is a breakpoint or a step, not every instruction.
+
+## Explain
+
+**Explain** and **CodeFlow: Explain Flow** describe the diagram that is open. The prompt is built in `@codeflow/shared` from names, edge labels, and snippets the host already read. It does not import VS Code. Snippets are clipped with `codeflow.ai.snippetChars`. The prompt stops at 80 nodes, 160 edges, and 12,000 characters.
+
+`codeflow.ai.enabled` defaults to false. The command returns before `selectChatModels`, Secret Storage, or `fetch` when it is off. The default provider is `editor`: `vscode.lm.selectChatModels`, then `sendRequest` with a justification string. That call is what shows VS Code's consent dialog, so it runs only from the button or the command. `LanguageModelError` codes `NoPermissions`, `Blocked` (quota), and `NotFound` become short panel messages. `codeflow.ai.modelFamily` is the selector's `family`. An empty list, which is what this host sees when no chat provider is registered, tells the user to switch to `openai-compatible` or `anthropic`.
+
+Those providers POST the same prompt. The key is `context.secrets` under `codeflow.ai.apiKey`. It is not a setting and not part of the JSON body. OpenAI-compatible uses `Authorization: Bearer`. Anthropic uses `x-api-key` and `anthropic-version: 2023-06-01`. The first confirmation is a modal whose detail is the destination and the prompt. Accepting it stores `codeflow.ai.disclosureAccepted` in global state, not the key. The reply streams into an `explain` message. Cancel aborts the request. The timeout is 30 seconds.
+
+Tests pass a fake model or a fake `fetch`. The integration test installs that fake through the extension API and does not call `vscode.lm`. Cursor's extension host was not available here, so the docs do not claim that Cursor registers its models on `vscode.lm`.
 
 ## Sequence
 

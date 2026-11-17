@@ -100,6 +100,17 @@ export {
   serializeSavedFlowDocument,
 } from './savedFlow';
 export {
+  DEFAULT_SNIPPET_CHARS,
+  EXPLAIN_EDGE_LIMIT,
+  EXPLAIN_KINDS,
+  EXPLAIN_NODE_LIMIT,
+  EXPLAIN_PROMPT_LIMIT,
+  MAX_SNIPPET_CHARS,
+  clipSource,
+  clipText,
+  renderExplainPrompt,
+} from './explain';
+export {
   exportMermaid,
   exportPalette,
   exportSvg,
@@ -109,6 +120,7 @@ export {
   visibleGraph,
 } from './exportDiagram';
 
+export type { ExplainKind, ExplainPrompt, ExplainSubject } from './explain';
 export type { EdgeId, Language, NodeId, SymbolRef } from './ids';
 export type {
   CodeEdge,
@@ -211,8 +223,13 @@ export type {
   DiagramTheme,
   DiagramViewMode,
   DiagramWebviewToExtensionMessage,
+  CancelExplainMessage,
+  ClearExplainMessage,
   ClearRuntimeTraceMessage,
   CopyMermaidMessage,
+  ExplainFlowMessage,
+  ExplainMessage,
+  ExplainStatus,
   DiagramViewport,
   DismissControlFlowMessage,
   DismissSequenceMessage,

@@ -379,6 +379,33 @@ body {
   cursor: pointer;
 }
 
+.explain {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+  background: var(--vscode-editor-inactiveSelectionBackground, rgba(255, 255, 255, 0.04));
+}
+
+.explain h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.explain p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.explain button {
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
 .code-node-open {
   flex: 1;
   display: flex;

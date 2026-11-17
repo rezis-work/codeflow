@@ -24,8 +24,11 @@ import { SequenceView } from './diagram/SequenceView';
 import {
   onExtensionMessage,
   postDismissControlFlow,
+  postCancelExplain,
+  postClearExplain,
   postClearRuntimeTrace,
   postCopyMermaid,
+  postExplainFlow,
   postDismissSequence,
   postExpandNode,
   postExportDiagram,
@@ -69,6 +72,11 @@ export function App() {
   const [viewportToken, setViewportToken] = useState(0);
   const [holdViewport, setHoldViewport] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [explain, setExplain] = useState<{
+    status: 'idle' | 'streaming' | 'done' | 'error';
+    text: string;
+    message?: string;
+  }>({ status: 'idle', text: '' });
   const [stale, setStale] = useState(false);
   const [staleMessage, setStaleMessage] = useState<string | undefined>(undefined);
   const [flowCursor, setFlowCursor] = useState<
@@ -150,6 +158,13 @@ export function App() {
           return;
         case 'runtimeTrace':
           setRuntimeTrace(message.recording || message.steps.length > 0 ? message : undefined);
+          return;
+        case 'explain':
+          setExplain({
+            status: message.status,
+            text: message.text ?? '',
+            ...(message.message ? { message: message.message } : {}),
+          });
           return;
         case 'presentation':
           setCollapsedNodeIds(message.collapsedNodeIds);
@@ -283,6 +298,16 @@ export function App() {
           <div className="flow-actions">
             <button
               type="button"
+              data-testid="explain-flow"
+              disabled={!canSave}
+              onClick={() => {
+                postExplainFlow();
+              }}
+            >
+              Explain
+            </button>
+            <button
+              type="button"
               data-testid="save-flow"
               disabled={!canSave}
               onClick={() => {
@@ -368,6 +393,41 @@ export function App() {
           </p>
         </div>
       </header>
+      {explain.status !== 'idle' ? (
+        <section
+          className="explain"
+          data-testid="explain"
+          data-status={explain.status}
+          role="status"
+        >
+          <h2>Explanation</h2>
+          {explain.text ? <p data-testid="explain-text">{explain.text}</p> : null}
+          {explain.message ? (
+            <p className="graph-error" data-testid="explain-error">
+              {explain.message}
+            </p>
+          ) : null}
+          {explain.status === 'streaming' ? (
+            <button
+              type="button"
+              onClick={() => {
+                postCancelExplain();
+              }}
+            >
+              Cancel explanation
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                postClearExplain();
+              }}
+            >
+              Clear explanation
+            </button>
+          )}
+        </section>
+      ) : null}
       {stale ? (
         <p className="stale-banner" role="status" data-testid="stale-banner">
           {staleMessage ??

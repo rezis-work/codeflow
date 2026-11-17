@@ -8,7 +8,7 @@ The extension id is `rezis-work.rezis-codeflow` (`publisher` `rezis-work`, `name
 
 - Node.js 22 or newer (`nvm use` reads `.nvmrc`)
 - npm 10 or newer
-- VS Code 1.85 or newer, or Cursor, to launch the Extension Development Host
+- VS Code 1.90 or newer, or Cursor, to launch the Extension Development Host. 1.90 is required because `vscode.lm` joined the stable API then.
 
 ```bash
 npm ci

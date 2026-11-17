@@ -241,6 +241,35 @@ describe('diagram message handler', () => {
     expect(posted.some((message) => message.type === 'focusNode')).toBe(true);
   });
 
+  it('forwards explain, cancel, and clear to the host', () => {
+    const events: string[] = [];
+    const { host } = hostWith();
+    handleDiagramMessage(
+      { type: 'explainFlow' },
+      {
+        ...host,
+        explainFlow: () => {
+          events.push('explain');
+        },
+        cancelExplain: () => {
+          events.push('cancel');
+        },
+        clearExplain: () => {
+          events.push('clear');
+        },
+      },
+    );
+    handleDiagramMessage(
+      { type: 'cancelExplain' },
+      { ...host, cancelExplain: () => events.push('cancel') },
+    );
+    handleDiagramMessage(
+      { type: 'clearExplain' },
+      { ...host, clearExplain: () => events.push('clear') },
+    );
+    expect(events).toEqual(['explain', 'cancel', 'clear']);
+  });
+
   it('ignores malformed messages', () => {
     const { host, posted, revealed } = hostWith();
     handleDiagramMessage({ type: 'nope' }, host);

@@ -43,6 +43,9 @@ export interface DiagramHost {
   exportDiagram?(message: ExportDiagramMessage): void;
   copyMermaid?(message: CopyMermaidMessage): void;
   clearRuntimeTrace?(): void;
+  explainFlow?(): void;
+  cancelExplain?(): void;
+  clearExplain?(): void;
 }
 
 const SHOW_INFERRED_EDGES = true;
@@ -155,6 +158,15 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
       return;
     case 'clearRuntimeTrace':
       host.clearRuntimeTrace?.();
+      return;
+    case 'explainFlow':
+      host.explainFlow?.();
+      return;
+    case 'cancelExplain':
+      host.cancelExplain?.();
+      return;
+    case 'clearExplain':
+      host.clearExplain?.();
       return;
     default: {
       const unreachable: never = message;

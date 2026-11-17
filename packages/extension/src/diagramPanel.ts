@@ -44,6 +44,8 @@ import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './con
 import type { FlowEngines, FlowSession } from './controlFlowHost';
 import { sequenceDiagramFor } from './sequenceHost';
 import type { SequenceSession } from './sequenceHost';
+import { explainDiagram } from './ai/explainCommand';
+import { subjectFromCapture } from './ai/openDiagram';
 
 export type DiagramSurface = 'graph' | 'flow' | 'sequence';
 
@@ -224,8 +226,17 @@ export class DiagramPanel {
   private pendingBanner: SavedFlowBannerMessage | undefined;
   private pendingPresentation: PresentationMessage | undefined;
   private holdingStale = false;
+  private explainAbort: AbortController | undefined;
+  private explainGeneration = 0;
+
+  private static extensionContext: vscode.ExtensionContext | undefined;
+
+  public static bind(context: vscode.ExtensionContext): void {
+    DiagramPanel.extensionContext = context;
+  }
 
   public static open(context: vscode.ExtensionContext): void {
+    DiagramPanel.extensionContext = context;
     if (DiagramPanel.current) {
       DiagramPanel.current.panel.reveal(DiagramPanel.current.panel.viewColumn);
       return;
@@ -312,6 +323,8 @@ export class DiagramPanel {
     if (this.focusTimer) {
       clearTimeout(this.focusTimer);
     }
+    this.explainGeneration += 1;
+    this.explainAbort?.abort();
     this.panel.dispose();
     for (const disposable of this.disposables.splice(0)) {
       disposable.dispose();
@@ -525,6 +538,55 @@ export class DiagramPanel {
       this.flushSavedChrome();
       DiagramPanel.runtimeTrace.republish();
     }
+  }
+
+  public explain(): void {
+    const context = DiagramPanel.extensionContext;
+    if (!context) {
+      this.post({
+        type: 'explain',
+        status: 'error',
+        message: 'Open a diagram before explaining it.',
+      });
+      return;
+    }
+    this.explainGeneration += 1;
+    const generation = this.explainGeneration;
+    this.explainAbort?.abort();
+    const abort = new AbortController();
+    this.explainAbort = abort;
+    const capture = this.capture();
+    void explainDiagram({
+      context,
+      diagram: subjectFromCapture(
+        capture
+          ? {
+              surface: capture.surface,
+              viewMode: capture.viewMode,
+              ...(capture.spec ? { specKind: capture.spec.kind } : {}),
+              ...(capture.focusId ? { focusId: capture.focusId } : {}),
+              ...(capture.graph ? { graph: capture.graph } : {}),
+              ...(capture.controlFlow ? { controlFlow: capture.controlFlow } : {}),
+              ...(capture.sequence ? { sequence: capture.sequence } : {}),
+            }
+          : undefined,
+      ),
+      post: (message) => {
+        this.post(message);
+      },
+      signal: abort.signal,
+      superseded: () => generation !== this.explainGeneration || this.disposed,
+    });
+  }
+
+  public cancelExplain(): void {
+    this.explainAbort?.abort();
+  }
+
+  public clearExplain(): void {
+    this.explainGeneration += 1;
+    this.explainAbort?.abort();
+    this.post({ type: 'explain', status: 'idle' });
   }
 
   public capture(): DiagramCapture | undefined {
@@ -747,6 +809,15 @@ export class DiagramPanel {
       },
       clearRuntimeTrace: () => {
         DiagramPanel.runtimeTrace.clear();
+      },
+      explainFlow: () => {
+        this.explain();
+      },
+      cancelExplain: () => {
+        this.cancelExplain();
+      },
+      clearExplain: () => {
+        this.clearExplain();
       },
     };
   }

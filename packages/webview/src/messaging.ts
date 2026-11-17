@@ -146,6 +146,18 @@ export function postClearRuntimeTrace(): void {
   post({ type: 'clearRuntimeTrace' });
 }
 
+export function postExplainFlow(): void {
+  post({ type: 'explainFlow' });
+}
+
+export function postCancelExplain(): void {
+  post({ type: 'cancelExplain' });
+}
+
+export function postClearExplain(): void {
+  post({ type: 'clearExplain' });
+}
+
 export function onExtensionMessage(
   handler: (message: ExtensionToDiagramWebviewMessage) => void,
 ): () => void {
