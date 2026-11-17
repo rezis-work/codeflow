@@ -112,7 +112,7 @@ export async function analyzeHeadAndBase(input: {
     maxFiles: SCAN_CAP,
   });
   for (const warning of rust.warnings) {
-    warnings.push(warning);
+    note(warnings, warning);
   }
 
   const head = await analyzeSnapshot(input.rootDir, headFiles, rust.crates, warnings);
@@ -171,7 +171,7 @@ function selectFiles(
     warnings.push(`Discovery stopped after ${SCAN_CAP} TypeScript and JavaScript files.`);
   }
   for (const error of projects.errors) {
-    warnings.push(error);
+    note(warnings, error);
   }
   for (const project of projects.projects) {
     for (const file of project.files) {
@@ -184,7 +184,7 @@ function selectFiles(
     warnings.push(`Discovery stopped after ${SCAN_CAP} Rust files.`);
   }
   for (const warning of rust.warnings) {
-    warnings.push(warning);
+    note(warnings, warning);
   }
   for (const file of rust.files) {
     remember(rootDir, file, found);
@@ -195,7 +195,7 @@ function selectFiles(
     warnings.push(`Discovery stopped after ${SCAN_CAP} Python files.`);
   }
   for (const warning of python.warnings) {
-    warnings.push(warning);
+    note(warnings, warning);
   }
   for (const file of python.files) {
     remember(rootDir, file, found);
@@ -521,4 +521,11 @@ function unique(warnings: readonly string[]): string[] {
   return [
     ...new Set(warnings.map((warning) => warning.trim()).filter((warning) => warning.length > 0)),
   ];
+}
+
+function note(warnings: string[], warning: string): void {
+  if (warning.includes('.vscode-test')) {
+    return;
+  }
+  warnings.push(warning);
 }
