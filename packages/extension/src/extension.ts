@@ -24,8 +24,15 @@ import {
   EXPORT_SVG_COMMAND,
   EXPORT_MERMAID_COMMAND,
   COPY_MERMAID_COMMAND,
+  EXPLAIN_FLOW_COMMAND,
+  SET_AI_API_KEY_COMMAND,
+  CLEAR_AI_API_KEY_COMMAND,
+  AI_DISCLOSURE_KEY,
   SIDEBAR_VIEW_ID,
 } from './constants';
+import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
+import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
+import { setAiEnabledOverride } from './ai/vscodeSettings';
 import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
 import { startEditorSync } from './editorSync';
@@ -68,6 +75,11 @@ export interface CodeFlowExtensionApi {
   dropMemory(): Promise<void>;
   runtimeRecording(): boolean;
   recordRuntimeFrames(frames: unknown): boolean;
+  installFakeEditorModel(reply: string): void;
+  editorPrompts(): readonly string[];
+  clearFakeEditorModel(): void;
+  acceptAiDisclosure(): Thenable<void>;
+  setAiEnabledOverride(enabled: boolean | undefined): void;
 }
 
 /**
@@ -78,6 +90,7 @@ export interface CodeFlowExtensionApi {
  * only hears about the graph through @codeflow/shared messages.
  */
 export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi {
+  DiagramPanel.bind(context);
   const typescript = new TypeScriptIndexer(context);
   const rust = new RustIndexer(context);
   installAnalysisStatus(context, () => {
@@ -129,6 +142,20 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       savedFlows.exportDiagram('mermaid', target instanceof vscode.Uri ? target : undefined),
     ),
     vscode.commands.registerCommand(COPY_MERMAID_COMMAND, () => savedFlows.copyMermaid()),
+    vscode.commands.registerCommand(EXPLAIN_FLOW_COMMAND, () => {
+      const panel = DiagramPanel.current;
+      if (!panel) {
+        void vscode.window.showInformationMessage('Open a CodeFlow diagram before explaining it.');
+        return;
+      }
+      panel.explain();
+    }),
+    vscode.commands.registerCommand(SET_AI_API_KEY_COMMAND, () => {
+      void setAiApiKey(context);
+    }),
+    vscode.commands.registerCommand(CLEAR_AI_API_KEY_COMMAND, () => {
+      void clearAiApiKey(context);
+    }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('codeflow.savedFlows.storeInWorkspace')) {
         savedFlows.reload();
@@ -248,6 +275,17 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     },
     runtimeRecording: () => runtimeTrace.recording(),
     recordRuntimeFrames: (frames) => runtimeTrace.recordStack(frames),
+    installFakeEditorModel: (reply) => {
+      installFakeEditorModel(reply);
+    },
+    editorPrompts: () => fakeEditorPrompts(),
+    clearFakeEditorModel: () => {
+      clearFakeEditorModel();
+    },
+    acceptAiDisclosure: () => context.globalState.update(AI_DISCLOSURE_KEY, true),
+    setAiEnabledOverride: (enabled) => {
+      setAiEnabledOverride(enabled);
+    },
   };
 }
 

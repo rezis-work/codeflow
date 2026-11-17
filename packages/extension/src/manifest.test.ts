@@ -77,7 +77,7 @@ describe('extension manifest', () => {
   const manifest = readManifest();
 
   it('targets the conservative VS Code engine and the bundled entry', () => {
-    expect(manifest.engines?.vscode).toBe('^1.85.0');
+    expect(manifest.engines?.vscode).toBe('^1.90.0');
     expect(manifest.main).toBe('./dist/extension.js');
   });
 
@@ -175,6 +175,9 @@ describe('extension manifest', () => {
         'codeflow.clearCache',
         'codeflow.toggleRuntimeTrace',
         'codeflow.clearRuntimeTrace',
+        'codeflow.explainFlow',
+        'codeflow.setAiApiKey',
+        'codeflow.clearAiApiKey',
       ]),
     );
   });
@@ -197,6 +200,12 @@ describe('extension manifest', () => {
     }
     expect(Object.keys(settings).sort()).toEqual(
       [
+        'codeflow.ai.baseUrl',
+        'codeflow.ai.enabled',
+        'codeflow.ai.model',
+        'codeflow.ai.modelFamily',
+        'codeflow.ai.provider',
+        'codeflow.ai.snippetChars',
         'codeflow.cache.enabled',
         'codeflow.codeLens.enabled',
         'codeflow.editor.callDepth',

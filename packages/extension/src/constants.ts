@@ -27,6 +27,13 @@ export const EXPORT_MERMAID_COMMAND = 'codeflow.exportMermaid';
 export const COPY_MERMAID_COMMAND = 'codeflow.copyMermaid';
 export const TOGGLE_RUNTIME_TRACE_COMMAND = 'codeflow.toggleRuntimeTrace';
 export const CLEAR_RUNTIME_TRACE_COMMAND = 'codeflow.clearRuntimeTrace';
+export const EXPLAIN_FLOW_COMMAND = 'codeflow.explainFlow';
+export const SET_AI_API_KEY_COMMAND = 'codeflow.setAiApiKey';
+export const CLEAR_AI_API_KEY_COMMAND = 'codeflow.clearAiApiKey';
+/** Secret Storage key. Never written to settings.json. */
+export const AI_SECRET_KEY = 'codeflow.ai.apiKey';
+/** Global state flag for the first-use disclosure. Not the API key. */
+export const AI_DISCLOSURE_KEY = 'codeflow.ai.disclosureAccepted';
 /** Editor languages that have a CodeFlow context menu. */
 export const EDITOR_LANGUAGE_IDS = [
   'typescript',

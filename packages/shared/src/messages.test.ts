@@ -88,6 +88,9 @@ describe('webview to extension messages', () => {
     expect(isDiagramWebviewToExtensionMessage({ type: 'setViewMode', mode: 'all' })).toBe(false);
     expect(isDiagramWebviewToExtensionMessage({ type: 'dismissControlFlow' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'dismissSequence' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'explainFlow' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'cancelExplain' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'clearExplain' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'requestSequence' })).toBe(true);
     expect(
       isDiagramWebviewToExtensionMessage({ type: 'requestSequence', granularity: 'module' }),
@@ -176,6 +179,11 @@ describe('extension to webview messages', () => {
       confidence: 'inferred',
     });
     expect(isExtensionToDiagramWebviewMessage({ type: 'ack' })).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({ type: 'explain', status: 'done', text: 'hello' }),
+    ).toBe(true);
+    expect(isExtensionToDiagramWebviewMessage({ type: 'explain', status: 'idle' })).toBe(true);
+    expect(isExtensionToDiagramWebviewMessage({ type: 'explain', status: 'nope' })).toBe(false);
     expect(isExtensionToDiagramWebviewMessage({ type: 'ack', extra: true })).toBe(true);
     expect(
       isExtensionToDiagramWebviewMessage({

@@ -114,34 +114,37 @@ rust-analyzer is optional. When it is already running, CodeFlow uses it to mark 
 
 ## Commands
 
-| Command                                            | What it draws                                                              |
-| -------------------------------------------------- | -------------------------------------------------------------------------- |
-| CodeFlow: Show Flow for Symbol at Cursor           | Neighbourhood of the symbol, depth 2. Ctrl+Alt+F (Cmd+Alt+F on macOS)      |
-| CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)              |
-| CodeFlow: Show Callees                             | Outgoing calls, same depth                                                 |
-| CodeFlow: Show File Dependencies                   | Import edges of the current file                                           |
-| CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop           |
-| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust) |
-| CodeFlow: Show Trait Map                           | Rust trait and its impls, or a type and the traits it implements           |
-| CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer sinks       |
-| CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence                 |
-| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                             |
-| CodeFlow: Save Flow                                | Name the open diagram and store its definition                             |
-| CodeFlow: Open Saved Flow                          | Pick a saved flow and analyze it again                                     |
-| CodeFlow: Export PNG                               | Save the open diagram as a PNG                                             |
-| CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                              |
-| CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                   |
-| CodeFlow: Copy Mermaid                             | Copy that Mermaid source                                                   |
-| CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                          |
-| CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                 |
-| CodeFlow: Start/Stop Runtime Trace                 | Record debugger stops onto the open call graph and flowchart, or pause     |
-| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                |
+| Command                                            | What it draws                                                                     |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| CodeFlow: Show Flow for Symbol at Cursor           | Neighbourhood of the symbol, depth 2. Ctrl+Alt+F (Cmd+Alt+F on macOS)             |
+| CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)                     |
+| CodeFlow: Show Callees                             | Outgoing calls, same depth                                                        |
+| CodeFlow: Show File Dependencies                   | Import edges of the current file                                                  |
+| CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop                  |
+| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)        |
+| CodeFlow: Show Trait Map                           | Rust trait and its impls, or a type and the traits it implements                  |
+| CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer sinks              |
+| CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence                        |
+| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                    |
+| CodeFlow: Save Flow                                | Name the open diagram and store its definition                                    |
+| CodeFlow: Open Saved Flow                          | Pick a saved flow and analyze it again                                            |
+| CodeFlow: Export PNG                               | Save the open diagram as a PNG                                                    |
+| CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                                     |
+| CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                          |
+| CodeFlow: Copy Mermaid                             | Copy that Mermaid source                                                          |
+| CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                                 |
+| CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                        |
+| CodeFlow: Start/Stop Runtime Trace                 | Record debugger stops onto the open call graph and flowchart, or pause            |
+| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                       |
+| CodeFlow: Explain Flow                             | Plain-language summary of the open diagram, only when `codeflow.ai.enabled` is on |
+| CodeFlow: Set AI API Key                           | Store an OpenAI-compatible or Anthropic key in Secret Storage                     |
+| CodeFlow: Clear AI API Key                         | Delete that key from Secret Storage                                               |
 
 Show Flow does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts. On a Linux text console, Ctrl+Alt+Fn switches virtual terminals. Ctrl+Alt+F does not do that in a graphical session.
 
 ## Settings
 
-Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`. The page is grouped into Editor, Diagram, Analysis, Rust, Saved Flows, and Export. Each setting's title, default, and description are the strings in the extension manifest. The same list, with the group order, is in [docs/SETTINGS.md](https://github.com/rezis-work/codeflow/blob/main/docs/SETTINGS.md).
+Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`. The page is grouped into Editor, Diagram, Analysis, Rust, Saved Flows, Export, and AI. Each setting's title, default, and description are the strings in the extension manifest. The same list, with the group order, is in [docs/SETTINGS.md](https://github.com/rezis-work/codeflow/blob/main/docs/SETTINGS.md).
 
 | Setting                                | Default                                   | What it changes                                                                                       |
 | -------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -158,10 +161,16 @@ Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-c
 | `codeflow.savedFlows.storeInWorkspace` | `false`                                   | Write named flows to `.codeflow/flows.json`. Off keeps them in this window's storage                  |
 | `codeflow.export.pngScale`             | `2`                                       | PNG export scale from 1 to 4                                                                          |
 | `codeflow.export.background`           | `theme`                                   | `theme` follows the color theme. `light` forces a white background for PNG and SVG                    |
+| `codeflow.ai.enabled`                  | `false`                                   | Explain the open diagram. Off sends nothing                                                           |
+| `codeflow.ai.provider`                 | `editor`                                  | `editor`, `openai-compatible`, or `anthropic`                                                         |
+| `codeflow.ai.modelFamily`              | empty                                     | Editor model family, such as `gpt-4o`. Empty uses the first model the editor returns                  |
+| `codeflow.ai.model`                    | empty                                     | Model id for an own-key provider. Empty uses `gpt-4o-mini` or `claude-3-5-haiku-20241022`             |
+| `codeflow.ai.baseUrl`                  | empty                                     | Own-key base URL. Empty uses the provider default. Must start with `http://` or `https://`            |
+| `codeflow.ai.snippetChars`             | `240`                                     | Source characters copied from each node. `0` sends names and edges only. Maximum 2,000                |
 
 ## Requirements
 
-- VS Code 1.85 or newer, or a current Cursor
+- VS Code 1.90 or newer, or a current Cursor. `engines.vscode` is `^1.90.0` because that is the first stable release with `vscode.lm`, which Explain uses. The extension version is still 1.0.2. A Cursor build based on a VS Code older than 1.90 cannot load this extension.
 - For Rust crate names, `cargo` on `PATH`. Without it, CodeFlow reads `Cargo.toml` and `src/` and shows a warning
 - Node.js 22 or newer only if you build from source
 
@@ -178,15 +187,23 @@ Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-c
 - PNG, SVG, and Mermaid export use a deterministic layout, not the on-screen positions. PNG text uses a built-in bitmap font.
 - Git worktrees, where `.git` is a file, are not watched for branch switches.
 - The diagram posts at most 2,000 nodes. `codeflow.maxFiles` (default 2500) caps the background index.
+- Explain is off until `codeflow.ai.enabled` is on. The summary is the model's text. Snippets are capped, and the prompt itself is capped. Trait maps and file-dependency diagrams can be explained when they are the diagram on screen; the prompt names that kind.
+- The no-key path works in VS Code when a provider such as GitHub Copilot has registered chat models through `vscode.lm`. This repository cannot run Cursor's extension host. Cursor does not document exposing its models to extensions that way. If `selectChatModels` returns none, CodeFlow tells you to switch to an own-key provider. VS Code still shows its own consent dialog the first time a model is used, and a declined consent, a missing model, or a quota block is reported as that error.
 
 ## Privacy
 
-CodeFlow is fully local.
+Analysis stays on your machine. CodeFlow has no telemetry client.
 
-- It does not send source, graphs, or usage data anywhere. There is no telemetry client in the extension or the diagram view.
-- The diagram is a webview with a nonce content security policy: `default-src 'none'`, scripts only with that nonce, no `unsafe-eval`, and no remote load.
+- The diagram, the graph, and the cache are not uploaded. The diagram is a webview with a nonce content security policy: `default-src 'none'`, scripts only with that nonce, no `unsafe-eval`, and no remote load.
 - Analysis runs in local worker threads (the TypeScript compiler API, and tree-sitter WASM for Rust). `cargo metadata` and rust-analyzer, when you already run them, are local processes.
 - The analysis cache is stored under this window's local storage. Saved flows stay there too, unless you opt in to `.codeflow/flows.json`.
+- An explanation leaves the machine only when `codeflow.ai.enabled` is on, you run **Explain** or **CodeFlow: Explain Flow**, and you confirm the first request in that window. While the setting is off, Explain does not select a model, does not read an API key, and does not send a request.
+- What is sent is the serialized open diagram: its kind, title, node names, edge labels, and source snippets. Each snippet is capped by `codeflow.ai.snippetChars` (default 240, maximum 2,000). The prompt is capped at 12,000 characters. The rest of the workspace is not included. There is still no usage telemetry.
+- `editor` (the default) sends that text through VS Code's Language Model API (`vscode.lm.selectChatModels`). VS Code shows its own consent prompt the first time. No API key is stored. This is the no-key path, and it works in VS Code when a provider such as GitHub Copilot has registered chat models. `codeflow.ai.modelFamily` selects a family. Empty uses the first model the editor returns.
+- This environment cannot verify Cursor. Cursor is not documented as exposing its own models to extensions through `vscode.lm`. When the editor returns no models, CodeFlow says so and points at `openai-compatible` or `anthropic`.
+- `openai-compatible` POSTs to `codeflow.ai.baseUrl` (default `https://api.openai.com/v1`, which also covers a local server such as Ollama at `http://127.0.0.1:11434/v1`). The key from Secret Storage is an `Authorization` header. It is not in the JSON body, not in settings.json, and not in the repository. An empty `codeflow.ai.model` uses `gpt-4o-mini`.
+- `anthropic` POSTs to `codeflow.ai.baseUrl` (default `https://api.anthropic.com`) with the key in the `x-api-key` header. An empty model uses `claude-3-5-haiku-20241022`.
+- **CodeFlow: Set AI API Key** writes the key to VS Code Secret Storage. **CodeFlow: Clear AI API Key** deletes it. The first confirmation lists the destination and the text that will be sent. Later explanations in that window skip the dialog. A request times out after 30 seconds, and Cancel stops it.
 
 ## Troubleshooting
 

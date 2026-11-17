@@ -1,7 +1,7 @@
 {
   "name": "rezis-codeflow",
   "displayName": "Rezis CodeFlow",
-  "description": "Call graphs, flowcharts, and sequence diagrams for TypeScript, JavaScript, and Rust. Fully local, in VS Code and Cursor.",
+  "description": "Call graphs, flowcharts, and sequence diagrams for TypeScript, JavaScript, and Rust, in VS Code and Cursor. Analysis stays local.",
   "version": "1.0.2",
   "publisher": "rezis-work",
   "license": "MIT",
@@ -21,7 +21,7 @@
   },
   "qna": "https://github.com/rezis-work/codeflow/issues",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.90.0"
   },
   "extensionKind": [
     "workspace"
@@ -163,6 +163,21 @@
         "command": "codeflow.clearRuntimeTrace",
         "title": "CodeFlow: Clear Runtime Trace",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "codeflow.explainFlow",
+        "title": "CodeFlow: Explain Flow",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "codeflow.setAiApiKey",
+        "title": "CodeFlow: Set AI API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "codeflow.clearAiApiKey",
+        "title": "CodeFlow: Clear AI API Key",
+        "icon": "$(key)"
       }
     ],
     "keybindings": [
@@ -259,6 +274,15 @@
         },
         {
           "command": "codeflow.clearRuntimeTrace"
+        },
+        {
+          "command": "codeflow.explainFlow"
+        },
+        {
+          "command": "codeflow.setAiApiKey"
+        },
+        {
+          "command": "codeflow.clearAiApiKey"
         }
       ],
       "editor/context": [
@@ -470,6 +494,66 @@
             "markdownDescription": "Background for PNG and SVG export. `theme` follows the current color theme. `light` forces a white background."
           }
         }
+      },
+      {
+        "title": "CodeFlow: AI",
+        "order": 7,
+        "properties": {
+          "codeflow.ai.enabled": {
+            "type": "boolean",
+            "default": false,
+            "order": 1,
+            "description": "Explain the open diagram in plain language. Off sends nothing. On uses the provider below.",
+            "markdownDescription": "Explain the open diagram in plain language. Off sends nothing. On uses the provider below."
+          },
+          "codeflow.ai.provider": {
+            "type": "string",
+            "enum": [
+              "editor",
+              "openai-compatible",
+              "anthropic"
+            ],
+            "enumDescriptions": [
+              "The editor's language model through the VS Code Language Model API. No API key.",
+              "An OpenAI-compatible chat endpoint, including a local server such as Ollama.",
+              "Anthropic's messages API, or a compatible base URL."
+            ],
+            "default": "editor",
+            "order": 2,
+            "description": "Who explains the diagram. editor uses the editor's model. The other two use your API key.",
+            "markdownDescription": "Who explains the diagram. `editor` uses the editor's language model. `openai-compatible` and `anthropic` use your API key."
+          },
+          "codeflow.ai.modelFamily": {
+            "type": "string",
+            "default": "",
+            "order": 3,
+            "description": "Family passed to the editor model selector, such as gpt-4o. Empty uses the first model returned.",
+            "markdownDescription": "Family passed to the editor language model selector, such as `gpt-4o`. Empty uses the first model the editor returns. Used only when the provider is `editor`."
+          },
+          "codeflow.ai.model": {
+            "type": "string",
+            "default": "",
+            "order": 4,
+            "description": "Model id for an own-key provider. Empty uses gpt-4o-mini or claude-3-5-haiku-20241022.",
+            "markdownDescription": "Model id for `openai-compatible` or `anthropic`. Empty uses `gpt-4o-mini` or `claude-3-5-haiku-20241022`. Ignored for the editor provider."
+          },
+          "codeflow.ai.baseUrl": {
+            "type": "string",
+            "default": "",
+            "order": 5,
+            "description": "Base URL for an own-key provider. Empty uses the provider default. Must start with http:// or https://.",
+            "markdownDescription": "Base URL for `openai-compatible` or `anthropic`. Empty uses the provider default. A local server can be `http://127.0.0.1:11434/v1`. The value must start with `http://` or `https://`."
+          },
+          "codeflow.ai.snippetChars": {
+            "type": "number",
+            "default": 240,
+            "minimum": 0,
+            "maximum": 2000,
+            "order": 6,
+            "description": "Maximum characters of source copied from each node into an explanation. 0 sends names and edges only.",
+            "markdownDescription": "Maximum characters of source copied from each node into an explanation. `0` sends names and edges only. Maximum 2000."
+          }
+        }
       }
     ]
   },
@@ -484,7 +568,7 @@
     "@codeflow/shared": "*",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.6",
-    "@types/vscode": "1.85.0",
+    "@types/vscode": "1.90.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",

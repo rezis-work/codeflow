@@ -162,6 +162,21 @@ export interface ClearRuntimeTraceMessage {
   readonly type: 'clearRuntimeTrace';
 }
 
+/** Asks for a plain-language explanation of the open diagram. */
+export interface ExplainFlowMessage {
+  readonly type: 'explainFlow';
+}
+
+/** Stops the explanation that is streaming. */
+export interface CancelExplainMessage {
+  readonly type: 'cancelExplain';
+}
+
+/** Removes the explanation from the panel. */
+export interface ClearExplainMessage {
+  readonly type: 'clearExplain';
+}
+
 export interface DiagramViewport {
   readonly x: number;
   readonly y: number;
@@ -182,7 +197,10 @@ export type DiagramWebviewToExtensionMessage =
   | SaveFlowMessage
   | ExportDiagramMessage
   | CopyMermaidMessage
-  | ClearRuntimeTraceMessage;
+  | ClearRuntimeTraceMessage
+  | ExplainFlowMessage
+  | CancelExplainMessage
+  | ClearExplainMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -289,6 +307,20 @@ export interface RuntimeTraceMessage extends RuntimeTraceData {
   readonly type: 'runtimeTrace';
 }
 
+export const EXPLAIN_STATUSES = ['streaming', 'done', 'error', 'idle'] as const;
+export type ExplainStatus = (typeof EXPLAIN_STATUSES)[number];
+
+/**
+ * A diagram explanation. `streaming` replaces `text` as tokens arrive.
+ * `error` may still carry a partial `text`. `idle` clears the summary.
+ */
+export interface ExplainMessage {
+  readonly type: 'explain';
+  readonly status: ExplainStatus;
+  readonly text?: string;
+  readonly message?: string;
+}
+
 export type ExtensionToDiagramWebviewMessage =
   | AckMessage
   | GraphSnapshotMessage
@@ -302,7 +334,8 @@ export type ExtensionToDiagramWebviewMessage =
   | SequenceDiagramMessage
   | SavedFlowBannerMessage
   | PresentationMessage
-  | RuntimeTraceMessage;
+  | RuntimeTraceMessage
+  | ExplainMessage;
 
 export function isDiagramWebviewToExtensionMessage(
   value: unknown,
@@ -349,6 +382,12 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return { type: 'copyMermaid' };
     case 'clearRuntimeTrace':
       return { type: 'clearRuntimeTrace' };
+    case 'explainFlow':
+      return { type: 'explainFlow' };
+    case 'cancelExplain':
+      return { type: 'cancelExplain' };
+    case 'clearExplain':
+      return { type: 'clearExplain' };
     default:
       return undefined;
   }
@@ -385,6 +424,8 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parsePresentation(value);
     case 'runtimeTrace':
       return parseRuntimeTraceMessage(value);
+    case 'explain':
+      return parseExplain(value);
     default:
       return undefined;
   }
@@ -688,6 +729,35 @@ function parseConfig(value: Record<string, unknown>): ConfigMessage | undefined 
     ...(isDiagramViewMode(value.viewMode) ? { viewMode: value.viewMode } : {}),
     ...(isDiagramMaxNodes(value.maxNodes) ? { maxNodes: value.maxNodes } : {}),
   };
+}
+
+const EXPLAIN_TEXT_LIMIT = 20_000;
+const EXPLAIN_MESSAGE_LIMIT = 2_000;
+
+function parseExplain(value: Record<string, unknown>): ExplainMessage | undefined {
+  if (!isExplainStatus(value.status)) {
+    return undefined;
+  }
+  if (value.text !== undefined && !isBoundedString(value.text, EXPLAIN_TEXT_LIMIT)) {
+    return undefined;
+  }
+  if (value.message !== undefined && !isBoundedString(value.message, EXPLAIN_MESSAGE_LIMIT)) {
+    return undefined;
+  }
+  return {
+    type: 'explain',
+    status: value.status,
+    ...(typeof value.text === 'string' ? { text: value.text } : {}),
+    ...(typeof value.message === 'string' ? { message: value.message } : {}),
+  };
+}
+
+function isExplainStatus(value: unknown): value is ExplainStatus {
+  return typeof value === 'string' && (EXPLAIN_STATUSES as readonly string[]).includes(value);
+}
+
+function isBoundedString(value: unknown, limit: number): value is string {
+  return typeof value === 'string' && value.length <= limit;
 }
 
 function parseError(value: Record<string, unknown>): ErrorMessage | undefined {
