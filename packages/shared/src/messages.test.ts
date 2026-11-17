@@ -371,4 +371,25 @@ describe('extension to webview messages', () => {
       expect(isExtensionToDiagramWebviewMessage(value)).toBe(false);
     }
   });
+
+  it('accepts a pull request highlight and rejects a bad status', () => {
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'prHighlight',
+        enabled: true,
+        summary: '2 functions changed.',
+        nodes: [{ nodeId: 'ts\u001ffile:///a.ts\u001fgreet', status: 'added' }],
+        removed: [{ qualifiedName: 'format', path: 'src/a.ts', line: 4 }],
+      }),
+    ).toBe(true);
+    expect(
+      isExtensionToDiagramWebviewMessage({
+        type: 'prHighlight',
+        enabled: true,
+        summary: 'nope',
+        nodes: [{ nodeId: 'n', status: 'deleted' }],
+        removed: [],
+      }),
+    ).toBe(false);
+  });
 });

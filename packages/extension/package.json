@@ -190,6 +190,21 @@
         "command": "codeflow.clearAiApiKey",
         "title": "CodeFlow: Clear AI API Key",
         "icon": "$(key)"
+      },
+      {
+        "command": "codeflow.showPrChanges",
+        "title": "CodeFlow: Show PR Changes",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "codeflow.togglePrHighlight",
+        "title": "CodeFlow: Toggle PR Highlight",
+        "icon": "$(highlight)"
+      },
+      {
+        "command": "codeflow.refreshPrChanges",
+        "title": "CodeFlow: Refresh PR Changes",
+        "icon": "$(refresh)"
       }
     ],
     "keybindings": [
@@ -566,6 +581,33 @@
             "markdownDescription": "Maximum characters of source copied from each node into an explanation. `0` sends names and edges only. Maximum 2000."
           }
         }
+      },
+      {
+        "title": "CodeFlow: Pull request",
+        "order": 8,
+        "properties": {
+          "codeflow.pr.enabled": {
+            "type": "boolean",
+            "default": true,
+            "order": 1,
+            "description": "When a feature branch is checked out, highlight the functions it changes. Off stays quiet and makes no git calls.",
+            "markdownDescription": "When a feature branch is checked out, highlight the functions it changes. Off stays quiet and makes no git calls."
+          },
+          "codeflow.pr.baseBranch": {
+            "type": "string",
+            "default": "auto",
+            "order": 2,
+            "description": "Branch the working tree is compared with. auto uses origin/HEAD, then origin/main, origin/master, main, and master. A gh pull request base is used only when gh is already installed and authenticated. CodeFlow never prompts.",
+            "markdownDescription": "Branch the working tree is compared with. `auto` uses `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. A `gh` pull request base is used only when `gh` is already installed and authenticated. CodeFlow never prompts."
+          },
+          "codeflow.pr.includeUncommitted": {
+            "type": "boolean",
+            "default": true,
+            "order": 3,
+            "description": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only.",
+            "markdownDescription": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only."
+          }
+        }
       }
     ]
   },
@@ -577,6 +619,7 @@
     "test:integration": "tsc -p tsconfig.test.json && node ./out/runTest.js"
   },
   "devDependencies": {
+    "@codeflow/pr": "*",
     "@codeflow/shared": "*",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.6",

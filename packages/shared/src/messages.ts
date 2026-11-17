@@ -307,6 +307,35 @@ export interface RuntimeTraceMessage extends RuntimeTraceData {
   readonly type: 'runtimeTrace';
 }
 
+export const PR_NODE_STATUSES = ['added', 'modified', 'context'] as const;
+export type PrNodeStatus = (typeof PR_NODE_STATUSES)[number];
+
+/** A changed function drawn in the open diagram. Removed functions are listed, not drawn. */
+export interface PrMark {
+  readonly nodeId: string;
+  readonly status: PrNodeStatus;
+}
+
+export interface PrRemovedSymbol {
+  readonly qualifiedName: string;
+  readonly path: string;
+  readonly line: number;
+}
+
+/**
+ * Colours changed functions in the open diagram.
+ * `enabled: false` clears the overlay. Removed symbols are a list, not nodes.
+ */
+export interface PrHighlightMessage {
+  readonly type: 'prHighlight';
+  readonly enabled: boolean;
+  readonly summary: string;
+  /** When true, leave a flowchart or sequence and show the call graph. */
+  readonly focus?: boolean;
+  readonly nodes: readonly PrMark[];
+  readonly removed: readonly PrRemovedSymbol[];
+}
+
 export const EXPLAIN_STATUSES = ['streaming', 'done', 'error', 'idle'] as const;
 export type ExplainStatus = (typeof EXPLAIN_STATUSES)[number];
 
@@ -335,6 +364,7 @@ export type ExtensionToDiagramWebviewMessage =
   | SavedFlowBannerMessage
   | PresentationMessage
   | RuntimeTraceMessage
+  | PrHighlightMessage
   | ExplainMessage;
 
 export function isDiagramWebviewToExtensionMessage(
@@ -424,6 +454,8 @@ function parseExtensionMessage(value: unknown): ExtensionToDiagramWebviewMessage
       return parsePresentation(value);
     case 'runtimeTrace':
       return parseRuntimeTraceMessage(value);
+    case 'prHighlight':
+      return parsePrHighlight(value);
     case 'explain':
       return parseExplain(value);
     default:
@@ -941,6 +973,72 @@ function parsePresentation(value: Record<string, unknown>): PresentationMessage 
     ...(typeof value.showInferred === 'boolean' ? { showInferred: value.showInferred } : {}),
     ...(hidden && hidden.length > 0 ? { hiddenEdgeKinds: hidden } : {}),
   };
+}
+
+function parsePrHighlight(value: Record<string, unknown>): PrHighlightMessage | undefined {
+  if (typeof value.enabled !== 'boolean' || typeof value.summary !== 'string') {
+    return undefined;
+  }
+  if (value.focus !== undefined && typeof value.focus !== 'boolean') {
+    return undefined;
+  }
+  if (value.summary.length > 2_000 || hasControlCharacter(value.summary)) {
+    return undefined;
+  }
+  if (!Array.isArray(value.nodes) || value.nodes.length > 2_000) {
+    return undefined;
+  }
+  if (!Array.isArray(value.removed) || value.removed.length > 200) {
+    return undefined;
+  }
+  const nodes: PrMark[] = [];
+  for (const item of value.nodes) {
+    if (!isRecord(item) || typeof item.nodeId !== 'string' || !isPrStatus(item.status)) {
+      return undefined;
+    }
+    if (
+      item.nodeId.length === 0 ||
+      item.nodeId.length > 2_000 ||
+      hasControlCharacter(item.nodeId)
+    ) {
+      return undefined;
+    }
+    nodes.push({ nodeId: item.nodeId, status: item.status });
+  }
+  const removed: PrRemovedSymbol[] = [];
+  for (const item of value.removed) {
+    if (
+      !isRecord(item) ||
+      typeof item.qualifiedName !== 'string' ||
+      typeof item.path !== 'string' ||
+      !isNonNegativeInteger(item.line)
+    ) {
+      return undefined;
+    }
+    if (
+      item.qualifiedName.length === 0 ||
+      item.qualifiedName.length > 500 ||
+      item.path.length === 0 ||
+      item.path.length > 1_000 ||
+      hasControlCharacter(item.qualifiedName) ||
+      hasControlCharacter(item.path)
+    ) {
+      return undefined;
+    }
+    removed.push({ qualifiedName: item.qualifiedName, path: item.path, line: item.line });
+  }
+  return {
+    type: 'prHighlight',
+    enabled: value.enabled,
+    summary: value.summary,
+    ...(value.focus === true ? { focus: true } : {}),
+    nodes,
+    removed,
+  };
+}
+
+function isPrStatus(value: unknown): value is PrNodeStatus {
+  return value === 'added' || value === 'modified' || value === 'context';
 }
 
 function parseRuntimeTraceMessage(value: Record<string, unknown>): RuntimeTraceMessage | undefined {

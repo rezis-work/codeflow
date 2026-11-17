@@ -13,6 +13,7 @@ export function SymbolNodeView({ data }: NodeProps<SymbolFlowNode>) {
       data-language={data.language}
       data-focused={data.focused ? 'true' : 'false'}
       data-runtime-order={data.runtimeOrder ?? undefined}
+      data-pr-status={data.prStatus}
       data-testid="symbol-node"
     >
       <Handle type="target" position={Position.Left} />

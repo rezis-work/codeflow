@@ -30,6 +30,9 @@ export const CLEAR_RUNTIME_TRACE_COMMAND = 'codeflow.clearRuntimeTrace';
 export const EXPLAIN_FLOW_COMMAND = 'codeflow.explainFlow';
 export const SET_AI_API_KEY_COMMAND = 'codeflow.setAiApiKey';
 export const CLEAR_AI_API_KEY_COMMAND = 'codeflow.clearAiApiKey';
+export const SHOW_PR_CHANGES_COMMAND = 'codeflow.showPrChanges';
+export const TOGGLE_PR_HIGHLIGHT_COMMAND = 'codeflow.togglePrHighlight';
+export const REFRESH_PR_COMMAND = 'codeflow.refreshPrChanges';
 /** Secret Storage key. Never written to settings.json. */
 export const AI_SECRET_KEY = 'codeflow.ai.apiKey';
 /** Global state flag for the first-use disclosure. Not the API key. */

@@ -15,6 +15,7 @@ import type {
   GraphDelta,
   NodeId,
   PresentationMessage,
+  PrHighlightMessage,
   SaveFlowMessage,
   SavedFlow,
   SavedFlowBannerMessage,
@@ -204,6 +205,25 @@ export class DiagramPanel {
     DiagramPanel.current?.showSequence(session);
   }
 
+  /** Replaces the open diagram with the functions changed on this branch. */
+  public static showPullRequest(graph: CodeGraph): void {
+    DiagramPanel.current?.showPullRequest(graph);
+  }
+
+  /** Colours changed nodes. An empty disabled message clears the overlay. */
+  public static showPrHighlight(message: PrHighlightMessage): void {
+    DiagramPanel.current?.showPrHighlight(message);
+  }
+
+  public static holdingPullRequest(): boolean {
+    return DiagramPanel.current?.holdingPr === true;
+  }
+
+  /** Drops the pull request diagram and shows the workspace graph again. */
+  public static releasePullRequest(): void {
+    DiagramPanel.current?.releasePullRequest();
+  }
+
   private readonly disposables: vscode.Disposable[] = [];
   private disposed = false;
   private webviewReady = false;
@@ -226,6 +246,9 @@ export class DiagramPanel {
   private pendingBanner: SavedFlowBannerMessage | undefined;
   private pendingPresentation: PresentationMessage | undefined;
   private holdingStale = false;
+  private holdingPr = false;
+  private prGraph: CodeGraph | undefined;
+  private pendingPr: PrHighlightMessage | undefined;
   private explainAbort: AbortController | undefined;
   private explainGeneration = 0;
 
@@ -343,7 +366,47 @@ export class DiagramPanel {
     this.showSpec({ kind: 'flow', nodeId, depth: SYMBOL_FLOW_DEPTH });
   }
 
+  public showPullRequest(graph: CodeGraph): void {
+    this.holdingPr = true;
+    this.sequenceVisible = false;
+    this.surface = 'graph';
+    this.viewMode = 'focus';
+    this.spec = undefined;
+    this.holdingStale = false;
+    this.prGraph = graph;
+    this.viewGraph = graph;
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post(this.configMessage());
+    this.post({ type: 'graphSnapshot', graph });
+  }
+
+  public showPrHighlight(message: PrHighlightMessage): void {
+    this.pendingPr = message;
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post(message);
+  }
+
+  public releasePullRequest(): void {
+    const wasHolding = this.holdingPr;
+    this.holdingPr = false;
+    this.prGraph = undefined;
+    this.pendingPr = undefined;
+    if (!this.webviewReady || this.disposed) {
+      return;
+    }
+    this.post({ type: 'prHighlight', enabled: false, summary: '', nodes: [], removed: [] });
+    if (wasHolding) {
+      this.useWorkspace();
+    }
+  }
+
   public showSequence(session: SequenceSession): void {
+    this.holdingPr = false;
+    this.prGraph = undefined;
     this.sequenceSession = session;
     this.sequenceVisible = true;
     this.surface = 'sequence';
@@ -353,6 +416,8 @@ export class DiagramPanel {
   }
 
   public showSpec(spec: FocusSpec): void {
+    this.holdingPr = false;
+    this.prGraph = undefined;
     this.sequenceVisible = false;
     this.surface = 'graph';
     this.holdingStale = false;
@@ -421,6 +486,9 @@ export class DiagramPanel {
   }
 
   public publishDelta(delta: GraphDelta): void {
+    if (this.holdingPr) {
+      return;
+    }
     if (this.sequenceVisible) {
       void this.publishSequence();
     }
@@ -466,6 +534,8 @@ export class DiagramPanel {
     this.flowSession = sessionFrom(message);
     this.pendingFlow = message;
     if (message.graph) {
+      this.holdingPr = false;
+      this.prGraph = undefined;
       this.surface = 'flow';
       this.sequenceVisible = false;
       this.holdingStale = false;
@@ -536,6 +606,12 @@ export class DiagramPanel {
     }
     if (ready) {
       this.flushSavedChrome();
+      if (this.prGraph) {
+        this.post({ type: 'graphSnapshot', graph: this.prGraph });
+      }
+      if (this.pendingPr) {
+        this.post(this.pendingPr);
+      }
       DiagramPanel.runtimeTrace.republish();
     }
   }
@@ -627,6 +703,8 @@ export class DiagramPanel {
   }
 
   public useWorkspace(): void {
+    this.holdingPr = false;
+    this.prGraph = undefined;
     this.viewMode = 'workspace';
     this.surface = 'graph';
     if (!this.webviewReady || this.disposed) {
@@ -697,6 +775,9 @@ export class DiagramPanel {
    * delta. A snapshot is also sent when the panel has not published a view yet.
    */
   private publishFocusDelta(): void {
+    if (this.holdingPr) {
+      return;
+    }
     const spec = this.spec;
     if (
       !spec ||

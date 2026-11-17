@@ -65,6 +65,7 @@ export interface DiagramCanvasProps {
   }) => void;
   readonly runtimeNodeOrders?: ReadonlyMap<string, number>;
   readonly runtimeEdgeOrders?: ReadonlyMap<string, readonly number[]>;
+  readonly prStatus?: ReadonlyMap<string, 'added' | 'modified' | 'context'>;
 }
 
 export function DiagramCanvas(props: DiagramCanvasProps) {
@@ -100,6 +101,7 @@ function DiagramSurface({
   onViewport,
   runtimeNodeOrders,
   runtimeEdgeOrders,
+  prStatus,
 }: DiagramCanvasProps) {
   const collapsed = useMemo(() => collapseRustModules(graph), [graph]);
   const userHidden = useMemo(
@@ -211,6 +213,7 @@ function DiagramSurface({
         ...(hovered ? { hoveredId: hovered } : {}),
         ...(runtimeNodeOrders ? { runtimeNodeOrders } : {}),
         ...(runtimeEdgeOrders ? { runtimeEdgeOrders } : {}),
+        ...(prStatus ? { prStatus } : {}),
       }),
     [
       filtered.nodes,
@@ -226,6 +229,7 @@ function DiagramSurface({
       hovered,
       runtimeNodeOrders,
       runtimeEdgeOrders,
+      prStatus,
     ],
   );
 

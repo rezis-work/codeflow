@@ -34,6 +34,7 @@ import {
 import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
 import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
 import { setAiEnabledOverride } from './ai/vscodeSettings';
+import { installPullRequestMode } from './prMode';
 import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
 import { startEditorSync } from './editorSync';
@@ -82,6 +83,14 @@ export interface CodeFlowExtensionApi {
   clearFakeEditorModel(): void;
   acceptAiDisclosure(): Thenable<void>;
   setAiEnabledOverride(enabled: boolean | undefined): void;
+  prStatus(): {
+    quiet: boolean;
+    reason: string;
+    count: number;
+    summary: string;
+    base: string | undefined;
+  };
+  refreshPr(): Promise<void>;
 }
 
 /**
@@ -103,6 +112,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   bindControlFlowEngines({ typescript, rust, python });
   const savedFlows = installSavedFlows(context, { typescript, rust, python });
   const runtimeTrace = installRuntimeTrace(context);
+  const pullRequest = installPullRequestMode(context);
 
   context.subscriptions.push(
     typescript,
@@ -305,6 +315,8 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     setAiEnabledOverride: (enabled) => {
       setAiEnabledOverride(enabled);
     },
+    prStatus: () => pullRequest.status(),
+    refreshPr: () => pullRequest.refresh(),
   };
 }
 

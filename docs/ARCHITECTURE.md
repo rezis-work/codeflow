@@ -390,6 +390,8 @@ The action's permissions are `contents: read` and `pull-requests: write`. It ref
 
 Callers outside the analyzed file set are missing. Path aliases are not applied in this headless pass; relative imports are. Rust files that belong to a Cargo package keep that crate name. A Rust file with no package is placed in one synthetic crate named `package`. Macro expansion, rust-analyzer, and FastAPI, Flask, and Django routes are out of scope here, as they are in the editor.
 
+The editor uses the same diff parser and `mapChangedSymbols` on a feature branch. It diffs `merge-base(HEAD, base)` against the working tree, asks the existing analyzer workers to parse only the changed files, and takes one hop of callers and callees from the workspace graph. The status bar, **Show PR Changes**, **Toggle PR Highlight**, and **Refresh PR Changes** are that view. `codeflow.pr.baseBranch` `auto` tries `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. `gh pr view` runs only when `gh` is already on the path; `GH_PROMPT_DISABLED` is set and a failure falls through. The first 80 changed source files are analyzed. Removed functions are listed and are not drawn.
+
 ## Roadmap
 
 - **1.1 Scaffold** (done): extension and webview shells, strict CSP, tooling, CI, and a VSIX.
@@ -408,6 +410,7 @@ Callers outside the analyzed file set are missing. Path aliases are not applied 
 - **3.4 Publish** (done): version 1.0.0, publisher `rezis-work`. See [PUBLISHING.md](PUBLISHING.md).
 - **4.3 Python adapter** (done): tree-sitter-python in a worker, the same graph, call graphs, imports, CodeLens, flowcharts, and sequence. FastAPI, Flask, and Django request flow is not detected. See [Python](#python).
 - **4.4 Pull request diagrams** (done): a headless diff diagram posted as one Mermaid comment. See [Pull request diagrams](#pull-request-diagrams).
+- **4.5 Local pull request view** (done): the editor highlights functions changed on the checked-out branch. See [Pull request diagrams](#pull-request-diagrams).
 
 ## License
 

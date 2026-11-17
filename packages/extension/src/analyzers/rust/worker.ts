@@ -15,6 +15,7 @@ import { createLazyScheduler } from '../../lazy/scheduler';
 import type { ScheduledJob } from '../../lazy/scheduler';
 import { pathToFileUri } from '../typescript/uri';
 import type { RustAnalysisSession } from './analyzer';
+import { analyzeRustTree } from '../../pr/analyzeRust';
 import { openRustSession } from './analyzer';
 import { discoverRustWorkspace } from './discover';
 import type { RustDiscovery } from './discover';
@@ -62,6 +63,10 @@ parent.on('message', (message: unknown) => {
       try {
         if (message.type === 'index') {
           scheduler.schedule(indexJob(message));
+          return;
+        }
+        if (message.type === 'inspect') {
+          inspectTree(message);
           return;
         }
         if (message.type === 'focus') {
@@ -504,6 +509,9 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
   if (message.type === 'updateFile' || message.type === 'removeFile') {
     return typeof (value as { filePath?: unknown }).filePath === 'string';
   }
+  if (message.type === 'inspect') {
+    return typeof (value as { rootDir?: unknown }).rootDir === 'string';
+  }
   if (message.type === 'controlFlow') {
     return (
       typeof (value as { filePath?: unknown }).filePath === 'string' &&
@@ -512,4 +520,21 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
     );
   }
   return false;
+}
+
+function inspectTree(message: { readonly id: number; readonly rootDir: string }): void {
+  try {
+    const fragments = analyzeRustTree(message.rootDir);
+    parent?.postMessage({ type: 'fragments', id: message.id, fragments });
+    parent?.postMessage({
+      type: 'done',
+      id: message.id,
+      fileCount: fragments.length,
+      capped: false,
+      warnings: [],
+      removedPaths: [],
+    });
+  } catch (error) {
+    fail(message.id, error);
+  }
 }

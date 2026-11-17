@@ -9,6 +9,7 @@ import type {
   EdgeKind,
   NodeId,
   Position,
+  PrHighlightMessage,
   RuntimeTraceMessage,
   SequenceDiagramMessage,
   SequenceGranularity,
@@ -59,6 +60,7 @@ export function App() {
   const [error, setError] = useState<string | undefined>(undefined);
   const [cursorHint, setCursorHint] = useState<string | undefined>(undefined);
   const [runtimeTrace, setRuntimeTrace] = useState<RuntimeTraceMessage | undefined>(undefined);
+  const [prHighlight, setPrHighlight] = useState<PrHighlightMessage | undefined>(undefined);
   const [query, setQuery] = useState('');
   const [hiddenEdgeKinds, setHiddenEdgeKinds] = useState<ReadonlySet<EdgeKind>>(() => new Set());
   const [showMinimap, setShowMinimap] = useState(true);
@@ -158,6 +160,12 @@ export function App() {
           return;
         case 'runtimeTrace':
           setRuntimeTrace(message.recording || message.steps.length > 0 ? message : undefined);
+          return;
+        case 'prHighlight':
+          setPrHighlight(message.enabled ? message : undefined);
+          if (message.focus) {
+            setSurface('graph');
+          }
           return;
         case 'explain':
           setExplain({
@@ -268,6 +276,13 @@ export function App() {
     }
     return orders;
   }, [runtimeTrace]);
+  const prStatus = useMemo(() => {
+    const statuses = new Map<string, 'added' | 'modified' | 'context'>();
+    for (const mark of prHighlight?.nodes ?? []) {
+      statuses.set(mark.nodeId, mark.status);
+    }
+    return statuses;
+  }, [prHighlight]);
   const runtimeEdgeOrders = useMemo(() => {
     const orders = new Map<string, readonly number[]>();
     for (const mark of runtimeTrace?.edges ?? []) {
@@ -446,6 +461,23 @@ export function App() {
           <p className="graph-error" role="alert" data-testid="graph-error">
             {error}
           </p>
+        ) : null}
+        {prHighlight ? (
+          <div className="pr-banner" role="status" data-testid="pr-highlight">
+            <p>{prHighlight.summary}</p>
+            {prHighlight.removed.length > 0 ? (
+              <details>
+                <summary>Removed ({prHighlight.removed.length})</summary>
+                <ul>
+                  {prHighlight.removed.map((symbol) => (
+                    <li key={`${symbol.path}:${symbol.line}:${symbol.qualifiedName}`}>
+                      {symbol.qualifiedName} ({symbol.path}:{symbol.line})
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
         ) : null}
         {runtimeTrace ? (
           <p className="runtime-trace" role="status" data-testid="runtime-trace">
@@ -660,6 +692,7 @@ export function App() {
               {...(focusId ? { focusId } : {})}
               {...(runtimeNodeOrders.size > 0 ? { runtimeNodeOrders } : {})}
               {...(runtimeEdgeOrders.size > 0 ? { runtimeEdgeOrders } : {})}
+              {...(prStatus.size > 0 ? { prStatus } : {})}
             />
           ) : connected && !graph ? (
             <div className="empty" data-testid="analyzing">

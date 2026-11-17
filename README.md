@@ -250,6 +250,10 @@ Locally, after `npm run build -w @codeflow/pr`:
 npx codeflow-pr --root . --base origin/main --head HEAD
 ```
 
+The same comparison is available in the editor. On a feature branch the status bar says **CodeFlow PR: N changed**. **CodeFlow: Show PR Changes** draws those functions and one hop of callers and callees: green for added, amber for modified, gray for an unchanged neighbour. Removed functions are listed under the diagram. **CodeFlow: Toggle PR Highlight** applies the same colours to a diagram that is already open, and **CodeFlow: Refresh PR Changes** reads the branch again. A save or a branch switch refreshes it.
+
+`codeflow.pr.baseBranch` defaults to `auto`, which tries `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. If `gh` is already installed and authenticated, its pull request base is preferred. CodeFlow does not prompt for `gh` and does not require a network call. `codeflow.pr.includeUncommitted` (default on) includes unsaved edits and untracked source files. Set `codeflow.pr.enabled` to `false` to stay quiet. On the base branch, or in a folder that is not a git repository, the status bar stays hidden.
+
 ## Development
 
 Build, test, and pull-request notes are in [CONTRIBUTING.md](https://github.com/rezis-work/codeflow/blob/main/CONTRIBUTING.md). The graph model and analyzer behavior are in [docs/ARCHITECTURE.md](https://github.com/rezis-work/codeflow/blob/main/docs/ARCHITECTURE.md). Publishing steps for the maintainer are in [docs/PUBLISHING.md](https://github.com/rezis-work/codeflow/blob/main/docs/PUBLISHING.md).
