@@ -8,8 +8,10 @@
   "bin": {
     "codeflow-pr": "./dist/cli.js"
   },
+  "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core": "./src/core.ts"
   },
   "scripts": {
     "build": "node esbuild.mjs",

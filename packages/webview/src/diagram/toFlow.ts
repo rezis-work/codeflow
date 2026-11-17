@@ -27,6 +27,7 @@ export interface SymbolNodeData {
   readonly focused: boolean;
   readonly location: SourceLocation;
   readonly runtimeOrder?: number;
+  readonly prStatus?: 'added' | 'modified' | 'context';
   readonly onReveal: (location: SourceLocation) => void;
   readonly onExpand: (nodeId: NodeId) => void;
   readonly canCollapse?: boolean;
@@ -65,6 +66,7 @@ export function toFlow(input: {
   readonly onToggleCollapse?: (nodeId: NodeId) => void;
   readonly runtimeNodeOrders?: ReadonlyMap<string, number>;
   readonly runtimeEdgeOrders?: ReadonlyMap<string, readonly number[]>;
+  readonly prStatus?: ReadonlyMap<string, 'added' | 'modified' | 'context'>;
 }): { readonly nodes: SymbolFlowNode[]; readonly edges: RelationFlowEdge[] } {
   const nodes: SymbolFlowNode[] = [];
   for (const node of input.nodes) {
@@ -76,6 +78,7 @@ export function toFlow(input: {
     const box = nodeBox(text.title, text.detail);
     const focused = input.focusId === node.id;
     const runtimeOrder = input.runtimeNodeOrders?.get(node.id);
+    const prStatus = input.prStatus?.get(node.id);
     nodes.push({
       id: node.id,
       type: 'symbol',
@@ -96,6 +99,7 @@ export function toFlow(input: {
         focused,
         location: node.location,
         ...(runtimeOrder ? { runtimeOrder } : {}),
+        ...(prStatus ? { prStatus } : {}),
         onReveal: input.onReveal,
         onExpand: input.onExpand,
         canCollapse: input.collapsibleIds?.has(node.id) === true,

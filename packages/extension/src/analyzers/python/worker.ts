@@ -19,6 +19,7 @@ import { buildPythonControlFlow } from './controlFlow';
 import { discoverPython } from './discover';
 import type { PythonDiscovery } from './discover';
 import { initPythonParser } from './parser';
+import { analyzePythonTree } from '../../pr/analyzePython';
 import { openPythonSession, pythonNeighbourhood } from './session';
 import type { PythonAnalysisSession } from './session';
 import type { HostToWorkerMessage, IndexRoot } from '../rust/workerProtocol';
@@ -61,6 +62,10 @@ parent.on('message', (message: unknown) => {
       try {
         if (message.type === 'index') {
           scheduler.schedule(indexJob(message));
+          return;
+        }
+        if (message.type === 'inspect') {
+          inspectTree(message);
           return;
         }
         if (message.type === 'focus') {
@@ -473,6 +478,9 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
   if (message.type === 'updateFile' || message.type === 'removeFile') {
     return typeof (value as { filePath?: unknown }).filePath === 'string';
   }
+  if (message.type === 'inspect') {
+    return typeof (value as { rootDir?: unknown }).rootDir === 'string';
+  }
   if (message.type === 'controlFlow') {
     return (
       typeof (value as { filePath?: unknown }).filePath === 'string' &&
@@ -481,4 +489,21 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
     );
   }
   return false;
+}
+
+function inspectTree(message: { readonly id: number; readonly rootDir: string }): void {
+  try {
+    const fragments = analyzePythonTree(message.rootDir);
+    parent?.postMessage({ type: 'fragments', id: message.id, fragments });
+    parent?.postMessage({
+      type: 'done',
+      id: message.id,
+      fileCount: fragments.length,
+      capped: false,
+      warnings: [],
+      removedPaths: [],
+    });
+  } catch (error) {
+    fail(message.id, error);
+  }
 }

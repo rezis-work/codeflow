@@ -67,7 +67,8 @@ export type HostToWorkerMessage =
       readonly functionId?: string;
       readonly qualifiedName?: string;
     }
-  | { readonly type: 'shutdown' };
+  | { readonly type: 'shutdown' }
+  | { readonly type: 'inspect'; readonly id: number; readonly rootDir: string };
 
 export interface WorkerFragmentsMessage {
   readonly type: 'fragments';

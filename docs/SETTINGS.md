@@ -2,7 +2,7 @@
 
 Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-codeflow`.
 
-The page is seven groups, in this order. Titles and descriptions in the Settings editor are the `markdownDescription` strings in `packages/extension/package.json`. Defaults below are the manifest defaults.
+The page is eight groups, in this order. Titles and descriptions in the Settings editor are the `markdownDescription` strings in `packages/extension/package.json`. Defaults below are the manifest defaults.
 
 ## Editor
 
@@ -67,3 +67,13 @@ Explain is off until `codeflow.ai.enabled` is on. The key, when a provider needs
 | `codeflow.ai.snippetChars` | `240`    | Maximum characters of source copied from each node. `0` sends names and edges only. Maximum 2,000.                                                                                                                               |
 
 The no-key path works in VS Code when a provider such as GitHub Copilot has registered chat models. Cursor is not documented as exposing its models through `vscode.lm`. If the editor returns none, CodeFlow tells you to switch provider and set a key. The first explanation shows the text that will be sent. Later explanations in that window skip that dialog. VS Code still shows its own consent prompt for an editor model.
+
+## Pull request
+
+| Setting                          | Default | Description                                                                                                                                                                                                        |
+| -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `codeflow.pr.enabled`            | `true`  | Highlight functions changed on a feature branch. Off stays quiet and does not call git.                                                                                                                            |
+| `codeflow.pr.baseBranch`         | `auto`  | Compared with the merge base of this ref. `auto` tries `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. `gh` is used only when it is already authenticated, and CodeFlow does not prompt. |
+| `codeflow.pr.includeUncommitted` | `true`  | Include saved edits, unsaved buffer text, and untracked source. Off compares the merge base with `HEAD` only.                                                                                                      |
+
+On the base branch, and in a folder that is not a git checkout, the status bar stays hidden. The first 80 changed source files are analyzed.

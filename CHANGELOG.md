@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Local pull request view
+
+- On a feature branch, the status bar shows **CodeFlow PR: N changed**. Clicking it, or **CodeFlow: Show PR Changes**, opens a diagram of the functions and methods that differ from the merge base, plus one hop of direct callers and callees. Added nodes are green, modified nodes are amber, unchanged neighbours are gray, and removed functions are listed rather than drawn.
+- **CodeFlow: Toggle PR Highlight** colours those changed nodes in whatever diagram is already open. **CodeFlow: Refresh PR Changes** reads the branch again. The view refreshes after a branch switch or a save.
+- The base is `codeflow.pr.baseBranch` (`auto` by default): `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. `gh` is consulted only when it is already installed and authenticated, and it is never prompted. `codeflow.pr.includeUncommitted` (default on) includes saved edits, unsaved edits, and untracked source. `codeflow.pr.enabled` turns the mode off. CodeFlow stays quiet on the base branch and outside a git repository.
+- The comparison reuses the pull request diff parser and changed-symbol mapping. TypeScript, JavaScript, Rust, and Python use the existing analyzer workers. The first 80 changed source files are kept.
+
 ### Pull request diagrams
 
 - A GitHub Action, `action/action.yml`, comments on a pull request with one Mermaid diagram of the functions and methods the diff adds, modifies, or removes, plus their direct callers and callees. Changed nodes are highlighted. The comment is updated in place. The same diagram is written to the job summary.

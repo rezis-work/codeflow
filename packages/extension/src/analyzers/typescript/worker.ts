@@ -14,6 +14,7 @@ import { TS_ANALYZER_VERSION, typescriptToolchainFingerprint } from '../../cache
 import { createLazyScheduler } from '../../lazy/scheduler';
 import type { ScheduledJob } from '../../lazy/scheduler';
 import type { AnalysisSession } from './analyzer';
+import { analyzeTypeScriptTree } from '../../pr/analyzeTypeScript';
 import { openAnalysisSession } from './analyzer';
 import type { AnalysisProject } from './discover';
 import { defaultCompilerOptions, discoverProjects } from './discover';
@@ -57,6 +58,10 @@ parent.on('message', (message: unknown) => {
     return;
   }
   try {
+    if (message.type === 'inspect') {
+      inspectTree(message);
+      return;
+    }
     if (message.type === 'focus') {
       runFocus(message);
       return;
@@ -514,6 +519,9 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
   if (message.type === 'removeFile') {
     return typeof message.filePath === 'string';
   }
+  if (message.type === 'inspect') {
+    return typeof (value as { rootDir?: unknown }).rootDir === 'string';
+  }
   if (message.type === 'controlFlow') {
     return (
       typeof message.filePath === 'string' &&
@@ -526,4 +534,21 @@ function isHostMessage(value: unknown): value is HostToWorkerMessage {
     );
   }
   return false;
+}
+
+function inspectTree(message: { readonly id: number; readonly rootDir: string }): void {
+  try {
+    const fragments = analyzeTypeScriptTree(message.rootDir);
+    parent?.postMessage({ type: 'fragments', id: message.id, fragments });
+    parent?.postMessage({
+      type: 'done',
+      id: message.id,
+      fileCount: fragments.length,
+      capped: false,
+      warnings: [],
+      removedPaths: [],
+    });
+  } catch (error) {
+    fail(message.id, error);
+  }
 }
