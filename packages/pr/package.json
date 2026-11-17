@@ -6,7 +6,8 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "codeflow-pr": "./dist/cli.js"
+    "codeflow-pr": "./dist/cli.js",
+    "codeflow": "./dist/exportCli.js"
   },
   "sideEffects": false,
   "exports": {

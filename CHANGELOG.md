@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Agent call graph
+
+- **CodeFlow: Export Diagram for AI Agents** writes `.codeflow/flow.md`: a short guide, a Mermaid flowchart of the most-connected functions and entry points, a grep-friendly call list (`caller (file:line) -> callee (file:line) [certain|uncertain]`), a symbol index, and entry points (routes, `main`, tests, and top-level functions). On a feature branch it adds **Changed in this branch**, using the same comparison as the local pull request view.
+- `codeflow.export.json` (default on) also writes `.codeflow/flow.json` with `schemaVersion`. `codeflow.export.maxNodes` (default 150) caps the diagram. `codeflow.export.path` chooses the markdown file. `codeflow.export.auto` (default off) regenerates it after a save.
+- **CodeFlow: Export Diagram for Current File/Function** limits the file to the symbol under the cursor, or the current file, plus the call depth in `codeflow.editor.callDepth`.
+- `npx codeflow export` runs the same export without VS Code for TypeScript, JavaScript, Rust, and Python. The file contains names and locations only. Nothing is sent to a model.
+
 ### Local pull request view
 
 - On a feature branch, the status bar shows **CodeFlow PR: N changed**. Clicking it, or **CodeFlow: Show PR Changes**, opens a diagram of the functions and methods that differ from the merge base, plus one hop of direct callers and callees. Added nodes are green, modified nodes are amber, unchanged neighbours are gray, and removed functions are listed rather than drawn.

@@ -392,6 +392,8 @@ Callers outside the analyzed file set are missing. Path aliases are not applied 
 
 The editor uses the same diff parser and `mapChangedSymbols` on a feature branch. It diffs `merge-base(HEAD, base)` against the working tree, asks the existing analyzer workers to parse only the changed files, and takes one hop of callers and callees from the workspace graph. The status bar, **Show PR Changes**, **Toggle PR Highlight**, and **Refresh PR Changes** are that view. `codeflow.pr.baseBranch` `auto` tries `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. `gh pr view` runs only when `gh` is already on the path; `GH_PROMPT_DISABLED` is set and a failure falls through. The first 80 changed source files are analyzed. Removed functions are listed and are not drawn.
 
+**CodeFlow: Export Diagram for AI Agents** writes that graph for an agent. The diagram keeps entry points and the most-called functions, up to `codeflow.export.maxNodes`. The call list, symbol index, and entry points are plain text. On a feature branch the file includes the changed functions from the comparison above. `npx codeflow export` analyzes the tree with the same adapters and does not start VS Code. The file has names and locations only.
+
 ## Roadmap
 
 - **1.1 Scaffold** (done): extension and webview shells, strict CSP, tooling, CI, and a VSIX.
@@ -411,6 +413,7 @@ The editor uses the same diff parser and `mapChangedSymbols` on a feature branch
 - **4.3 Python adapter** (done): tree-sitter-python in a worker, the same graph, call graphs, imports, CodeLens, flowcharts, and sequence. FastAPI, Flask, and Django request flow is not detected. See [Python](#python).
 - **4.4 Pull request diagrams** (done): a headless diff diagram posted as one Mermaid comment. See [Pull request diagrams](#pull-request-diagrams).
 - **4.5 Local pull request view** (done): the editor highlights functions changed on the checked-out branch. See [Pull request diagrams](#pull-request-diagrams).
+- **4.6 Agent call graph** (done): `.codeflow/flow.md` and `npx codeflow export` describe the call graph for coding agents. See [Pull request diagrams](#pull-request-diagrams).
 
 ## License
 
