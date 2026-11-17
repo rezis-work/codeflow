@@ -11,7 +11,7 @@ export const extInstall = 'ext install rezis-work.rezis-codeflow';
 export const title = 'Rezis CodeFlow — see how your code runs, beside the code';
 
 export const description =
-  'CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, and Rust. Analysis stays on your machine. There is no telemetry.';
+  'CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, Rust, and Python. Analysis stays on your machine. There is no telemetry.';
 
 export const features = [
   {
@@ -20,7 +20,7 @@ export const features = [
   },
   {
     title: 'Control-flow flowcharts',
-    body: 'Decisions, switches, loops, try / catch / finally, early returns, await, and yield. Rust also draws match, loop, ?, and unwrap / expect. A Flow button on a function or method opens the same view.',
+    body: 'Decisions, switches, loops, try / catch / finally, early returns, await, and yield. Rust also draws match, loop, ?, and unwrap / expect. Python also draws elif, match / case, loop else, with, and assert. A Flow button on a function or method opens the same view.',
   },
   {
     title: 'Sequence diagrams',
@@ -40,7 +40,7 @@ export const features = [
   },
   {
     title: 'Runtime trace',
-    body: 'Start and Stop while debugging. Node debugger and CodeLLDB. Symbols, call edges, and flowchart blocks are numbered in visit order. Clear removes the overlay. Nothing leaves the machine.',
+    body: 'Start and Stop while debugging. Node debugger, CodeLLDB, and debugpy. Symbols, call edges, and flowchart blocks are numbered in visit order. Clear removes the overlay. Nothing leaves the machine.',
   },
   {
     title: 'Export',
@@ -55,7 +55,7 @@ export const steps = [
   },
   {
     title: 'Show the flow',
-    body: 'Open a TypeScript, JavaScript, or Rust file and run CodeFlow: Show Flow for Symbol at Cursor. Right-click, or press Ctrl+Alt+F (Cmd+Alt+F on macOS).',
+    body: 'Open a TypeScript, JavaScript, Rust, or Python file and run CodeFlow: Show Flow for Symbol at Cursor. Right-click, or press Ctrl+Alt+F (Cmd+Alt+F on macOS).',
   },
   {
     title: 'Follow it',
@@ -74,23 +74,23 @@ export const faqs = [
   },
   {
     q: 'Which languages does it draw?',
-    a: 'TypeScript, JavaScript, and Rust, including .ts, .tsx, .js, .jsx, .mts, and .cts. The editor language has to be one of those. Trait map is Rust only. Path aliases and npm, yarn, and pnpm workspaces are followed. Rust uses tree-sitter, and cargo metadata when cargo is on PATH.',
+    a: 'TypeScript, JavaScript, Rust, and Python, including .ts, .tsx, .js, .jsx, .mts, .cts, and .py. The editor language has to be one of those. Trait map is Rust only. Path aliases and npm, yarn, and pnpm workspaces are followed. Rust uses tree-sitter, and cargo metadata when cargo is on PATH. Python uses tree-sitter and does not need a Python runtime. .pyi stubs are not analyzed.',
   },
   {
     q: 'What does a runtime trace record?',
-    a: 'Stops the debugger already made: breakpoints and steps, not every instruction. It watches the Node debugger (node, pwa-node, node2, node-terminal) and CodeLLDB (lldb, codelldb), and keeps the first TypeScript, JavaScript, or Rust frame outside node_modules. Recording starts only when you run CodeFlow: Start Runtime Trace. Clear removes the numbers. Stops are ignored until a trace is started.',
+    a: 'Stops the debugger already made: breakpoints and steps, not every instruction. It watches the Node debugger (node, pwa-node, node2, node-terminal), CodeLLDB (lldb, codelldb), and debugpy (debugpy, python). It keeps the first TypeScript, JavaScript, Rust, or Python frame outside node_modules, site-packages, and virtualenvs. Recording starts only when you run CodeFlow: Start Runtime Trace. Clear removes the numbers. Stops are ignored until a trace is started.',
   },
   {
     q: 'Does request flow run my server?',
-    a: 'No. Routes are detected from source. Next.js covers App Router route handlers, Pages Router pages/api, middleware.ts, and use server actions. NestJS covers controller methods and a string setGlobalPrefix. Axum covers route, method chains, nest, and merge. Actix covers method attributes, route, web::resource, scopes, App services, and configure. A computed path is listed as unresolved path. Data-layer sinks are name matches, not a live database.',
+    a: 'No. Routes are detected from source. Next.js covers App Router route handlers, Pages Router pages/api, middleware.ts, and use server actions. NestJS covers controller methods and a string setGlobalPrefix. Axum covers route, method chains, nest, and merge. Actix covers method attributes, route, web::resource, scopes, App services, and configure. A computed path is listed as unresolved path. Data-layer sinks are name matches, not a live database. FastAPI, Flask, and Django routes are not detected.',
   },
   {
     q: 'What do I need installed?',
-    a: 'VS Code 1.85 or newer, or a current Cursor. For Rust crate names, cargo on PATH. Without it, CodeFlow reads Cargo.toml and src/ and shows a warning. rust-analyzer is optional and is not installed by CodeFlow. Node.js 22 or newer is only needed if you build from source.',
+    a: 'VS Code 1.90 or newer, or a current Cursor. For Rust crate names, cargo on PATH. Without it, CodeFlow reads Cargo.toml and src/ and shows a warning. rust-analyzer is optional and is not installed by CodeFlow. Python diagrams do not need Python installed. Node.js 22 or newer is only needed if you build from source.',
   },
   {
     q: 'Why are some edges dashed?',
-    a: 'A solid edge is a certain workspace call. A dashed edge is inferred or uncertain: TypeScript when the checker does not name one workspace function, and Rust for dyn Trait, a generic bound, or impl Trait. Dashed edges stay dashed in PNG, SVG, and Mermaid export.',
+    a: 'A solid edge is a certain workspace call. A dashed edge is inferred or uncertain: TypeScript when the checker does not name one workspace function, Rust for dyn Trait, a generic bound, or impl Trait, and Python for a method call on an unknown receiver or getattr. Dashed edges stay dashed in PNG, SVG, and Mermaid export.',
   },
 ] as const;
 

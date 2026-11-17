@@ -125,7 +125,7 @@ describe('webview to extension messages', () => {
       { type: 'ack' },
       { type: 'graphSnapshot' },
       { type: 'requestGraph' },
-      { type: 'requestGraph', language: 'python', uri: URI, qualifiedName: 'main' },
+      { type: 'requestGraph', language: 'go', uri: URI, qualifiedName: 'main' },
       { type: 'requestGraph', language: 'ts', uri: '   ', qualifiedName: 'main' },
       { type: 'requestGraph', language: 'ts', uri: URI, qualifiedName: '' },
       { type: 'requestGraph', language: 'ts', uri: URI, qualifiedName: 'a\u001fb' },

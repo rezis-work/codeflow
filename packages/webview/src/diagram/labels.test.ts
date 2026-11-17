@@ -50,5 +50,6 @@ describe('qualified names', () => {
     expect(languageBadge('ts')).toBe('TS');
     expect(languageBadge('js')).toBe('JS');
     expect(languageBadge('rust')).toBe('RS');
+    expect(languageBadge('python')).toBe('PY');
   });
 });

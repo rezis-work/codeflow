@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { findSymbolAt } from './analyzers/typescript/findSymbol';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import {
@@ -96,5 +97,9 @@ function isFollowedDocument(document: vscode.TextDocument): boolean {
   if (languages.has(document.languageId)) {
     return true;
   }
-  return isSupportedSourcePath(document.uri.fsPath) || isRustSourcePath(document.uri.fsPath);
+  return (
+    isSupportedSourcePath(document.uri.fsPath) ||
+    isRustSourcePath(document.uri.fsPath) ||
+    isPythonSourcePath(document.uri.fsPath)
+  );
 }

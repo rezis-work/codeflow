@@ -8,6 +8,7 @@
 import { FRAMEWORK_LABEL } from '@codeflow/shared';
 import type { EntryPoint } from '@codeflow/shared';
 import * as vscode from 'vscode';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { entryAtPosition, getEntryCatalog } from './entryCatalog';
@@ -21,6 +22,8 @@ import { getWorkspaceGraph } from './workspaceGraph';
 import type { FocusSpec } from './focusQuery';
 
 const EMPTY = 'CodeFlow has not found any entry points yet.';
+const PYTHON_ROUTES =
+  'CodeFlow does not detect FastAPI, Flask, or Django routes. Call graphs and flowcharts still work for this file.';
 
 export async function showRequestFlow(
   context: vscode.ExtensionContext,
@@ -28,6 +31,15 @@ export async function showRequestFlow(
   rust: RustIndexer,
   entryId?: string,
 ): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (
+    !entryId &&
+    editor?.document.uri.scheme === 'file' &&
+    isPythonSourcePath(editor.document.uri.fsPath)
+  ) {
+    void vscode.window.showInformationMessage(PYTHON_ROUTES);
+    return;
+  }
   await focusOpenFile(typescript, rust);
   const catalog = getEntryCatalog();
   let chosen = typeof entryId === 'string' ? catalog.get(entryId) : undefined;

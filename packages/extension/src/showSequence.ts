@@ -8,6 +8,7 @@
 
 import type { NodeId } from '@codeflow/shared';
 import * as vscode from 'vscode';
+import { isPythonSourcePath } from './analyzers/python/extensions';
 import { isRustSourcePath } from './analyzers/rust/extensions';
 import { isSupportedSourcePath } from './analyzers/typescript/extensions';
 import { findSymbolAt } from './analyzers/typescript/findSymbol';
@@ -17,12 +18,14 @@ import { readCallDepth } from './editorSettings';
 import { getEntryCatalog } from './entryCatalog';
 import { nodesInFile } from './focusQuery';
 import { routeNodeId } from './requestFlowView';
+import type { PythonIndexer } from './pythonIndexer';
 import type { RustIndexer } from './rustIndexer';
 import type { TypeScriptIndexer } from './typescriptIndexer';
 import { readMaxNodes } from './viewSettings';
 import { getWorkspaceGraph } from './workspaceGraph';
 
-const OPEN_FILE = 'Open a TypeScript, JavaScript, or Rust function to show it as a sequence.';
+const OPEN_FILE =
+  'Open a TypeScript, JavaScript, Python, or Rust function to show it as a sequence.';
 const NOT_A_FUNCTION = 'Put the cursor inside a function to show it as a sequence.';
 const MISSING_ENTRY = 'CodeFlow could not find that entry point.';
 const NOT_READY = 'CodeFlow has no symbol at the cursor yet.';
@@ -31,6 +34,7 @@ export async function showSequence(
   context: vscode.ExtensionContext,
   typescript: TypeScriptIndexer,
   rust: RustIndexer,
+  python: PythonIndexer,
   entryId?: string,
 ): Promise<void> {
   if (typeof entryId === 'string') {
@@ -38,6 +42,7 @@ export async function showSequence(
     if (!entry) {
       await typescript.whenReady(true);
       await rust.whenReady(true);
+      await python.whenReady(true);
       entry = getEntryCatalog().get(entryId);
     }
     if (!entry) {
@@ -63,11 +68,9 @@ export async function showSequence(
     return;
   }
   try {
-    await (isRust(editor.document) ? rust : typescript).focusDocument(
-      editor.document,
-      SYMBOL_FLOW_DEPTH,
-      true,
-    );
+    await (
+      isRust(editor.document) ? rust : isPython(editor.document) ? python : typescript
+    ).focusDocument(editor.document, SYMBOL_FLOW_DEPTH, true);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'CodeFlow could not analyze this file.';
@@ -101,9 +104,13 @@ function symbolAtCursor(editor: vscode.TextEditor): { id: NodeId; kind: string }
 }
 
 function supported(document: vscode.TextDocument): boolean {
-  return isSupportedSourcePath(document.uri.fsPath) || isRust(document);
+  return isSupportedSourcePath(document.uri.fsPath) || isRust(document) || isPython(document);
 }
 
 function isRust(document: vscode.TextDocument): boolean {
   return document.languageId === 'rust' || isRustSourcePath(document.uri.fsPath);
+}
+
+function isPython(document: vscode.TextDocument): boolean {
+  return document.languageId === 'python' || isPythonSourcePath(document.uri.fsPath);
 }

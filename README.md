@@ -4,7 +4,7 @@
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-install-007ACC?logo=visualstudiocode&logoColor=white)](https://marketplace.visualstudio.com/items?itemName=rezis-work.rezis-codeflow)
 [![Open VSX](https://img.shields.io/badge/Open%20VSX-install-1f6f6a)](https://open-vsx.org/extension/rezis-work/rezis-codeflow)
 
-CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, and Rust. Analysis stays on your machine. There is no telemetry.
+CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, Rust, and Python. Analysis stays on your machine. There is no telemetry.
 
 Install **Rezis CodeFlow** from the Extensions view in Cursor or VS Code. The extension id is `rezis-work.rezis-codeflow`. Cursor installs it from [Open VSX](https://open-vsx.org/extension/rezis-work/rezis-codeflow). VS Code installs it from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=rezis-work.rezis-codeflow).
 
@@ -32,11 +32,11 @@ Open a supported file and run **CodeFlow: Show Flow for Symbol at Cursor** (righ
 
 ### Control flow
 
-**CodeFlow: Show Control Flow for Function at Cursor** draws a top-to-bottom flowchart of the function at the cursor, for TypeScript, JavaScript, and Rust. Decisions, switches, loops, `try` / `catch` / `finally`, early returns, `await`, and `yield` are blocks. Rust also covers `match`, `loop`, `?`, and `unwrap` / `expect` (the panic edge is uncertain). A function or method node in the call graph has a Flow button that opens the same view. Click a block to select its source.
+**CodeFlow: Show Control Flow for Function at Cursor** draws a top-to-bottom flowchart of the function at the cursor, for TypeScript, JavaScript, Rust, and Python. Decisions, switches, loops, `try` / `catch` / `finally`, early returns, `await`, and `yield` are blocks. Rust also covers `match`, `loop`, `?`, and `unwrap` / `expect` (the panic edge is uncertain). Python covers `if` / `elif` / `else`, `match` / `case`, `for` / `while` with `else`, `break` / `continue`, `try` / `except` / `else` / `finally`, `with`, `async for`, `async with`, `assert`, and `raise`. Code after `return` or `raise` stays in the graph and is dimmed. A function or method node in the call graph has a Flow button that opens the same view. Click a block to select its source.
 
 ### Runtime trace
 
-**CodeFlow: Start/Stop Runtime Trace** records the path a debug session actually takes. It watches the Node debugger (`node`, `pwa-node`, `node2`, `node-terminal`) and CodeLLDB (`lldb`, `codelldb`). Each stop appends the first TypeScript, JavaScript, or Rust frame that is not inside `node_modules`. The call graph numbers those symbols in the order they were reached, and numbers a call edge when execution went from its caller to its callee. The open flowchart does the same for blocks and the edge between consecutive blocks. The badge is the first visit. An edge label lists each later visit. **CodeFlow: Clear Runtime Trace** removes the numbers and stops recording. Stops are ignored until you start a trace. Nothing is sent off the machine, and a diagram with no trace looks the same as before.
+**CodeFlow: Start/Stop Runtime Trace** records the path a debug session actually takes. It watches the Node debugger (`node`, `pwa-node`, `node2`, `node-terminal`), CodeLLDB (`lldb`, `codelldb`), and debugpy (`debugpy`, `python`). Each stop appends the first TypeScript, JavaScript, Rust, or Python frame that is not inside `node_modules`, `site-packages`, `dist-packages`, `venv`, `.venv`, or `__pycache__`. The call graph numbers those symbols in the order they were reached, and numbers a call edge when execution went from its caller to its callee. The open flowchart does the same for blocks and the edge between consecutive blocks. The badge is the first visit. An edge label lists each later visit. **CodeFlow: Clear Runtime Trace** removes the numbers and stops recording. Stops are ignored until you start a trace. Nothing is sent off the machine, and a diagram with no trace looks the same as before.
 
 ![Control flow of branch, with caller and callee counts in the editor](https://raw.githubusercontent.com/rezis-work/codeflow/main/docs/images/control-flow-branch.png)
 
@@ -48,7 +48,7 @@ Open a supported file and run **CodeFlow: Show Flow for Symbol at Cursor** (righ
 
 **CodeFlow: Show Request Flow** traces one route through its handler and the calls below it, and ends at a data-layer sink when the trace reaches a known client. Put the cursor in a handler and the command traces that route. Otherwise it asks you to pick one.
 
-The CodeFlow side panel lists every detected entry point, grouped by framework and package. A row opens the trace. Source jumps to the handler. Saving a route file refreshes that file's entries. Nothing is executed. Detection is static.
+The CodeFlow side panel lists every detected entry point, grouped by framework and package. A row opens the trace. Source jumps to the handler. Saving a route file refreshes that file's entries. Nothing is executed. Detection is static. FastAPI, Flask, and Django routes are not detected. On a Python file the command says so, and the call graph and flowchart for that file still work.
 
 ### Sequence
 
@@ -64,7 +64,7 @@ The CodeFlow side panel lists every detected entry point, grouped by framework a
 
 Above each function and method, CodeLens shows the call-graph degree, for example `3 callers` and `5 callees`. An uncertain call is left out of that number and shown beside it (`+1 possible`). Click a count to open Show Callers or Show Callees. `codeflow.codeLens.enabled` turns the lenses off.
 
-Uncertain edges are dashed everywhere: callbacks, dependency injection, dynamic dispatch (`dyn Trait`), generic bounds, macros, and computed calls. The tooltip names the reason. The **Uncertain** switch hides them.
+Uncertain edges are dashed everywhere: callbacks, dependency injection, dynamic dispatch (`dyn Trait`, or a Python method call on an unknown receiver), generic bounds, macros, and computed calls (`getattr`). The tooltip names the reason. The **Uncertain** switch hides them.
 
 ![Caller and callee counts, including uncertain calls](https://raw.githubusercontent.com/rezis-work/codeflow/main/docs/images/codelens-callers.png)
 
@@ -94,10 +94,11 @@ Measured on one machine with `npm run bench` (not a CI gate). Cold is an empty a
 
 ## Supported languages and frameworks
 
-| Language                  | What CodeFlow reads                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| TypeScript and JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, path aliases, npm/yarn/pnpm workspaces |
-| Rust                      | tree-sitter plus `cargo metadata`. A `Cargo.toml` scan when cargo is missing         |
+| Language                  | What CodeFlow reads                                                                                  |
+| ------------------------- | ---------------------------------------------------------------------------------------------------- |
+| TypeScript and JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, path aliases, npm/yarn/pnpm workspaces                 |
+| Rust                      | tree-sitter plus `cargo metadata`. A `Cargo.toml` scan when cargo is missing                         |
+| Python                    | tree-sitter-python. No Python runtime. `.py` only (not `.pyi`). Decorators are notes, not expansions |
 
 Request-flow entry points:
 
@@ -114,31 +115,31 @@ rust-analyzer is optional. When it is already running, CodeFlow uses it to mark 
 
 ## Commands
 
-| Command                                            | What it draws                                                                     |
-| -------------------------------------------------- | --------------------------------------------------------------------------------- |
-| CodeFlow: Show Flow for Symbol at Cursor           | Neighbourhood of the symbol, depth 2. Ctrl+Alt+F (Cmd+Alt+F on macOS)             |
-| CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)                     |
-| CodeFlow: Show Callees                             | Outgoing calls, same depth                                                        |
-| CodeFlow: Show File Dependencies                   | Import edges of the current file                                                  |
-| CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop                  |
-| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, and Rust)        |
-| CodeFlow: Show Trait Map                           | Rust trait and its impls, or a type and the traits it implements                  |
-| CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer sinks              |
-| CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence                        |
-| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                    |
-| CodeFlow: Save Flow                                | Name the open diagram and store its definition                                    |
-| CodeFlow: Open Saved Flow                          | Pick a saved flow and analyze it again                                            |
-| CodeFlow: Export PNG                               | Save the open diagram as a PNG                                                    |
-| CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                                     |
-| CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                          |
-| CodeFlow: Copy Mermaid                             | Copy that Mermaid source                                                          |
-| CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                                 |
-| CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                        |
-| CodeFlow: Start/Stop Runtime Trace                 | Record debugger stops onto the open call graph and flowchart, or pause            |
-| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                       |
-| CodeFlow: Explain Flow                             | Plain-language summary of the open diagram, only when `codeflow.ai.enabled` is on |
-| CodeFlow: Set AI API Key                           | Store an OpenAI-compatible or Anthropic key in Secret Storage                     |
-| CodeFlow: Clear AI API Key                         | Delete that key from Secret Storage                                               |
+| Command                                            | What it draws                                                                      |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| CodeFlow: Show Flow for Symbol at Cursor           | Neighbourhood of the symbol, depth 2. Ctrl+Alt+F (Cmd+Alt+F on macOS)              |
+| CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)                      |
+| CodeFlow: Show Callees                             | Outgoing calls, same depth                                                         |
+| CodeFlow: Show File Dependencies                   | Import edges of the current file                                                   |
+| CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop                   |
+| CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, Rust, and Python) |
+| CodeFlow: Show Trait Map                           | Rust trait and its impls, or a type and the traits it implements                   |
+| CodeFlow: Show Request Flow                        | One route, its handler, the calls below it, and the data-layer sinks               |
+| CodeFlow: Show as Sequence                         | That request, or the function at the cursor, as a sequence                         |
+| CodeFlow: Open Diagram                             | The panel, without changing the current symbol                                     |
+| CodeFlow: Save Flow                                | Name the open diagram and store its definition                                     |
+| CodeFlow: Open Saved Flow                          | Pick a saved flow and analyze it again                                             |
+| CodeFlow: Export PNG                               | Save the open diagram as a PNG                                                     |
+| CodeFlow: Export SVG                               | Save the open diagram as a self-contained SVG                                      |
+| CodeFlow: Export Mermaid                           | Save Mermaid source for the open diagram                                           |
+| CodeFlow: Copy Mermaid                             | Copy that Mermaid source                                                           |
+| CodeFlow: Clear Cache                              | Delete the on-disk analysis cache                                                  |
+| CodeFlow: Cancel Indexing                          | Stop the background index and keep the files already shown                         |
+| CodeFlow: Start/Stop Runtime Trace                 | Record debugger stops onto the open call graph and flowchart, or pause             |
+| CodeFlow: Clear Runtime Trace                      | Remove the recorded path and stop recording                                        |
+| CodeFlow: Explain Flow                             | Plain-language summary of the open diagram, only when `codeflow.ai.enabled` is on  |
+| CodeFlow: Set AI API Key                           | Store an OpenAI-compatible or Anthropic key in Secret Storage                      |
+| CodeFlow: Clear AI API Key                         | Delete that key from Secret Storage                                                |
 
 Show Flow does not use Format Document (Shift+Alt+F), Find (Ctrl+F), or the Cursor chat shortcuts. On a Linux text console, Ctrl+Alt+Fn switches virtual terminals. Ctrl+Alt+F does not do that in a graphical session.
 

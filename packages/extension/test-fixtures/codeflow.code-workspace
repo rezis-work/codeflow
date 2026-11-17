@@ -1,6 +1,7 @@
 {
   "folders": [
     { "path": "workspace" },
+    { "path": "python-workspace" },
     { "path": "rust-workspace" },
     { "path": "trait-map" },
     { "path": "request-flow/next-app" },

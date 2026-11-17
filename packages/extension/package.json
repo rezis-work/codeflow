@@ -1,7 +1,7 @@
 {
   "name": "rezis-codeflow",
   "displayName": "Rezis CodeFlow",
-  "description": "Call graphs, flowcharts, and sequence diagrams for TypeScript, JavaScript, and Rust, in VS Code and Cursor. Analysis stays local.",
+  "description": "Call graphs, flowcharts, and sequence diagrams for TypeScript, JavaScript, Python, and Rust, in VS Code and Cursor. Analysis stays local.",
   "version": "1.0.2",
   "publisher": "rezis-work",
   "license": "MIT",
@@ -65,10 +65,22 @@
     }
   ],
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguage:python"
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "python",
+        "aliases": [
+          "Python"
+        ],
+        "extensions": [
+          ".py"
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "codeflow.openDiagram",
@@ -185,7 +197,7 @@
         "command": "codeflow.showFlowAtCursor",
         "key": "ctrl+alt+f",
         "mac": "cmd+alt+f",
-        "when": "editorTextFocus && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust)"
+        "when": "editorTextFocus && (editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust)"
       }
     ],
     "viewsContainers": {
@@ -288,12 +300,12 @@
       "editor/context": [
         {
           "command": "codeflow.showFlowAtCursor",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@1"
         },
         {
           "command": "codeflow.showControlFlowAtCursor",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@5"
         },
         {
@@ -303,34 +315,34 @@
         },
         {
           "command": "codeflow.showRequestFlow",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@7"
         },
         {
           "command": "codeflow.showSequence",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@8"
         },
         {
           "command": "codeflow.showCallers",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@2"
         },
         {
           "command": "codeflow.showCallees",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@3"
         },
         {
           "command": "codeflow.showFileDependencies",
-          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == rust",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@4"
         }
       ],
       "explorer/context": [
         {
           "command": "codeflow.showDependencies",
-          "when": "explorerResourceIsFolder || resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact || resourceLangId == rust",
+          "when": "explorerResourceIsFolder || resourceLangId == typescript || resourceLangId == typescriptreact || resourceLangId == javascript || resourceLangId == javascriptreact || resourceLangId == python || resourceLangId == rust",
           "group": "navigation"
         }
       ]
@@ -344,8 +356,8 @@
             "type": "boolean",
             "default": true,
             "order": 1,
-            "description": "When the cursor moves in a TypeScript, JavaScript, or Rust file, highlight that symbol in the open diagram and pan to it. This does not lay the diagram out again.",
-            "markdownDescription": "When the cursor moves in a TypeScript, JavaScript, or Rust file, highlight that symbol in the open diagram and pan to it. This does not lay the diagram out again."
+            "description": "When the cursor moves in a TypeScript, JavaScript, Python, or Rust file, highlight that symbol in the open diagram and pan to it. This does not lay the diagram out again.",
+            "markdownDescription": "When the cursor moves in a TypeScript, JavaScript, Python, or Rust file, highlight that symbol in the open diagram and pan to it. This does not lay the diagram out again."
           },
           "codeflow.editor.refocusOnCursor": {
             "type": "boolean",
@@ -419,16 +431,16 @@
               "**/.next/**"
             ],
             "order": 1,
-            "description": "Glob patterns for files and folders CodeFlow does not analyze. node_modules is always skipped, and Rust analysis also skips target/. These patterns are combined with files.exclude.",
-            "markdownDescription": "Glob patterns for files and folders CodeFlow does not analyze. `node_modules` is always skipped, and Rust analysis also skips `target/`. These patterns are combined with `#files.exclude#`."
+            "description": "Glob patterns for files and folders CodeFlow does not analyze. node_modules is always skipped. Rust analysis also skips target/. Python analysis also skips venv, .venv, and __pycache__. These patterns are combined with files.exclude.",
+            "markdownDescription": "Glob patterns for files and folders CodeFlow does not analyze. `node_modules` is always skipped. Rust analysis also skips `target/`. Python analysis also skips `venv`, `.venv`, and `__pycache__`. These patterns are combined with `#files.exclude#`."
           },
           "codeflow.maxFiles": {
             "type": "number",
             "default": 2500,
             "minimum": 1,
             "order": 2,
-            "description": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript and Rust are capped separately. The first diagram uses a smaller neighbourhood and does not wait for this cap.",
-            "markdownDescription": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript and Rust are capped separately. The first diagram uses a smaller neighbourhood and does not wait for this cap."
+            "description": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript, Python, and Rust are capped separately. The first diagram uses a smaller neighbourhood and does not wait for this cap.",
+            "markdownDescription": "Maximum number of files CodeFlow analyzes for each language in each workspace folder. TypeScript, Python, and Rust are capped separately. The first diagram uses a smaller neighbourhood and does not wait for this cap."
           },
           "codeflow.cache.enabled": {
             "type": "boolean",
@@ -573,6 +585,7 @@
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",
     "mocha": "^12.0.3",
+    "tree-sitter-python": "^0.23.6",
     "tree-sitter-rust": "^0.24.0",
     "vitest": "^5.1.0",
     "web-tree-sitter": "^0.24.7"

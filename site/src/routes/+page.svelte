@@ -71,7 +71,7 @@
       <p class="pitch">See how your code runs, beside the code.</p>
       <p class="lede">
         Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for
-        TypeScript, JavaScript, and Rust. Analysis stays on your machine. There is no telemetry.
+        TypeScript, JavaScript, Rust, and Python. Analysis stays on your machine. There is no telemetry.
       </p>
       <div class="actions">
         <a class="btn btn-primary" href={marketplaceUrl}>Install for VS Code</a>

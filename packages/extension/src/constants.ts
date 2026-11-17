@@ -41,6 +41,7 @@ export const EDITOR_LANGUAGE_IDS = [
   'javascript',
   'javascriptreact',
   'rust',
+  'python',
 ] as const;
 /** How far Show Callers and Show Callees walk when the setting is missing. */
 export const DEFAULT_CALL_DEPTH = 2;
