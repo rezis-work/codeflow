@@ -1,0 +1,26 @@
+name: PR diagram
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-diagram-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagram:
+    name: Post CodeFlow diagram
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: CodeFlow PR diagram
+        uses: ./action
