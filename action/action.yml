@@ -1,0 +1,66 @@
+name: CodeFlow PR diagram
+description: >-
+  Comment on a pull request with a Mermaid diagram of the functions it
+  changes and their direct callers and callees. Uses the pull_request event,
+  not pull_request_target. A fork pull request often cannot write comments;
+  the diagram is still written to the job summary. No secrets are read.
+branding:
+  icon: git-pull-request
+  color: green
+inputs:
+  max-nodes:
+    description: Maximum nodes in the diagram, including unchanged callers and callees. Ceiling 200.
+    required: false
+    default: '40'
+  max-files:
+    description: Maximum source files analyzed while looking for callers. Ceiling 2000.
+    required: false
+    default: '400'
+  max-changed-files:
+    description: Maximum changed source files to include. Ceiling 500.
+    required: false
+    default: '80'
+  base:
+    description: Base git ref. Empty uses the pull request base sha.
+    required: false
+    default: ''
+  head:
+    description: Head git ref. Empty uses the pull request head sha.
+    required: false
+    default: ''
+  token:
+    description: >-
+      Token used only to post the comment. Defaults to the workflow token.
+      Do not pass a personal access token. Fork pull requests cannot write
+      comments with the default token.
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: ${{ github.action_path }}/../package-lock.json
+
+    - name: Build the CodeFlow PR command
+      shell: bash
+      working-directory: ${{ github.action_path }}/..
+      run: |
+        set -euo pipefail
+        npm ci
+        npm run build -w @codeflow/pr
+
+    - name: Post the pull request diagram
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        CODEFLOW_MAX_NODES: ${{ inputs.max-nodes }}
+        CODEFLOW_MAX_FILES: ${{ inputs.max-files }}
+        CODEFLOW_MAX_CHANGED_FILES: ${{ inputs.max-changed-files }}
+        CODEFLOW_BASE: ${{ inputs.base }}
+        CODEFLOW_HEAD: ${{ inputs.head }}
+      run: node "${{ github.action_path }}/../packages/pr/dist/cli.js" --root "${{ github.workspace }}"

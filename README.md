@@ -218,6 +218,38 @@ Analysis stays on your machine. CodeFlow has no telemetry client.
 - **Cursor's search does not list it yet.** Cursor reads Open VSX. Until that publish finishes, install `rezis-codeflow-1.0.2.vsix` from the GitHub Release: Extensions → `…` → **Install from VSIX…**. Open VSX 1.0.0 is the older id `rezis-work.codeflow`.
 - **Ctrl+Alt+F formats the document or switches consoles.** The binding is Ctrl+Alt+F, not Shift+Alt+F. On a Linux text console, Ctrl+Alt+Fn changes virtual terminals. Use the Command Palette in that case.
 
+## Pull request diagram
+
+CodeFlow can comment on a GitHub pull request with a Mermaid diagram of the functions the diff adds, modifies, or removes, and the functions that call them or that they call. Added nodes are green, modified nodes are amber, removed nodes are red, and an unchanged caller or callee is gray. A dashed arrow is an uncertain call. The comment is updated in place, and the same diagram is written to the Actions job summary.
+
+The diagram is produced by the analyzers, not by an editor. It does not need VS Code, rust-analyzer, or a Python interpreter on the runner. This repository posts it on every pull request. A fork pull request often cannot write the comment: the workflow listens to `pull_request` and does not receive secrets, so the fork token is read-only. The job summary still has the diagram.
+
+```yaml
+name: PR diagram
+on:
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  diagram:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: rezis-work/codeflow/action@v1
+        # From a checkout of this repository, the same action is ./action.
+```
+
+`v1` is the usage form once a release tag contains `action/`. This change does not create that tag. Until then, pin a commit or use `./action` in this repo. Inputs `max-nodes` (default 40), `max-files` (default 400), and `max-changed-files` (default 80) cap the diagram. A larger diff is truncated and the comment says so.
+
+Locally, after `npm run build -w @codeflow/pr`:
+
+```bash
+npx codeflow-pr --root . --base origin/main --head HEAD
+```
+
 ## Development
 
 Build, test, and pull-request notes are in [CONTRIBUTING.md](https://github.com/rezis-work/codeflow/blob/main/CONTRIBUTING.md). The graph model and analyzer behavior are in [docs/ARCHITECTURE.md](https://github.com/rezis-work/codeflow/blob/main/docs/ARCHITECTURE.md). Publishing steps for the maintainer are in [docs/PUBLISHING.md](https://github.com/rezis-work/codeflow/blob/main/docs/PUBLISHING.md).

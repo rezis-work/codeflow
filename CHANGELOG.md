@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Pull request diagrams
+
+- A GitHub Action, `action/action.yml`, comments on a pull request with one Mermaid diagram of the functions and methods the diff adds, modifies, or removes, plus their direct callers and callees. Changed nodes are highlighted. The comment is updated in place. The same diagram is written to the job summary.
+- The action runs the existing TypeScript, JavaScript, Rust, and Python analyzers headlessly. It does not start VS Code, rust-analyzer, or a Python interpreter. `codeflow-pr` is the same core, for a local diff or a later check.
+- The workflow asks only for `contents: read` and `pull-requests: write`. It uses `pull_request`, not `pull_request_target`, and it does not read secrets. A fork pull request often cannot write the comment; the diagram still lands in the job summary.
+- The diagram caps nodes, changed files, and files analyzed. A diff past those caps is truncated and the comment says what was left out. FastAPI, Flask, and Django routes are not part of this diagram.
+
 ### Python adapter
 
 - Python is a third language on the same graph. The worker uses tree-sitter-python (WASM). A Python runtime is not required and is not invoked. `.py` files are analyzed. `.pyi` stubs are not.

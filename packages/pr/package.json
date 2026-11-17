@@ -1,0 +1,31 @@
+{
+  "name": "@codeflow/pr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless CodeFlow pull request diagrams. Shared by the codeflow-pr CLI and the GitHub Action.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codeflow-pr": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codeflow/shared": "*",
+    "tree-sitter-python": "^0.23.6",
+    "tree-sitter-rust": "^0.24.0",
+    "typescript": "^6.0.3",
+    "web-tree-sitter": "^0.24.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "vitest": "^5.1.0"
+  }
+}

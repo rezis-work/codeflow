@@ -17,3 +17,5 @@ tsconfig.test.json
 esbuild.mjs
 vitest.config.mts
 **/.gitkeep
+# The GitHub Action lives at the repository root and is not part of the VSIX.
+action/**

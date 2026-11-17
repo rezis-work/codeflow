@@ -146,6 +146,8 @@ The npm workspace is split so later phases can land without rearranging the repo
 | `packages/shared`    | Language-neutral code graph, the per-file graph store, and the typed messages between the extension and the webview. Pure TypeScript, with no VS Code API, so both sides import it.                                                                                                                                                                                                                   |
 | `packages/extension` | VS Code extension host: commands, the activity bar, and webview panels. esbuild bundles the host and, separately, the TypeScript worker, the Rust worker, and the Python worker. Rust uses tree-sitter-rust (WASM) and cargo metadata, and can upgrade the focused symbol's calls when rust-analyzer is already running. Python uses tree-sitter-python (WASM) and does not run a Python interpreter. |
 | `packages/webview`   | React diagram, built with Vite. React Flow draws the graph and ELK lays it out. The webview talks to the extension only with `postMessage`.                                                                                                                                                                                                                                                           |
+| `packages/pr`        | Headless pull request diagram. The same analyzers run on a diff, without VS Code. The `codeflow-pr` CLI and the GitHub Action in `action/` both call it.                                                                                                                                                                                                                                              |
+| `action/`            | Composite GitHub Action that builds `codeflow-pr` and posts one sticky Mermaid comment. It is not part of the VSIX.                                                                                                                                                                                                                                                                                   |
 
 The webview production bundle is written to `packages/extension/media/webview`. The extension generates the panel HTML and sets a nonce-based Content Security Policy: `default-src 'none'`, scripts only when they carry that nonce, styles from the extension bundle, and `style-src-attr 'unsafe-inline'` so React Flow can position nodes. Scripts stay nonce-only. There is no `unsafe-eval` and no remote load.
 
@@ -376,6 +378,18 @@ Runtime trace accepts the debugpy adapter types `debugpy` and `python`. A `.py` 
 
 The extension contributes `onLanguage:python` and a `python` language for `.py` with no grammar, so the contribution merges with the Python extension when that extension is installed. The disk-cache fingerprint is the analyzer version (`python-1`). There is no interpreter or lockfile in the key.
 
+## Pull request diagrams
+
+`packages/pr` runs the TypeScript, JavaScript, Rust, and Python analyzers outside VS Code. `codeflow-pr` and the composite action in `action/` share that core. On a `pull_request` workflow the action diffs the merge base against the head, writes each side into a temporary tree, and parses that tree with the same sessions the extension uses. Nothing in the checkout is modified. rust-analyzer is not consulted. A Python interpreter is not started.
+
+A function or method is added when its qualified name exists only on the head, removed when it exists only on the base, and modified when the body (decorators included) differs or a diff hunk overlaps the span. The diagram draws those symbols and one hop of direct callers and callees. An uncertain or inferred call is a dashed arrow. GitHub renders the Mermaid `flowchart` in the comment. The comment starts with `<!-- codeflow-pr-diagram -->` and is updated rather than posted again. The same markdown is appended to the job summary.
+
+The defaults are 40 nodes, 400 analyzed files, and 80 changed files. The ceilings are 200, 2,000, and 500. Past a cap, the comment says what was left out. Changed functions are kept before unchanged callers. Discovery walks at most 20,000 files per language before that ranking, and a source file larger than 1 MB is skipped.
+
+The action's permissions are `contents: read` and `pull-requests: write`. It refuses `pull_request_target` and does not read secrets. A fork pull request's token often cannot write comments; the step then exits successfully and leaves the diagram in the job summary. Checkout needs `fetch-depth: 0` so the merge base is present.
+
+Callers outside the analyzed file set are missing. Path aliases are not applied in this headless pass; relative imports are. Rust files that belong to a Cargo package keep that crate name. A Rust file with no package is placed in one synthetic crate named `package`. Macro expansion, rust-analyzer, and FastAPI, Flask, and Django routes are out of scope here, as they are in the editor.
+
 ## Roadmap
 
 - **1.1 Scaffold** (done): extension and webview shells, strict CSP, tooling, CI, and a VSIX.
@@ -393,6 +407,7 @@ The extension contributes `onLanguage:python` and a `python` language for `.py` 
 - **3.3 Large-repo performance** (done): the first diagram is a neighbourhood, and later opens can be read from the disk cache. See [benchmark.md](benchmark.md).
 - **3.4 Publish** (done): version 1.0.0, publisher `rezis-work`. See [PUBLISHING.md](PUBLISHING.md).
 - **4.3 Python adapter** (done): tree-sitter-python in a worker, the same graph, call graphs, imports, CodeLens, flowcharts, and sequence. FastAPI, Flask, and Django request flow is not detected. See [Python](#python).
+- **4.4 Pull request diagrams** (done): a headless diff diagram posted as one Mermaid comment. See [Pull request diagrams](#pull-request-diagrams).
 
 ## License
 
