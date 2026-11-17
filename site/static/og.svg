@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0b1211"/>
+  <circle cx="1040" cy="70" r="240" fill="#1f6f6a" opacity="0.35"/>
+  <circle cx="160" cy="560" r="180" fill="#1f6f6a" opacity="0.2"/>
+  <g transform="translate(72 78) scale(0.875)">
+    <rect width="128" height="128" rx="28" fill="#1f6f6a"/>
+    <g fill="none" stroke="#f4fbfa" stroke-width="6" stroke-linecap="round">
+      <path d="M40 44 L64 64"/>
+      <path d="M40 84 L64 64"/>
+      <path d="M78 64 H92"/>
+    </g>
+    <g fill="#f4fbfa">
+      <circle cx="34" cy="40" r="10"/>
+      <circle cx="34" cy="88" r="10"/>
+      <circle cx="70" cy="64" r="12"/>
+      <circle cx="100" cy="64" r="9"/>
+    </g>
+  </g>
+  <text x="210" y="128" fill="#9ee8e0" font-family="Inter, Liberation Sans, sans-serif" font-size="22" font-weight="700" letter-spacing="3">VS CODE AND CURSOR</text>
+  <text x="72" y="250" fill="#f4fbfa" font-family="Inter, Liberation Sans, sans-serif" font-size="72" font-weight="700">Rezis CodeFlow</text>
+  <text x="72" y="328" fill="#d5eeeb" font-family="Inter, Liberation Sans, sans-serif" font-size="36">See how your code runs, beside the code.</text>
+  <text x="72" y="520" fill="#b7d0cc" font-family="Inter, Liberation Sans, sans-serif" font-size="24">TypeScript · JavaScript · Rust</text>
+  <text x="72" y="562" fill="#b7d0cc" font-family="Inter, Liberation Sans, sans-serif" font-size="24">Analysis stays on your machine. No telemetry.</text>
+  <g fill="none" stroke="#9ee8e0" stroke-width="3" stroke-linecap="round">
+    <path d="M860 250 H980"/>
+  </g>
+  <g fill="#132220" stroke="#2f8f86" stroke-width="2">
+    <rect x="700" y="214" width="160" height="72" rx="16"/>
+    <rect x="980" y="214" width="160" height="72" rx="16"/>
+  </g>
+  <g fill="#f4fbfa" font-family="Inter, Liberation Sans, sans-serif" font-size="22" font-weight="700">
+    <text x="724" y="256">greet</text>
+    <text x="1004" y="256">format</text>
+  </g>
+  <g fill="#89d185">
+    <circle cx="724" cy="214" r="16"/>
+    <circle cx="1004" cy="214" r="16"/>
+  </g>
+  <g fill="#10211f" font-family="Inter, Liberation Sans, sans-serif" font-size="16" font-weight="700" text-anchor="middle">
+    <text x="724" y="220">1</text>
+    <text x="1004" y="220">2</text>
+  </g>
+  <rect x="0" y="614" width="1200" height="16" fill="#1f6f6a"/>
+</svg>

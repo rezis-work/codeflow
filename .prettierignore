@@ -1,4 +1,6 @@
 node_modules
+# Separate SvelteKit package. Its own workflow checks it.
+site
 dist
 out
 coverage

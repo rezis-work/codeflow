@@ -15,6 +15,8 @@ export default tseslint.config(
       '**/.vscode-test/**',
       '**/*.vsix',
       'packages/extension/test-fixtures/**',
+      // Separate SvelteKit package. Its own workflow checks it.
+      'site/**',
     ],
   },
   eslint.configs.recommended,
