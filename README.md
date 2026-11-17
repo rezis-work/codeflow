@@ -171,7 +171,7 @@ Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-c
 
 ## Requirements
 
-- VS Code 1.90 or newer, or a current Cursor. `engines.vscode` is `^1.90.0` because that is the first stable release with `vscode.lm`, which Explain uses. The extension version is still 1.0.2. A Cursor build based on a VS Code older than 1.90 cannot load this extension.
+- VS Code 1.90 or newer, or a current Cursor. `engines.vscode` is `^1.90.0` because that is the first stable release with `vscode.lm`, which Explain uses. The extension version is 1.1.0. A Cursor build based on a VS Code older than 1.90 cannot load this extension.
 - For Rust crate names, `cargo` on `PATH`. Without it, CodeFlow reads `Cargo.toml` and `src/` and shows a warning
 - Node.js 22 or newer only if you build from source
 
@@ -215,7 +215,7 @@ Analysis stays on your machine. CodeFlow has no telemetry client.
 - **CodeLens counts are missing.** Check `codeflow.codeLens.enabled`. Counts appear after that file has been analyzed. Opening the file is what starts that analysis.
 - **The first diagram is slow, or a later open looks stale.** The status bar shows indexing progress. **CodeFlow: Cancel Indexing** stops the background pass. **CodeFlow: Clear Cache** deletes the disk cache. Turning `codeflow.cache.enabled` off skips the disk without deleting it.
 - **A saved flow says it is stale.** The symbol or route is no longer in the workspace. The panel keeps the last picture.
-- **Cursor's search does not list it yet.** Cursor reads Open VSX. Until that publish finishes, install `rezis-codeflow-1.0.2.vsix` from the GitHub Release: Extensions → `…` → **Install from VSIX…**. Open VSX 1.0.0 is the older id `rezis-work.codeflow`.
+- **Cursor's search does not list it yet.** Cursor reads Open VSX. Until that publish finishes, install `rezis-codeflow-1.1.0.vsix` from the GitHub Release: Extensions → `…` → **Install from VSIX…**. Open VSX 1.0.0 is the older id `rezis-work.codeflow`.
 - **Ctrl+Alt+F formats the document or switches consoles.** The binding is Ctrl+Alt+F, not Shift+Alt+F. On a Linux text console, Ctrl+Alt+Fn changes virtual terminals. Use the Command Palette in that case.
 
 ## Pull request diagram
@@ -238,11 +238,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: rezis-work/codeflow/action@v1
+      - uses: rezis-work/codeflow/action@v1.1.0
         # From a checkout of this repository, the same action is ./action.
 ```
 
-`v1` is the usage form once a release tag contains `action/`. This change does not create that tag. Until then, pin a commit or use `./action` in this repo. Inputs `max-nodes` (default 40), `max-files` (default 400), and `max-changed-files` (default 80) cap the diagram. A larger diff is truncated and the comment says so.
+`v1.1.0` is the release tag that contains `action/`. GitHub resolves `rezis-work/codeflow/action@v1.1.0` to that tag. A floating `v1` tag is a separate pointer and is not created here. Until `v1.1.0` is pushed, use `./action` from a checkout of this repository. Inputs `max-nodes` (default 40), `max-files` (default 400), and `max-changed-files` (default 80) cap the diagram. A larger diff is truncated and the comment says so.
 
 Locally, after `npm run build -w @codeflow/pr`:
 
