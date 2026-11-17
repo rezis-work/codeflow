@@ -19,3 +19,18 @@ export {
 export { mapChangedSymbols } from './symbols';
 export type { ChangedSymbol, SymbolSpan } from './symbols';
 export { spanOf } from './text';
+export {
+  AGENT_MAX_NODES_CAP,
+  buildAgentFlow,
+  clampNodes,
+  DEFAULT_AGENT_MAX_NODES,
+  FLOW_SCHEMA_VERSION,
+} from './agentFlow';
+export type {
+  AgentCall,
+  AgentChange,
+  AgentFlow,
+  AgentFlowInput,
+  AgentRoute,
+  AgentSymbol,
+} from './agentFlow';

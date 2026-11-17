@@ -254,6 +254,33 @@ The same comparison is available in the editor. On a feature branch the status b
 
 `codeflow.pr.baseBranch` defaults to `auto`, which tries `origin/HEAD`, then `origin/main`, `origin/master`, `main`, and `master`. If `gh` is already installed and authenticated, its pull request base is preferred. CodeFlow does not prompt for `gh` and does not require a network call. `codeflow.pr.includeUncommitted` (default on) includes unsaved edits and untracked source files. Set `codeflow.pr.enabled` to `false` to stay quiet. On the base branch, or in a folder that is not a git repository, the status bar stays hidden.
 
+## For AI agents
+
+CodeFlow can write a call graph that an agent can read without opening the diagram. **CodeFlow: Export Diagram for AI Agents** writes `.codeflow/flow.md`. The file starts with a short description of the format, then a Mermaid flowchart of entry points and the functions with the most calls (150 by default, `codeflow.export.maxNodes`). After that is one line per call:
+
+```text
+caller (file:line) -> callee (file:line) [certain|uncertain]
+```
+
+`uncertain` means the analyzer could not prove the call. A symbol index follows, grouped by file, then entry points: routes, `main`, tests, and top-level functions. On a feature branch the file ends with **Changed in this branch**. `codeflow.export.json` (default on) writes `.codeflow/flow.json` beside it, with `schemaVersion`. The files contain names and locations only. They do not contain source snippets, and exporting them does not call a model.
+
+**CodeFlow: Export Diagram for Current File/Function** keeps the symbol under the cursor, or every function in the current file, plus the callers and callees within `codeflow.editor.callDepth`. Set `codeflow.export.auto` to regenerate the workspace file after a save. The path is `codeflow.export.path`.
+
+The same file can be produced without the editor, after `npm run build -w @codeflow/pr`:
+
+```bash
+npx codeflow export --out .codeflow/flow.md --focus src/greet.ts#greet --hops 2
+```
+
+`--json` is on by default. `--no-json` skips the JSON file. TypeScript, JavaScript, Rust, and Python are analyzed locally.
+
+A rule for `AGENTS.md` or `.cursor/rules`:
+
+```markdown
+When you need to see how code calls other code, read `.codeflow/flow.md` before searching.
+Use the call list and the entry points. If the file is missing, run `npx codeflow export`.
+```
+
 ## Development
 
 Build, test, and pull-request notes are in [CONTRIBUTING.md](https://github.com/rezis-work/codeflow/blob/main/CONTRIBUTING.md). The graph model and analyzer behavior are in [docs/ARCHITECTURE.md](https://github.com/rezis-work/codeflow/blob/main/docs/ARCHITECTURE.md). Publishing steps for the maintainer are in [docs/PUBLISHING.md](https://github.com/rezis-work/codeflow/blob/main/docs/PUBLISHING.md).

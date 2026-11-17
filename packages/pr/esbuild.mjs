@@ -1,8 +1,9 @@
 import { build } from 'esbuild';
 
 await build({
-  entryPoints: ['src/cli.ts'],
-  outfile: 'dist/cli.js',
+  entryPoints: ['src/cli.ts', 'src/exportCli.ts'],
+  outdir: 'dist',
+  entryNames: '[name]',
   bundle: true,
   platform: 'node',
   format: 'esm',

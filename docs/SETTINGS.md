@@ -46,10 +46,14 @@ Changing this reloads the list. A `.codeflow/flows.json` that does not parse is 
 
 ## Export
 
-| Setting                      | Default | Description                                                                                                     |
-| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------- |
-| `codeflow.export.pngScale`   | `2`     | Pixel scale for Export PNG. 1 is the diagram's layout size. 2 is sharper on a high-density screen. From 1 to 4. |
-| `codeflow.export.background` | `theme` | Background for PNG and SVG. `theme` follows the color theme. `light` forces a white background.                 |
+| Setting                      | Default             | Description                                                                                                     |
+| ---------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `codeflow.export.pngScale`   | `2`                 | Pixel scale for Export PNG. 1 is the diagram's layout size. 2 is sharper on a high-density screen. From 1 to 4. |
+| `codeflow.export.background` | `theme`             | Background for PNG and SVG. `theme` follows the color theme. `light` forces a white background.                 |
+| `codeflow.export.path`       | `.codeflow/flow.md` | Markdown call graph for coding agents. The path stays inside the workspace.                                     |
+| `codeflow.export.maxNodes`   | `150`               | Functions drawn in that diagram. Entry points and the most-called functions come first. From 1 to 500.          |
+| `codeflow.export.json`       | `true`              | Also write `flow.json` beside the markdown, with a schema version.                                              |
+| `codeflow.export.auto`       | `false`             | Regenerate the agent call graph after a save. Off until you turn it on.                                         |
 
 Exported diagrams use a deterministic layout, not the positions on screen. Mermaid lays the diagram out again when you render it.
 

@@ -7,7 +7,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { CodeNode, FileFragment } from '@codeflow/shared';
+import type { CodeNode, EntryFileReport, FileFragment } from '@codeflow/shared';
 import { openAnalysisSession } from '../../extension/src/analyzers/typescript/analyzer';
 import type { AnalysisProject } from '../../extension/src/analyzers/typescript/discover';
 import {
@@ -511,6 +511,165 @@ function toSymbol(node: CodeNode, relativePath: string, content: string): Indexe
 function basename(relativePath: string): string {
   const base = toPosix(relativePath).split('/').pop();
   return base && base.length > 0 ? base : relativePath;
+}
+
+export interface WorkspaceScan {
+  readonly fragments: readonly FileFragment[];
+  readonly reports: readonly EntryFileReport[];
+  readonly warnings: readonly string[];
+}
+
+/** Parses the repository itself. Paths in the fragments stay inside `rootDir`. */
+export async function analyzeWorkspace(input: {
+  readonly rootDir: string;
+  readonly maxFiles: number;
+  readonly excludeGlobs?: readonly string[];
+}): Promise<WorkspaceScan> {
+  const warnings: string[] = [];
+  const excludeGlobs = input.excludeGlobs ?? [];
+  const selected = selectFiles(input.rootDir, excludeGlobs, [], input.maxFiles, warnings);
+  const absolute: string[] = [];
+  for (const relativePath of selected) {
+    if (readSource(input.rootDir, relativePath, warnings) === undefined) {
+      continue;
+    }
+    const abs = safeJoin(input.rootDir, relativePath);
+    if (abs) {
+      absolute.push(abs);
+    }
+  }
+  const rust = discoverRustWorkspace(input.rootDir, { excludeGlobs, maxFiles: SCAN_CAP });
+  for (const warning of rust.warnings) {
+    note(warnings, warning);
+  }
+  const scanned = await analyzeWrittenReports(
+    input.rootDir,
+    input.rootDir,
+    absolute,
+    rust.crates,
+    warnings,
+  );
+  return { ...scanned, warnings: unique(warnings) };
+}
+
+/** Parses an in-memory snapshot. Used for the base side of a branch diff. */
+export async function analyzeTextMap(
+  repoRoot: string,
+  files: ReadonlyMap<string, string>,
+): Promise<{ readonly graph: IndexedGraph; readonly warnings: readonly string[] }> {
+  const warnings: string[] = [];
+  const rust = discoverRustWorkspace(repoRoot, { excludeGlobs: [], maxFiles: SCAN_CAP });
+  for (const warning of rust.warnings) {
+    note(warnings, warning);
+  }
+  const graph = await analyzeSnapshot(repoRoot, files, rust.crates, warnings);
+  return { graph, warnings: unique(warnings) };
+}
+
+export function spansFromIndexed(graph: IndexedGraph): Map<string, SymbolSpan[]> {
+  const byPath = new Map<string, SymbolSpan[]>();
+  for (const symbol of graph.symbols.values()) {
+    if (symbol.kind !== 'function' && symbol.kind !== 'method') {
+      continue;
+    }
+    const span: SymbolSpan = {
+      key: symbol.key,
+      name: symbol.name,
+      qualifiedName: symbol.qualifiedName,
+      kind: symbol.kind,
+      path: symbol.path,
+      language: symbol.language,
+      line: symbol.line,
+      startLine: symbol.startLine,
+      endLine: symbol.endLine,
+      ...(symbol.text ? { text: symbol.text } : {}),
+    };
+    const list = byPath.get(symbol.path) ?? [];
+    list.push(span);
+    byPath.set(symbol.path, list);
+  }
+  return byPath;
+}
+
+async function analyzeWrittenReports(
+  repoRoot: string,
+  directory: string,
+  files: readonly string[],
+  crates: readonly RustCrate[],
+  warnings: string[],
+): Promise<{ fragments: FileFragment[]; reports: EntryFileReport[] }> {
+  const fragments: FileFragment[] = [];
+  const reports: EntryFileReport[] = [];
+  const scripts = files.filter((file) => languageForPath(file));
+  const python = files.filter((file) => file.toLowerCase().endsWith('.py'));
+  const rust = files.filter((file) => isRustSourcePath(file));
+  const collect = (open: () => ReportingSession): void => {
+    const scanned = runReporting(open, warnings);
+    fragments.push(...scanned.fragments);
+    reports.push(...scanned.reports);
+  };
+
+  if (scripts.length > 0) {
+    const project: AnalysisProject = {
+      key: directory,
+      rootDir: directory,
+      workspaceRoot: directory,
+      files: scripts,
+      options: defaultCompilerOptions(directory),
+      excludeGlobs: [],
+      maxFiles: scripts.length + 1,
+    };
+    collect(() => openAnalysisSession(project));
+  }
+  if (python.length > 0) {
+    try {
+      await ensurePythonParser();
+      collect(() =>
+        openPythonSession({
+          rootDir: directory,
+          files: python,
+          maxFiles: python.length + 1,
+          capped: false,
+          warnings: [],
+        }),
+      );
+    } catch (error) {
+      warnings.push(`Python parser failed to load (${message(error)}).`);
+    }
+  }
+  if (rust.length > 0) {
+    try {
+      await ensureRustParser();
+      collect(() => openRustSession(rustDiscovery(repoRoot, directory, rust, crates)));
+    } catch (error) {
+      warnings.push(`Rust parser failed to load (${message(error)}).`);
+    }
+  }
+  return { fragments, reports };
+}
+
+interface ReportingSession extends Session {
+  entryReports?: () => readonly EntryFileReport[];
+}
+
+function runReporting(
+  open: () => ReportingSession,
+  warnings: string[],
+): { fragments: FileFragment[]; reports: EntryFileReport[] } {
+  const session = open();
+  try {
+    const fragments = session.analyze();
+    const reports = session.entryReports?.() ?? [];
+    for (const error of session.errors) {
+      warnings.push(error);
+    }
+    return { fragments, reports: [...reports] };
+  } catch (error) {
+    warnings.push(message(error));
+    return { fragments: [], reports: [] };
+  } finally {
+    session.dispose();
+  }
 }
 
 function message(error: unknown): string {

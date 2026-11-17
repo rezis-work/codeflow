@@ -110,6 +110,14 @@
         "title": "CodeFlow: Export Mermaid"
       },
       {
+        "command": "codeflow.exportAgentFlow",
+        "title": "CodeFlow: Export Diagram for AI Agents"
+      },
+      {
+        "command": "codeflow.exportAgentFocus",
+        "title": "CodeFlow: Export Diagram for Current File/Function"
+      },
+      {
         "command": "codeflow.copyMermaid",
         "title": "CodeFlow: Copy Mermaid"
       },
@@ -519,6 +527,36 @@
             "order": 2,
             "description": "Background for PNG and SVG export. theme follows the current color theme. light forces a white background.",
             "markdownDescription": "Background for PNG and SVG export. `theme` follows the current color theme. `light` forces a white background."
+          },
+          "codeflow.export.path": {
+            "type": "string",
+            "default": ".codeflow/flow.md",
+            "order": 3,
+            "description": "Where CodeFlow writes the agent call graph. The path stays inside the workspace. JSON is written beside it.",
+            "markdownDescription": "Where **CodeFlow: Export Diagram for AI Agents** writes the call graph. The path stays inside the workspace. JSON is written beside it when `codeflow.export.json` is on."
+          },
+          "codeflow.export.maxNodes": {
+            "type": "number",
+            "default": 150,
+            "minimum": 1,
+            "maximum": 500,
+            "order": 4,
+            "description": "How many functions the agent diagram draws. Entry points and the most-called functions are kept first.",
+            "markdownDescription": "How many functions the agent diagram draws. Entry points and the most-called functions are kept first. From 1 to 500."
+          },
+          "codeflow.export.json": {
+            "type": "boolean",
+            "default": true,
+            "order": 5,
+            "description": "Also write a machine-readable flow.json beside the markdown. It has the same names and locations, and a schema version.",
+            "markdownDescription": "Also write a machine-readable `flow.json` beside the markdown. It has the same names and locations, and a schema version."
+          },
+          "codeflow.export.auto": {
+            "type": "boolean",
+            "default": false,
+            "order": 6,
+            "description": "Regenerate the agent call graph after a file is saved. Off until you turn it on. The write is debounced.",
+            "markdownDescription": "Regenerate the agent call graph after a file is saved. Off until you turn it on. The write waits briefly so a burst of saves becomes one file."
           }
         }
       },

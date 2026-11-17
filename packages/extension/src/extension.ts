@@ -34,6 +34,7 @@ import {
 import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
 import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
 import { setAiEnabledOverride } from './ai/vscodeSettings';
+import { installAgentExport } from './agentExport';
 import { installPullRequestMode } from './prMode';
 import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -113,6 +114,10 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   const savedFlows = installSavedFlows(context, { typescript, rust, python });
   const runtimeTrace = installRuntimeTrace(context);
   const pullRequest = installPullRequestMode(context);
+  installAgentExport(context, {
+    refreshBranch: () => pullRequest.refresh(),
+    branchChanges: () => pullRequest.branchChanges(),
+  });
 
   context.subscriptions.push(
     typescript,

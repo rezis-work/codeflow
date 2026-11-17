@@ -56,9 +56,24 @@ interface GitApiLike {
   readonly onDidOpenRepository: vscode.Event<GitRepoLike>;
 }
 
+export interface BranchChangeLine {
+  readonly status: 'added' | 'modified' | 'removed';
+  readonly name: string;
+  readonly path: string;
+  readonly line: number;
+}
+
+export interface BranchChanges {
+  /** True when this checkout is a feature branch with a known base. */
+  readonly include: boolean;
+  readonly base: string | undefined;
+  readonly changes: readonly BranchChangeLine[];
+}
+
 export function installPullRequestMode(context: vscode.ExtensionContext): {
   status(): PrStatus;
   refresh(): Promise<void>;
+  branchChanges(): BranchChanges;
 } {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
   item.name = 'CodeFlow PR';
@@ -76,6 +91,7 @@ export function installPullRequestMode(context: vscode.ExtensionContext): {
     base: undefined,
   };
   let diagram: PrDiagram | undefined;
+  let branch: BranchChanges = { include: false, base: undefined, changes: [] };
   let ghCache: { readonly key: string; readonly base: string | undefined } | undefined;
   const repoListeners: vscode.Disposable[] = [];
 
@@ -143,6 +159,16 @@ export function installPullRequestMode(context: vscode.ExtensionContext): {
       return;
     }
     applyStatus(status.status, status.diagram);
+    branch = {
+      include: status.status.reason === 'ready' || status.status.reason === 'empty',
+      base: status.status.base,
+      changes: status.changes.map((symbol) => ({
+        status: symbol.status,
+        name: symbol.name,
+        path: symbol.path,
+        line: symbol.line,
+      })),
+    };
     publish();
   };
 
@@ -228,6 +254,7 @@ export function installPullRequestMode(context: vscode.ExtensionContext): {
   return {
     status: () => current,
     refresh,
+    branchChanges: () => branch,
   };
 }
 
@@ -272,12 +299,17 @@ async function compute(
   context: vscode.ExtensionContext,
   readCache: () => { readonly key: string; readonly base: string | undefined } | undefined,
   writeCache: (value: { readonly key: string; readonly base: string | undefined }) => void,
-): Promise<{ readonly status: PrStatus; readonly diagram: PrDiagram | undefined }> {
+): Promise<{
+  readonly status: PrStatus;
+  readonly diagram: PrDiagram | undefined;
+  readonly changes: readonly ChangedSymbol[];
+}> {
   const settings = readSettings();
   if (!settings.enabled) {
     return {
       status: { quiet: true, reason: 'disabled', count: 0, summary: '', base: undefined },
       diagram: undefined,
+      changes: [],
     };
   }
   const folder = vscode.workspace.workspaceFolders?.find((item) => item.uri.scheme === 'file');
@@ -339,6 +371,7 @@ async function compute(
         base: undefined,
       },
       diagram: undefined,
+      changes: [],
     };
   }
   if (base.onBase) {
@@ -351,6 +384,7 @@ async function compute(
         base: base.ref,
       },
       diagram: undefined,
+      changes: [],
     };
   }
   const diff = await readWorkingTreeDiff({
@@ -368,6 +402,7 @@ async function compute(
         base: base.ref,
       },
       diagram: undefined,
+      changes: [],
     };
   }
   return finishDiff(context, root, base, diff, settings.includeUncommitted);
@@ -379,7 +414,11 @@ async function finishDiff(
   base: ResolvedBase,
   diff: WorkingTreeDiff,
   includeUncommitted: boolean,
-): Promise<{ readonly status: PrStatus; readonly diagram: PrDiagram | undefined }> {
+): Promise<{
+  readonly status: PrStatus;
+  readonly diagram: PrDiagram | undefined;
+  readonly changes: readonly ChangedSymbol[];
+}> {
   const warnings = [...diff.warnings];
   const headFiles = new Map<string, string>();
   const baseFiles = new Map<string, string>();
@@ -424,11 +463,13 @@ async function finishDiff(
     return {
       status: { quiet: true, reason: 'empty', count: 0, summary, base: base.ref },
       diagram,
+      changes: changed,
     };
   }
   return {
     status: { quiet: false, reason: 'ready', count, summary, base: base.ref },
     diagram,
+    changes: changed,
   };
 }
 
@@ -589,9 +630,14 @@ function gitText(cwd: string, args: readonly string[]): Promise<string | undefin
   );
 }
 
-function quiet(reason: 'not-git'): { status: PrStatus; diagram: undefined } {
+function quiet(reason: 'not-git'): {
+  status: PrStatus;
+  diagram: undefined;
+  changes: readonly ChangedSymbol[];
+} {
   return {
     status: { quiet: true, reason, count: 0, summary: '', base: undefined },
     diagram: undefined,
+    changes: [],
   };
 }
