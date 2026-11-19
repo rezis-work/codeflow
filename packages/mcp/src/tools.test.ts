@@ -9,6 +9,7 @@ import {
   explainFunction,
   getCallees,
   getCallers,
+  getContext,
   impactOf,
   pathBetween,
   refreshGraph,
@@ -107,6 +108,10 @@ describe('tools on fixture repos', () => {
     expect(names).toContain('greet');
     expect(names).toContain('testGreet');
     expect(several.risk).toMatchObject({ level: expect.any(String) });
+    const context = parse(await getContext(cache, { focus: 'app/hello/route.ts#formatName' }));
+    expect(context.markdown).toContain('TypeScript');
+    expect(context.markdown).toContain('formatName');
+    expect(context.markdown).toContain('npx codeflow impact');
     const refreshed = parse(await refreshGraph(cache));
     expect(refreshed.symbols).toBeGreaterThan(0);
     cache.dispose();
@@ -121,6 +126,9 @@ describe('tools on fixture repos', () => {
     const cache = new GraphCache(root, 50);
     const impact = parse(await impactOf(cache, { name: 'format_name' }));
     expect((impact.callers as { name: string }[]).map((item) => item.name)).toContain('main');
+    const context = parse(await getContext(cache, {}));
+    expect(context.markdown).toContain('Python');
+    expect(context.markdown).toContain('format_name');
     cache.dispose();
   });
 
@@ -131,5 +139,10 @@ describe('tools on fixture repos', () => {
         'pub fn greet(name: &str) -> String {\n    format_name(name)\n}\n\nfn format_name(name: &str) -> String {\n    name.trim().to_string()\n}\n\nfn main() {\n    let _value = greet("a");\n}\n',
     });
     await expectCall(root, { caller: 'greet', callee: 'format_name' });
+    const cache = new GraphCache(root, 50);
+    const context = parse(await getContext(cache, {}));
+    expect(context.markdown).toContain('Rust');
+    expect(context.markdown).toContain('format_name');
+    cache.dispose();
   });
 });

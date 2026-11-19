@@ -27,6 +27,7 @@ export const EXPORT_PNG_COMMAND = 'codeflow.exportPng';
 export const EXPORT_SVG_COMMAND = 'codeflow.exportSvg';
 export const EXPORT_MERMAID_COMMAND = 'codeflow.exportMermaid';
 export const EXPORT_AGENT_FLOW_COMMAND = 'codeflow.exportAgentFlow';
+export const UPDATE_AGENT_CONTEXT_COMMAND = 'codeflow.updateAgentContext';
 export const EXPORT_AGENT_FOCUS_COMMAND = 'codeflow.exportAgentFocus';
 export const SETUP_MCP_COMMAND = 'codeflow.setupMcp';
 export const COPY_MERMAID_COMMAND = 'codeflow.copyMermaid';

@@ -8,6 +8,7 @@ import path from 'node:path';
 import {
   analyzeWorkspace,
   DEFAULT_EXCLUDE_GLOBS,
+  importsFromFragments,
   inputFromFragments,
 } from '@codeflow/pr/workspace';
 import type { GraphData, GraphSymbol } from './queryEngine.js';
@@ -18,6 +19,7 @@ const FILE_CAP = 1_000_000;
 
 export interface LoadedGraph {
   readonly data: GraphData;
+  readonly imports: readonly { readonly from: string; readonly to: string }[];
   readonly warnings: readonly string[];
   readonly files: number;
 }
@@ -89,12 +91,14 @@ export async function loadGraph(rootDir: string, maxFiles: number): Promise<Load
             : {}),
         })),
       },
+      imports: importsFromFragments(root, scanned.fragments),
       warnings: scanned.warnings,
       files: new Set(symbols.map((symbol) => symbol.file)).size,
     };
   } catch (error) {
     return {
       data: { symbols: [], calls: [], routes: [] },
+      imports: [],
       warnings: [error instanceof Error ? error.message : 'Could not read the workspace.'],
       files: 0,
     };

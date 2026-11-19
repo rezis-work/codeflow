@@ -7,6 +7,7 @@ import {
   explainFunction,
   getCallees,
   getCallers,
+  getContext,
   impactOf,
   pathBetween,
   refreshGraph,
@@ -188,6 +189,35 @@ export function createServer(cache: GraphCache): McpServer {
       annotations: readOnly,
     },
     async (args) => reply(await explainFunction(cache, locatedArgs(args))),
+  );
+  register(
+    'get_context',
+    {
+      title: 'Architecture map',
+      description:
+        'A compact architecture map of the repo: languages, packages, modules, entry points and routes, hub functions, high fan-in helpers, and cycles. focus limits it to a folder, file, or path#function. This does not write AGENTS.md.',
+      inputSchema: {
+        focus: z
+          .string()
+          .optional()
+          .describe('Folder, file, or path#function. Empty maps the whole workspace.'),
+        budget: z
+          .number()
+          .int()
+          .min(40)
+          .max(8000)
+          .optional()
+          .describe('Token budget. Defaults to 1500. Estimated as characters divided by 4.'),
+      },
+      annotations: readOnly,
+    },
+    async (args) =>
+      reply(
+        await getContext(cache, {
+          ...(typeof args.focus === 'string' && args.focus.length > 0 ? { focus: args.focus } : {}),
+          ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
+        }),
+      ),
   );
   register(
     'refresh',

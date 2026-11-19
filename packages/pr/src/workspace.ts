@@ -7,5 +7,6 @@
 export { analyzeWorkspace } from './analyze';
 export type { WorkspaceScan } from './analyze';
 export { inputFromFragments } from './flowGraph';
+export { importsFromFragments } from './contextInput';
 export { MAX_FILES_CAP } from './limits';
 export { DEFAULT_EXCLUDE_GLOBS } from './paths';

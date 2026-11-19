@@ -43,6 +43,7 @@ describe('MCP stdio', () => {
           'explain_function',
           'get_callees',
           'get_callers',
+          'get_context',
           'impact_of',
           'path_between',
           'refresh',
@@ -68,6 +69,12 @@ describe('MCP stdio', () => {
       });
       expect(textOf(impact)).toContain('greet');
       expect(textOf(impact)).toContain('risk');
+      const context = await client.callTool({
+        name: 'get_context',
+        arguments: { budget: 800 },
+      });
+      expect(textOf(context)).toContain('format');
+      expect(textOf(context)).toContain('npx codeflow impact');
     } finally {
       await client.close();
     }

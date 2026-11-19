@@ -179,6 +179,10 @@
         "icon": "$(git-pull-request)"
       },
       {
+        "command": "codeflow.updateAgentContext",
+        "title": "CodeFlow: Update Agent Context"
+      },
+      {
         "command": "codeflow.showFileDependencies",
         "title": "CodeFlow: Show File Dependencies",
         "icon": "$(file-symlink-file)"
@@ -290,6 +294,9 @@
         },
         {
           "command": "codeflow.showImpactDiff"
+        },
+        {
+          "command": "codeflow.updateAgentContext"
         },
         {
           "command": "codeflow.showFileDependencies"
@@ -684,6 +691,46 @@
             "order": 1,
             "description": "How many caller hops CodeFlow: Show Impact walks. 3 is the default. The ceiling is 8.",
             "markdownDescription": "How many caller hops **CodeFlow: Show Impact** walks. `3` is the default. The ceiling is `8`."
+          }
+        }
+      },
+      {
+        "title": "CodeFlow: Agent context",
+        "order": 11,
+        "properties": {
+          "codeflow.context.targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "agents",
+                "cursor",
+                "claude"
+              ]
+            },
+            "uniqueItems": true,
+            "default": [
+              "agents"
+            ],
+            "order": 1,
+            "description": "Files CodeFlow: Update Agent Context rewrites. agents is AGENTS.md. cursor is .cursor/rules/codeflow.mdc. claude is CLAUDE.md. Only the managed block is changed.",
+            "markdownDescription": "Files **CodeFlow: Update Agent Context** rewrites. `agents` is `AGENTS.md`. `cursor` is `.cursor/rules/codeflow.mdc`. `claude` is `CLAUDE.md`. Only the managed block is changed."
+          },
+          "codeflow.context.budget": {
+            "type": "number",
+            "default": 1500,
+            "minimum": 200,
+            "maximum": 8000,
+            "order": 2,
+            "description": "Token budget for the architecture map. Estimated as characters divided by 4. The default is 1500. Lower budgets drop cycles, then modules, helpers, and hubs.",
+            "markdownDescription": "Token budget for the architecture map. Estimated as characters divided by 4. The default is `1500`. Lower budgets drop cycles, then modules, helpers, and hubs."
+          },
+          "codeflow.context.autoUpdate": {
+            "type": "boolean",
+            "default": false,
+            "order": 3,
+            "description": "Rewrite the managed block after a source file is saved. Off by default. CodeFlow: Update Agent Context always writes.",
+            "markdownDescription": "Rewrite the managed block after a source file is saved. Off by default. **CodeFlow: Update Agent Context** always writes."
           }
         }
       },

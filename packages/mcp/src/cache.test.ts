@@ -6,7 +6,7 @@ import { GraphCache } from './cache.js';
 import type { LoadedGraph } from './loadGraph.js';
 
 function loaded(files: number): LoadedGraph {
-  return { data: { symbols: [], calls: [], routes: [] }, warnings: [], files };
+  return { data: { symbols: [], calls: [], routes: [] }, imports: [], warnings: [], files };
 }
 
 describe('graph cache', () => {

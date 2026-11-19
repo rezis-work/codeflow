@@ -34,6 +34,7 @@ import {
 import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
 import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
 import { setAiEnabledOverride } from './ai/vscodeSettings';
+import { installAgentContext } from './agentContext';
 import { installAgentExport } from './agentExport';
 import { installImpact } from './impactPanel';
 import { installMcpSetup } from './mcpSetup';
@@ -126,6 +127,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     refreshBranch: () => pullRequest.refresh(),
     branchChanges: () => pullRequest.branchChanges(),
   });
+  installAgentContext(context, { typescript, rust, python });
   installMcpSetup(context);
 
   context.subscriptions.push(

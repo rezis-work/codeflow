@@ -81,3 +81,11 @@ The no-key path works in VS Code when a provider such as GitHub Copilot has regi
 | `codeflow.pr.includeUncommitted` | `true`  | Include saved edits, unsaved buffer text, and untracked source. Off compares the merge base with `HEAD` only.                                                                                                      |
 
 On the base branch, and in a folder that is not a git checkout, the status bar stays hidden. The first 80 changed source files are analyzed.
+
+## Agent context
+
+| Setting                       | Default  | Description                                                                                                                                    |
+| ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codeflow.context.targets`    | `agents` | Files **CodeFlow: Update Agent Context** rewrites. `agents` is `AGENTS.md`. `cursor` is `.cursor/rules/codeflow.mdc`. `claude` is `CLAUDE.md`. |
+| `codeflow.context.budget`     | `1500`   | Token budget for the map, estimated as characters / 4. Lower budgets drop cycles first, then modules, helpers, and hubs. Range 200–8000.       |
+| `codeflow.context.autoUpdate` | `false`  | Rewrite the managed block after a source file is saved. Off by default. The command always writes.                                             |
