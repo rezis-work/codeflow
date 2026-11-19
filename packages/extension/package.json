@@ -118,6 +118,10 @@
         "title": "CodeFlow: Export Diagram for Current File/Function"
       },
       {
+        "command": "codeflow.setupMcp",
+        "title": "CodeFlow: Set Up MCP for AI Agents"
+      },
+      {
         "command": "codeflow.copyMermaid",
         "title": "CodeFlow: Copy Mermaid"
       },
@@ -644,6 +648,19 @@
             "order": 3,
             "description": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only.",
             "markdownDescription": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only."
+          }
+        }
+      },
+      {
+        "title": "CodeFlow: MCP",
+        "order": 9,
+        "properties": {
+          "codeflow.mcp.enabled": {
+            "type": "boolean",
+            "default": true,
+            "order": 1,
+            "description": "Allow CodeFlow: Set Up MCP for AI Agents to write the editor MCP config. This does not start a server. Turn it off to leave .cursor/mcp.json and .vscode/mcp.json untouched.",
+            "markdownDescription": "Allow **CodeFlow: Set Up MCP for AI Agents** to write the editor MCP config. This does not start a server. Turn it off to leave `.cursor/mcp.json` and `.vscode/mcp.json` untouched."
           }
         }
       }

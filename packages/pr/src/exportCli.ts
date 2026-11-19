@@ -32,8 +32,12 @@ export async function main(argv: readonly string[]): Promise<number> {
     console.log(help());
     return argv.length === 0 ? 1 : 0;
   }
+  if (argv[0] === 'mcp') {
+    console.error('Run `npx codeflow mcp`. The codeflow bin starts the MCP server.');
+    return argv.includes('--help') || argv.includes('-h') ? 0 : 1;
+  }
   if (argv[0] !== 'export') {
-    console.error(`Unknown command ${argv[0]}. Run codeflow export --help.`);
+    console.error(`Unknown command ${argv[0]}. Use codeflow export or codeflow mcp.`);
     return 1;
   }
   try {

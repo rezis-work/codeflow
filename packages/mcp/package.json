@@ -1,0 +1,32 @@
+{
+  "name": "@codeflow/mcp",
+  "version": "1.1.0",
+  "private": true,
+  "description": "CodeFlow MCP server. Agents query the call graph over stdio.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "codeflow-mcp": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
+    "@codeflow/pr": "*",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "typescript": "^6.0.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "vitest": "^5.1.0"
+  }
+}

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### MCP server
+
+- `npx codeflow mcp` starts a stdio MCP server for the workspace. Agents can search the call graph and run a short read-only query against it, instead of only reading `.codeflow/flow.md`.
+- `codeflow_search` finds functions, files, routes, and entry points and returns the query API. `codeflow_execute` runs a JavaScript or TypeScript snippet in a `node:vm` context with no `require`, `process`, filesystem, or network, a two-second timeout, and an output cap. `get_callers`, `get_callees`, `impact_of`, `path_between`, and `explain_function` are the same answers without a snippet. `refresh` reads the workspace again. A source-file change does that too.
+- **CodeFlow: Set Up MCP for AI Agents** merges the server into `.cursor/mcp.json` or `.vscode/mcp.json`. Other servers in those files are left in place. `codeflow.mcp.enabled` (default on) allows that write. It does not start a process.
+
 ## 1.1.0 (2026-11-17)
 
 Version 1.1.0 packages the work since 1.0.2. The file is `rezis-codeflow-1.1.0.vsix`. It adds a runtime trace, optional explanations of the open diagram, a Python adapter, pull request diagrams on GitHub and in the editor, an agent-readable call graph, and a SvelteKit landing page.

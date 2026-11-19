@@ -178,6 +178,7 @@ describe('extension manifest', () => {
         'codeflow.explainFlow',
         'codeflow.setAiApiKey',
         'codeflow.clearAiApiKey',
+        'codeflow.setupMcp',
       ]),
     );
   });
@@ -219,6 +220,7 @@ describe('extension manifest', () => {
         'codeflow.export.path',
         'codeflow.export.pngScale',
         'codeflow.maxFiles',
+        'codeflow.mcp.enabled',
         'codeflow.pr.baseBranch',
         'codeflow.pr.enabled',
         'codeflow.pr.includeUncommitted',

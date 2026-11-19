@@ -281,6 +281,66 @@ When you need to see how code calls other code, read `.codeflow/flow.md` before 
 Use the call list and the entry points. If the file is missing, run `npx codeflow export`.
 ```
 
+## MCP server
+
+Agents can also ask the live call graph over MCP. The server speaks stdio, builds the graph once from the TypeScript, JavaScript, Rust, and Python analyzers, and refreshes it when a source file changes or when the `refresh` tool is called.
+
+Build it from this repository, then start it in the project you want to query:
+
+```bash
+npm run build -w @codeflow/mcp
+npm run build -w @codeflow/pr
+npx codeflow mcp
+```
+
+`npx codeflow mcp` uses the current directory unless you pass `--root`. In Cursor, **CodeFlow: Set Up MCP for AI Agents** can write the config below. It asks whether to update Cursor, VS Code, or both, and it does not replace other servers. `codeflow.mcp.enabled` (default on) allows that write. The command does not start the server.
+
+Cursor, `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "codeflow": {
+      "command": "npx",
+      "args": ["codeflow", "mcp"]
+    }
+  }
+}
+```
+
+VS Code, `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "codeflow": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["codeflow", "mcp"]
+    }
+  }
+}
+```
+
+Claude Code:
+
+```bash
+claude mcp add codeflow -- npx codeflow mcp
+```
+
+`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, and `explain_function` answer the common questions without a snippet. `explain_function` does not call a model.
+
+```javascript
+return graph.find({ name: 'greet' });
+return graph.find({ name: 'greet', path: 'src/greet.ts' })[0].callers(2);
+return graph.pathBetween('main', 'format');
+return graph.entryPoints();
+return graph.routes();
+return graph.find({ name: 'format' })[0].source();
+```
+
+The snippet is JavaScript or TypeScript with `graph` in scope. It runs in a fresh `node:vm` context. `require`, `process`, the filesystem, and the network are not defined. `eval` and `Function` cannot compile new code, which blocks `globalThis.constructor.constructor("...")`. Host functions are not passed into the context. A synchronous loop is stopped after two seconds, and a result larger than the cap is discarded. `fn.source()` returns the function text captured at the last refresh, not a live file read. `node:vm` is not a kernel sandbox. Keep the server on stdio for the workspace you already have open. Do not point it at a socket.
+
 ## Development
 
 Build, test, and pull-request notes are in [CONTRIBUTING.md](https://github.com/rezis-work/codeflow/blob/main/CONTRIBUTING.md). The graph model and analyzer behavior are in [docs/ARCHITECTURE.md](https://github.com/rezis-work/codeflow/blob/main/docs/ARCHITECTURE.md). Publishing steps for the maintainer are in [docs/PUBLISHING.md](https://github.com/rezis-work/codeflow/blob/main/docs/PUBLISHING.md).
