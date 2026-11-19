@@ -3,6 +3,7 @@ export const SHOW_FLOW_COMMAND = 'codeflow.showFlowAtCursor';
 export const SHOW_CALLERS_COMMAND = 'codeflow.showCallers';
 export const SHOW_CALLEES_COMMAND = 'codeflow.showCallees';
 export const SHOW_IMPACT_COMMAND = 'codeflow.showImpact';
+export const REVIEW_CHANGES_COMMAND = 'codeflow.reviewChanges';
 export const SHOW_IMPACT_DIFF_COMMAND = 'codeflow.showImpactDiff';
 export const SHOW_FILE_DEPENDENCIES_COMMAND = 'codeflow.showFileDependencies';
 export const SHOW_DEPENDENCIES_COMMAND = 'codeflow.showDependencies';

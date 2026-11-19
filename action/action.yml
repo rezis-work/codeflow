@@ -43,6 +43,13 @@ inputs:
       would pass GitHub's size limit.
     required: false
     default: 'true'
+  review:
+    description: >-
+      Add a review section (new cycles, newly dead code, and entry-point
+      or route changes) to the sticky comment. true by default. The section
+      is dropped if the comment would pass GitHub's size limit.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -79,4 +86,5 @@ runs:
         CODEFLOW_BASE: ${{ inputs.base }}
         CODEFLOW_HEAD: ${{ inputs.head }}
         CODEFLOW_IMPACT: ${{ inputs.impact }}
+        CODEFLOW_REVIEW: ${{ inputs.review }}
       run: node "${{ github.action_path }}/../packages/pr/dist/cli.js" --root "${{ github.workspace }}"

@@ -183,6 +183,10 @@
         "title": "CodeFlow: Update Agent Context"
       },
       {
+        "command": "codeflow.reviewChanges",
+        "title": "CodeFlow: Review Agent Changes"
+      },
+      {
         "command": "codeflow.showFileDependencies",
         "title": "CodeFlow: Show File Dependencies",
         "icon": "$(file-symlink-file)"
@@ -297,6 +301,9 @@
         },
         {
           "command": "codeflow.updateAgentContext"
+        },
+        {
+          "command": "codeflow.reviewChanges"
         },
         {
           "command": "codeflow.showFileDependencies"

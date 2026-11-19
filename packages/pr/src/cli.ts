@@ -115,6 +115,7 @@ export async function main(argv: readonly string[]): Promise<number> {
         }
       : {}),
     ...(impactEnabled(args) ? {} : { impact: false as const }),
+    ...(reviewEnabled(args) ? {} : { review: false as const }),
   });
 
   console.log(report.markdown);
@@ -213,6 +214,7 @@ interface Args {
   comment?: boolean;
   summary?: boolean;
   impact?: boolean;
+  review?: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -250,6 +252,10 @@ function parseArgs(argv: readonly string[]): Args {
       args.impact = true;
     } else if (arg === '--no-impact') {
       args.impact = false;
+    } else if (arg === '--review') {
+      args.review = true;
+    } else if (arg === '--no-review') {
+      args.review = false;
     } else if (arg) {
       throw new Error(`Unknown argument ${arg}. Run codeflow-pr --help.`);
     }
@@ -264,14 +270,22 @@ function parseArgs(argv: readonly string[]): Args {
     ...(args.comment !== undefined ? { comment: args.comment } : {}),
     ...(args.summary !== undefined ? { summary: args.summary } : {}),
     ...(args.impact !== undefined ? { impact: args.impact } : {}),
+    ...(args.review !== undefined ? { review: args.review } : {}),
   };
 }
 
 function impactEnabled(args: Args): boolean {
-  if (args.impact !== undefined) {
-    return args.impact;
+  return flagEnabled(args.impact, process.env.CODEFLOW_IMPACT);
+}
+
+function reviewEnabled(args: Args): boolean {
+  return flagEnabled(args.review, process.env.CODEFLOW_REVIEW);
+}
+
+function flagEnabled(value: boolean | undefined, raw: string | undefined): boolean {
+  if (value !== undefined) {
+    return value;
   }
-  const raw = process.env.CODEFLOW_IMPACT;
   if (raw === undefined || raw.trim() === '') {
     return true;
   }
@@ -299,6 +313,7 @@ function help(): string {
     '--comment / --no-comment   post the sticky comment',
     '--summary / --no-summary   append the diagram to GITHUB_STEP_SUMMARY',
     '--impact / --no-impact     add the blast-radius section (default on)',
+    '--review / --no-review     add the graph-diff section (default on)',
   ].join('\n');
 }
 

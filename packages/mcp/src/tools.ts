@@ -5,6 +5,7 @@
  */
 
 import { changedSymbolsForDiff } from '@codeflow/pr/impact';
+import { loadReview } from '@codeflow/pr/review';
 import { buildContext } from '@codeflow/shared/context';
 import type { ImpactRef } from '@codeflow/shared/impact';
 import { API_DOCS } from './apiDocs.js';
@@ -210,6 +211,28 @@ export async function getContext(
     trimmed: report.trimmed,
     ...(report.focus ? { focus: report.focus } : {}),
     ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 5) } : {}),
+  });
+}
+
+export async function reviewChanges(
+  cache: GraphCache,
+  args: { readonly base?: string; readonly format?: string },
+): Promise<ToolResult> {
+  const loaded = await loadReview({
+    rootDir: cache.root,
+    ...(args.base ? { baseRef: args.base } : {}),
+    maxFiles: cache.maxFiles,
+  });
+  if (!loaded.ok) {
+    return error(loaded.error);
+  }
+  if (args.format === 'markdown' || args.format === 'md') {
+    return { text: loaded.report.markdown };
+  }
+  return json({
+    base: loaded.base,
+    ...loaded.report,
+    ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 8) } : {}),
   });
 }
 

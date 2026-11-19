@@ -59,9 +59,15 @@ export interface IndexedRoute {
   readonly handlerKey?: string;
 }
 
+export interface IndexedImport {
+  readonly from: string;
+  readonly to: string;
+}
+
 export interface IndexedGraph {
   readonly symbols: ReadonlyMap<string, IndexedSymbol>;
   readonly calls: readonly CallSite[];
+  readonly imports: readonly IndexedImport[];
   readonly routes: readonly IndexedRoute[];
   readonly filesAnalyzed: number;
 }
@@ -397,14 +403,31 @@ function indexFragments(
     }
   }
   const calls: CallSite[] = [];
+  const imports: IndexedImport[] = [];
+  const seenImports = new Set<string>();
   for (const fragment of fragments) {
     for (const edge of fragment.edges) {
+      const from = byId.get(edge.from);
+      const to = byId.get(edge.to);
+      if (!from || !to) {
+        continue;
+      }
+      if (edge.kind === 'import') {
+        if (from.path === to.path) {
+          continue;
+        }
+        const key = `${from.path}\0${to.path}`;
+        if (seenImports.has(key)) {
+          continue;
+        }
+        seenImports.add(key);
+        imports.push({ from: from.path, to: to.path });
+        continue;
+      }
       if (edge.kind !== 'call') {
         continue;
       }
-      const from = byId.get(edge.from);
-      const to = byId.get(edge.to);
-      if (!from || !to || (to.kind !== 'function' && to.kind !== 'method')) {
+      if (to.kind !== 'function' && to.kind !== 'method') {
         continue;
       }
       if (from.kind !== 'function' && from.kind !== 'method' && from.kind !== 'module') {
@@ -417,7 +440,10 @@ function indexFragments(
       });
     }
   }
-  return { symbols, calls, routes: [], filesAnalyzed: fragments.length };
+  imports.sort(
+    (left, right) => left.from.localeCompare(right.from) || left.to.localeCompare(right.to),
+  );
+  return { symbols, calls, imports, routes: [], filesAnalyzed: fragments.length };
 }
 
 function indexRoutes(

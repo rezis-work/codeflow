@@ -1,3 +1,5 @@
+import type { ReviewGraph, ReviewReport } from '@codeflow/shared/review';
+
 export interface GraphSymbol {
   readonly id: string;
   readonly name: string;
@@ -28,6 +30,7 @@ export interface GraphData {
   readonly symbols: readonly GraphSymbol[];
   readonly calls: readonly GraphCall[];
   readonly routes: readonly GraphRoute[];
+  readonly imports?: readonly { readonly from: string; readonly to: string }[];
 }
 
 export interface FindQuery {
@@ -104,6 +107,9 @@ export interface GraphApi {
     ref?: string | Ref | ImpactQuery | readonly (string | Ref)[],
     options?: number | { readonly hops?: number },
   ): ImpactResult | Failure;
+  review(
+    before: ReviewGraph | { readonly before?: ReviewGraph; readonly after?: ReviewGraph },
+  ): ReviewReport | { readonly ok: false; readonly error: string };
 }
 
 export interface ExplainResult {

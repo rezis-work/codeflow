@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Review
+
+- `npx codeflow review` diffs the call and import graph. With no `--base`, the working tree is compared with HEAD. `--base` uses the merge base of that ref. `--json` prints the report. `--fail-on cycles,dead,routes,signatures` exits 1 for CI. The `checks` list is the slot a later duplicate-helper check can fill.
+- The diff flags new call and import cycles, functions that lost every caller, route and entry-point changes, and signature changes on functions with two or more callers. The signature flag uses the impact risk score. Renames in the same file stay one function when the signature matches without the name.
+- `review_changes` returns that report. `graph.review(before)` and `graph.review({ before, after })` run inside `codeflow_execute`.
+- **CodeFlow: Review Agent Changes** opens a panel for the changed files. A flag opens that line. The panel does not see callers outside those files.
+- The pull request comment can include the same flags. The action input `review` defaults to on. The section is dropped when the comment would pass GitHub's size limit.
+
 ### Agent context
 
 - `npx codeflow context` writes a compact architecture map into the managed block of `AGENTS.md` (`<!-- codeflow:start -->` … `<!-- codeflow:end -->`). `--targets agents,cursor,claude` also fills `.cursor/rules/codeflow.mdc` (with `alwaysApply: true` when the file is new) and `CLAUDE.md`. Text outside the block is left alone. A missing end marker is left untouched. The same content is not rewritten.

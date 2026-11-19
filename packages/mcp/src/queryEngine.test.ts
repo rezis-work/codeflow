@@ -172,5 +172,8 @@ describe('query API', () => {
       signature: 'function format(): string',
       callers: [{ name: 'greet', certainty: 'certain' }],
     });
+    const reviewed = graph.review({ symbols: [], calls: [], routes: [] });
+    expect('summary' in reviewed && reviewed.summary.added).toBeGreaterThan(0);
+    expect('markdown' in reviewed && reviewed.markdown).toContain('## Review');
   });
 });

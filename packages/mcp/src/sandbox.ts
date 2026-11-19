@@ -170,7 +170,8 @@ function clampTimeout(value: number | undefined): number {
 function engineSource(): string {
   const engine = readFileSync(fileURLToPath(new URL('./queryEngine.js', import.meta.url)), 'utf8');
   const impact = readFileSync(impactSource(), 'utf8');
-  return stripModuleSyntax(`${impact}\n${engine}`);
+  const review = readFileSync(reviewSource(), 'utf8');
+  return stripModuleSyntax(`${impact}\n${review}\n${engine}`);
 }
 
 function stripModuleSyntax(source: string): string {
@@ -182,11 +183,19 @@ function stripModuleSyntax(source: string): string {
 }
 
 function impactSource(): string {
-  const beside = fileURLToPath(new URL('./impact.js', import.meta.url));
+  return bundledSource('impact.js', '../../shared/src/impact.js');
+}
+
+function reviewSource(): string {
+  return bundledSource('review.js', '../../shared/src/review.js');
+}
+
+function bundledSource(name: string, fallback: string): string {
+  const beside = fileURLToPath(new URL(`./${name}`, import.meta.url));
   try {
     readFileSync(beside, 'utf8');
     return beside;
   } catch {
-    return fileURLToPath(new URL('../../shared/src/impact.js', import.meta.url));
+    return fileURLToPath(new URL(fallback, import.meta.url));
   }
 }

@@ -42,6 +42,11 @@ describe('execute sandbox', () => {
       'const name: string = "format";\nreturn graph.find({ name })[0].file',
     );
     expect(typed).toEqual({ ok: true, result: 'src/greet.ts' });
+    const reviewed = executeSnippet(
+      data,
+      'return graph.review({ symbols: [], calls: [], routes: [] }).summary.added',
+    );
+    expect(reviewed).toEqual({ ok: true, result: 2 });
     const source = executeSnippet(data, 'return graph.get("format").source()');
     expect(source.ok).toBe(true);
     if (source.ok) {

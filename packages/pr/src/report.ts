@@ -1,11 +1,14 @@
 import { COMMENT_LIMIT, assessImpact, renderImpactMarkdown } from '@codeflow/shared/impact';
 import type { ImpactReport } from '@codeflow/shared/impact';
+import { renderReviewMarkdown, reviewGraphs } from '@codeflow/shared/review';
 import type { RepositoryRef } from './commentLinks';
 import { blobUrl } from './commentLinks';
 import { renderComment } from './comment';
 import type { CommentFunction } from './comment';
 import { graphDataFromIndexed } from './impactGraph';
+import { reviewGraphFromIndexed } from './reviewGraph';
 import { analyzeHeadAndBase, diagramSymbols, spansIn } from './analyze';
+import type { IndexedGraph } from './analyze';
 import type { CallSite } from './diagram';
 import { selectDiagram } from './diagram';
 import { callLines, renderMermaid } from './mermaid';
@@ -38,6 +41,8 @@ export async function createPullRequestReport(input: {
   readonly warnings?: readonly string[];
   /** Blast-radius section. Default on. Pass false to leave the comment as a diagram only. */
   readonly impact?: boolean;
+  /** Graph-diff section. Default on. Pass false to leave it out. */
+  readonly review?: boolean;
 }): Promise<PullRequestReport> {
   const warnings = [...(input.warnings ?? [])];
   const supported = input.files.filter((file) => {
@@ -172,7 +177,15 @@ export async function createPullRequestReport(input: {
     maxNodes: input.maxNodes,
   };
   const impact = input.impact === false ? undefined : impactSection(changed, analyzed.head);
-  let markdown = renderComment({ ...comment, ...(impact ? { impact } : {}) });
+  const review = input.review === false ? undefined : reviewSection(analyzed.base, analyzed.head);
+  let markdown = renderComment({
+    ...comment,
+    ...(impact ? { impact } : {}),
+    ...(review ? { review } : {}),
+  });
+  if (review && markdown.length > COMMENT_LIMIT) {
+    markdown = renderComment({ ...comment, ...(impact ? { impact } : {}) });
+  }
   if (impact && markdown.length > COMMENT_LIMIT) {
     const brief = impactSection(changed, analyzed.head, true);
     markdown = renderComment({ ...comment, ...(brief ? { impact: brief } : {}) });
@@ -207,6 +220,11 @@ function commentFunctions(
       ...(repository && sha ? { href: blobUrl(repository, sha, path, symbol.line) } : {}),
     };
   });
+}
+
+function reviewSection(before: IndexedGraph, after: IndexedGraph): string {
+  const report = reviewGraphs(reviewGraphFromIndexed(before), reviewGraphFromIndexed(after));
+  return renderReviewMarkdown(report, { brief: true }).replace('## Review', '### Review');
 }
 
 function impactSection(
