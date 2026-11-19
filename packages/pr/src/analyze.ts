@@ -52,9 +52,17 @@ export interface IndexedSymbol {
   readonly text: string;
 }
 
+export interface IndexedRoute {
+  readonly label: string;
+  readonly path: string;
+  readonly line: number;
+  readonly handlerKey?: string;
+}
+
 export interface IndexedGraph {
   readonly symbols: ReadonlyMap<string, IndexedSymbol>;
   readonly calls: readonly CallSite[];
+  readonly routes: readonly IndexedRoute[];
   readonly filesAnalyzed: number;
 }
 
@@ -300,73 +308,12 @@ async function analyzeSnapshot(
       contents.set(resolved, text);
       written.push(resolved);
     }
-    const fragments = await analyzeWritten(repoRoot, directory, written, crates, warnings);
-    return indexFragments(directory, fragments, contents);
+    const scanned = await analyzeWrittenReports(repoRoot, directory, written, crates, warnings);
+    const graph = indexFragments(directory, scanned.fragments, contents);
+    return { ...graph, routes: indexRoutes(directory, scanned.reports, graph.symbols) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
-}
-
-async function analyzeWritten(
-  repoRoot: string,
-  directory: string,
-  files: readonly string[],
-  crates: readonly RustCrate[],
-  warnings: string[],
-): Promise<FileFragment[]> {
-  const fragments: FileFragment[] = [];
-  const scripts = files.filter((file) => languageForPath(file));
-  const python = files.filter((file) => file.toLowerCase().endsWith('.py'));
-  const rust = files.filter((file) => isRustSourcePath(file));
-
-  if (scripts.length > 0) {
-    const project: AnalysisProject = {
-      key: directory,
-      rootDir: directory,
-      workspaceRoot: directory,
-      files: scripts,
-      options: defaultCompilerOptions(directory),
-      excludeGlobs: [],
-      maxFiles: scripts.length + 1,
-    };
-    fragments.push(...runSession(() => openAnalysisSession(project), warnings));
-  }
-
-  if (python.length > 0) {
-    try {
-      await ensurePythonParser();
-      fragments.push(
-        ...runSession(
-          () =>
-            openPythonSession({
-              rootDir: directory,
-              files: python,
-              maxFiles: python.length + 1,
-              capped: false,
-              warnings: [],
-            }),
-          warnings,
-        ),
-      );
-    } catch (error) {
-      warnings.push(`Python parser failed to load (${message(error)}).`);
-    }
-  }
-
-  if (rust.length > 0) {
-    try {
-      await ensureRustParser();
-      fragments.push(
-        ...runSession(
-          () => openRustSession(rustDiscovery(repoRoot, directory, rust, crates)),
-          warnings,
-        ),
-      );
-    } catch (error) {
-      warnings.push(`Rust parser failed to load (${message(error)}).`);
-    }
-  }
-  return fragments;
 }
 
 function rustDiscovery(
@@ -426,22 +373,6 @@ function isInside(directory: string, filePath: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-function runSession(open: () => Session, warnings: string[]): FileFragment[] {
-  const session = open();
-  try {
-    const fragments = session.analyze();
-    for (const error of session.errors) {
-      warnings.push(error);
-    }
-    return fragments;
-  } catch (error) {
-    warnings.push(message(error));
-    return [];
-  } finally {
-    session.dispose();
-  }
-}
-
 function indexFragments(
   rootDir: string,
   fragments: readonly FileFragment[],
@@ -486,7 +417,60 @@ function indexFragments(
       });
     }
   }
-  return { symbols, calls, filesAnalyzed: fragments.length };
+  return { symbols, calls, routes: [], filesAnalyzed: fragments.length };
+}
+
+function indexRoutes(
+  directory: string,
+  reports: readonly EntryFileReport[],
+  symbols: ReadonlyMap<string, IndexedSymbol>,
+): IndexedRoute[] {
+  const byPlace = new Map<string, IndexedSymbol[]>();
+  for (const symbol of symbols.values()) {
+    const key = `${symbol.path}:${symbol.line}`;
+    const list = byPlace.get(key) ?? [];
+    list.push(symbol);
+    byPlace.set(key, list);
+  }
+  const routes: IndexedRoute[] = [];
+  const seen = new Set<string>();
+  for (const report of reports) {
+    for (const entry of report.entries) {
+      const absolute = fileUriToPath(entry.handlerUri);
+      if (!absolute) {
+        continue;
+      }
+      const relativePath = toPosix(relativePosix(directory, absolute));
+      if (relativePath === '' || relativePath.startsWith('..')) {
+        continue;
+      }
+      const line = entry.handlerRange.start.line + 1;
+      const label = `${entry.method} ${entry.path}`;
+      const id = `${label}\0${relativePath}:${line}`;
+      if (seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      const candidates = byPlace.get(`${relativePath}:${line}`) ?? [];
+      const named = candidates.find(
+        (symbol) => symbol.name === entry.handlerName || symbol.qualifiedName === entry.handlerName,
+      );
+      const handler = named ?? candidates[0];
+      routes.push({
+        label,
+        path: relativePath,
+        line,
+        ...(handler ? { handlerKey: handler.key } : {}),
+      });
+    }
+  }
+  routes.sort(
+    (left, right) =>
+      left.label.localeCompare(right.label) ||
+      left.path.localeCompare(right.path) ||
+      left.line - right.line,
+  );
+  return routes;
 }
 
 function toSymbol(node: CodeNode, relativePath: string, content: string): IndexedSymbol {

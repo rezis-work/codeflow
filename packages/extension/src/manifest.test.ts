@@ -179,6 +179,8 @@ describe('extension manifest', () => {
         'codeflow.setAiApiKey',
         'codeflow.clearAiApiKey',
         'codeflow.setupMcp',
+        'codeflow.showImpact',
+        'codeflow.showImpactDiff',
       ]),
     );
   });
@@ -219,6 +221,7 @@ describe('extension manifest', () => {
         'codeflow.export.maxNodes',
         'codeflow.export.path',
         'codeflow.export.pngScale',
+        'codeflow.impact.hops',
         'codeflow.maxFiles',
         'codeflow.mcp.enabled',
         'codeflow.pr.baseBranch',

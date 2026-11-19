@@ -6,7 +6,8 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./impact": "./src/impact.js"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

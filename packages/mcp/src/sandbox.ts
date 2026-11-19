@@ -168,9 +168,25 @@ function clampTimeout(value: number | undefined): number {
 }
 
 function engineSource(): string {
-  const source = readFileSync(fileURLToPath(new URL('./queryEngine.js', import.meta.url)), 'utf8');
+  const engine = readFileSync(fileURLToPath(new URL('./queryEngine.js', import.meta.url)), 'utf8');
+  const impact = readFileSync(impactSource(), 'utf8');
+  return stripModuleSyntax(`${impact}\n${engine}`);
+}
+
+function stripModuleSyntax(source: string): string {
   return source
+    .replace(/^export\s*\{[^}]*\};?\s*$/gm, '')
     .split('\n')
-    .filter((line) => !line.startsWith('export '))
+    .filter((line) => !line.startsWith('export ') && !line.startsWith('import '))
     .join('\n');
+}
+
+function impactSource(): string {
+  const beside = fileURLToPath(new URL('./impact.js', import.meta.url));
+  try {
+    readFileSync(beside, 'utf8');
+    return beside;
+  } catch {
+    return fileURLToPath(new URL('../../shared/src/impact.js', import.meta.url));
+  }
 }

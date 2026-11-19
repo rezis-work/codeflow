@@ -2,8 +2,9 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { build as bundle } from 'esbuild';
 
 await bundle({
-  entryPoints: ['src/cli.ts'],
-  outfile: 'dist/cli.js',
+  entryPoints: ['src/cli.ts', 'src/impactCli.ts'],
+  outdir: 'dist',
+  entryNames: '[name]',
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -29,3 +30,4 @@ await bundle({
 
 mkdirSync('dist', { recursive: true });
 copyFileSync('src/queryEngine.js', 'dist/queryEngine.js');
+copyFileSync('../shared/src/impact.js', 'dist/impact.js');

@@ -328,7 +328,7 @@ Claude Code:
 claude mcp add codeflow -- npx codeflow mcp
 ```
 
-`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, and `explain_function` answer the common questions without a snippet. `explain_function` does not call a model.
+`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, and `explain_function` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `explain_function` does not call a model.
 
 ```javascript
 return graph.find({ name: 'greet' });
@@ -340,6 +340,41 @@ return graph.find({ name: 'format' })[0].source();
 ```
 
 The snippet is JavaScript or TypeScript with `graph` in scope. It runs in a fresh `node:vm` context. `require`, `process`, the filesystem, and the network are not defined. `eval` and `Function` cannot compile new code, which blocks `globalThis.constructor.constructor("...")`. Host functions are not passed into the context. A synchronous loop is stopped after two seconds, and a result larger than the cap is discarded. `fn.source()` returns the function text captured at the last refresh, not a live file read. `node:vm` is not a kernel sandbox. Keep the server on stdio for the workspace you already have open. Do not point it at a socket.
+
+`impact_of` and `graph.impact(...)` share one blast-radius report. A single name still works. You can also pass several targets, a file, or `diff: true`.
+
+```javascript
+return graph.impact('format');
+return graph.impact({ name: 'format', path: 'src/greet.ts' });
+return graph.impact({ targets: ['format', 'greet'], hops: 2 });
+return graph.impact({ files: ['src/greet.ts'], hops: 3 });
+```
+
+## Impact
+
+`npx codeflow impact` answers what a change affects: transitive callers, routes, likely tests, uncertain edges, and a low, medium, or high risk score. Build the command from this repository, then run it in the project you want to score:
+
+```bash
+npm run build -w @codeflow/mcp
+npm run build -w @codeflow/pr
+npx codeflow impact src/greet.ts#format --hops 3
+npx codeflow impact --diff --base main --json
+npx codeflow impact src/app.py --md
+```
+
+Markdown is the default. `--json` prints the same report as JSON. Passing both puts a `markdown` field on the JSON. `--diff` compares the working tree, including uncommitted edits, with the merge base. `--base` picks that ref. With no `--base`, the command tries `origin/main`, then `main`, `origin/master`, and `master`. `--hops` defaults to 3 and stops at 8.
+
+In the editor, **CodeFlow: Show Impact** (right-click a function, or the command palette) opens a panel for the function under the cursor. **CodeFlow: Show Impact of Current Changes** scores the branch the local pull request view already compares. The target is highlighted. Callers are grouped by hop. A row opens that file. `codeflow.impact.hops` (default 3) is the walk. When `codeflow.pr.enabled` is on and the checkout is a feature branch, a changed function gets a CodeLens: `affects N callers, M routes`.
+
+The GitHub Action adds the same summary to the sticky pull request comment. The input `impact` defaults to `true`. Set it to `false` to keep the diagram only. If the comment would pass GitHub's size limit, the summary is shortened to the risk line, then dropped.
+
+Risk is a fixed rule, not a model call:
+
+- **high** when an affected route has no likely test, when 12 or more callers are in range, or when 3 or more routes are affected
+- **medium** when any route is affected, when 4 or more callers are in range, when an uncertain edge is on the path, or when callers exist and no test was found
+- **low** otherwise
+
+A likely test is a caller whose name looks like a test (`test_…`, `testX`) or whose file looks like one (`.test.`, `.spec.`, `tests/`, `__tests__/`, `test_*.py`, `*_test.rs`). An uncertain edge is a call the analyzers could not prove: a callback, dynamic dispatch, or a trait object. The report lists those edges. It does not list a test that only imports a function and never calls it.
 
 ## Development
 

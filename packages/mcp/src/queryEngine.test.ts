@@ -155,6 +155,13 @@ describe('query API', () => {
     expect(impact.callers.map((item) => item.name).sort()).toEqual(['greet', 'main', 'testGreet']);
     expect(impact.routes.map((route) => route.label)).toEqual(['GET /hello']);
     expect(impact.tests.map((item) => item.name)).toEqual(['testGreet']);
+    expect(impact.hops).toBe(3);
+    expect(impact.risk.level).toBe('medium');
+    const several = graph.impact({ targets: ['format', 'main'], hops: 1 });
+    expect('targets' in several && several.targets.map((item) => item.name).sort()).toEqual([
+      'format',
+      'main',
+    ]);
     const ambiguous = graph.get('greet');
     expect(ambiguous).toMatchObject({ ok: false });
     const picked = graph.get({ name: 'greet', path: 'other.ts' });

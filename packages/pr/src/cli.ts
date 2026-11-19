@@ -114,6 +114,7 @@ export async function main(argv: readonly string[]): Promise<number> {
           },
         }
       : {}),
+    ...(impactEnabled(args) ? {} : { impact: false as const }),
   });
 
   console.log(report.markdown);
@@ -211,6 +212,7 @@ interface Args {
   maxChangedFiles?: string;
   comment?: boolean;
   summary?: boolean;
+  impact?: boolean;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -244,6 +246,10 @@ function parseArgs(argv: readonly string[]): Args {
       args.summary = true;
     } else if (arg === '--no-summary') {
       args.summary = false;
+    } else if (arg === '--impact') {
+      args.impact = true;
+    } else if (arg === '--no-impact') {
+      args.impact = false;
     } else if (arg) {
       throw new Error(`Unknown argument ${arg}. Run codeflow-pr --help.`);
     }
@@ -257,7 +263,19 @@ function parseArgs(argv: readonly string[]): Args {
     maxChangedFiles: args.maxChangedFiles || blank(process.env.CODEFLOW_MAX_CHANGED_FILES),
     ...(args.comment !== undefined ? { comment: args.comment } : {}),
     ...(args.summary !== undefined ? { summary: args.summary } : {}),
+    ...(args.impact !== undefined ? { impact: args.impact } : {}),
   };
+}
+
+function impactEnabled(args: Args): boolean {
+  if (args.impact !== undefined) {
+    return args.impact;
+  }
+  const raw = process.env.CODEFLOW_IMPACT;
+  if (raw === undefined || raw.trim() === '') {
+    return true;
+  }
+  return !['false', '0', 'off', 'no'].includes(raw.trim().toLowerCase());
 }
 
 function blank(value: string | undefined): string | undefined {
@@ -280,6 +298,7 @@ function help(): string {
     '--max-changed-files <n>    changed files considered (default 80, ceiling 500)',
     '--comment / --no-comment   post the sticky comment',
     '--summary / --no-summary   append the diagram to GITHUB_STEP_SUMMARY',
+    '--impact / --no-impact     add the blast-radius section (default on)',
   ].join('\n');
 }
 

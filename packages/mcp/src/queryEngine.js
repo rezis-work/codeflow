@@ -2,7 +2,11 @@
  * Read-only call-graph queries. This file is plain JavaScript on purpose:
  * the host imports it, and the sandbox runs the same source inside node:vm.
  * It must not touch the file system, the network, require, or process.
+ * Impact math lives in @codeflow/shared/impact. The sandbox prepends that
+ * file and drops this import, so both sides run the same function.
  */
+
+import { assessImpact } from '@codeflow/shared/impact';
 
 const MAX_HOPS = 8;
 const MAX_WALK = 200;
@@ -338,47 +342,11 @@ function createApi(data) {
     };
   }
 
-  function impact(ref) {
-    const resolved = resolveOne(ref);
-    if (!resolved.ok) {
-      return resolved;
-    }
-    const symbol = resolved.symbol;
-    const callers = walk(symbol.id, incoming, MAX_HOPS);
-    const reached = new Set(callers.map((item) => item.id));
-    reached.add(symbol.id);
-    const affectedRoutes = listRoutes().filter(
-      (route) => route.handlerId !== undefined && reached.has(route.handlerId),
+  function impact(ref, options) {
+    return assessImpact(
+      { symbols: [...byId.values()], calls, routes },
+      impactRequest(ref, options),
     );
-    const entries = [...byId.values()]
-      .filter(
-        (item) =>
-          reached.has(item.id) &&
-          item.id !== symbol.id &&
-          Array.isArray(item.roles) &&
-          item.roles.length > 0,
-      )
-      .sort(compareSymbol)
-      .map((item) => ({
-        name: item.name,
-        file: item.file,
-        line: item.line,
-        roles: item.roles.slice(),
-      }));
-    const tests = entries.filter((item) => item.roles.includes('test'));
-    return {
-      target: {
-        id: symbol.id,
-        name: symbol.name,
-        file: symbol.file,
-        line: symbol.line,
-        kind: symbol.kind,
-      },
-      callers: callers.map(summary),
-      routes: affectedRoutes,
-      entryPoints: entries,
-      tests,
-    };
   }
 
   function get(ref) {
@@ -398,6 +366,37 @@ function createApi(data) {
     explain,
     impact,
   };
+}
+
+function impactRequest(ref, options) {
+  const hops = impactHops(ref, options);
+  if (Array.isArray(ref)) {
+    return { targets: ref, ...(hops === undefined ? {} : { hops }) };
+  }
+  if (ref && typeof ref === 'object' && (Array.isArray(ref.targets) || Array.isArray(ref.files))) {
+    return {
+      ...(Array.isArray(ref.targets) ? { targets: ref.targets } : {}),
+      ...(Array.isArray(ref.files) ? { files: ref.files } : {}),
+      ...(typeof ref.hops === 'number' ? { hops: ref.hops } : hops === undefined ? {} : { hops }),
+    };
+  }
+  return {
+    targets: ref === undefined ? [] : [ref],
+    ...(hops === undefined ? {} : { hops }),
+  };
+}
+
+function impactHops(ref, options) {
+  if (typeof options === 'number') {
+    return options;
+  }
+  if (options && typeof options === 'object' && typeof options.hops === 'number') {
+    return options.hops;
+  }
+  if (ref && typeof ref === 'object' && !Array.isArray(ref) && typeof ref.hops === 'number') {
+    return ref.hops;
+  }
+  return undefined;
 }
 
 function summary(item) {

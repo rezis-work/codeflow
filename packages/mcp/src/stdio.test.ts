@@ -67,6 +67,7 @@ describe('MCP stdio', () => {
         arguments: { name: 'format' },
       });
       expect(textOf(impact)).toContain('greet');
+      expect(textOf(impact)).toContain('risk');
     } finally {
       await client.close();
     }

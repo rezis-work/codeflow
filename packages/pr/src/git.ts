@@ -32,6 +32,11 @@ export function diffPatch(root: string, base: string, head: string): string {
   return git(root, ['diff', '--no-ext-diff', '--unified=0', '--find-renames', base, head]);
 }
 
+/** Diff from `base` to the working tree, including staged and unstaged edits. */
+export function diffWorktree(root: string, base: string): string {
+  return git(root, ['diff', '--no-ext-diff', '--unified=0', '--find-renames', base]);
+}
+
 export function showFile(root: string, sha: string, filePath: string): string | undefined {
   try {
     const text = git(root, ['show', '--no-textconv', `${sha}:${filePath}`], MAX_FILE_BYTES + 1);

@@ -4,6 +4,8 @@
  * for `fn.source()`.
  */
 
+import { changedSymbolsForDiff } from '@codeflow/pr/impact';
+import type { ImpactRef } from '@codeflow/shared/impact';
 import { API_DOCS } from './apiDocs.js';
 import type { GraphCache } from './cache.js';
 import type { Failure, FileHit, FnView } from './queryEngine.js';
@@ -77,14 +79,75 @@ export async function getCallees(
 
 export async function impactOf(
   cache: GraphCache,
-  args: { readonly name?: string; readonly path?: string; readonly id?: string },
+  args: {
+    readonly name?: string;
+    readonly path?: string;
+    readonly id?: string;
+    readonly hops?: number;
+    readonly targets?: readonly string[];
+    readonly files?: readonly string[];
+    readonly diff?: boolean;
+    readonly base?: string;
+  },
 ): Promise<ToolResult> {
+  const targets: (string | ImpactRef)[] = [...(args.targets ?? [])];
+  if (args.id || args.name || args.path) {
+    targets.push(refOf(args));
+  }
+  const files = [...(args.files ?? [])];
+  let diff:
+    | {
+        base: string;
+        removed: { name: string; file: string }[];
+        warnings?: string[];
+      }
+    | undefined;
+  if (args.diff) {
+    const found = await changedSymbolsForDiff({
+      rootDir: cache.root,
+      ...(args.base ? { baseRef: args.base } : {}),
+      maxFiles: cache.maxFiles,
+    });
+    if (!found.ok) {
+      return error(found.error);
+    }
+    const removed = found.changed
+      .filter((symbol) => symbol.status === 'removed')
+      .map((symbol) => ({ name: symbol.qualifiedName, file: symbol.path }));
+    diff = {
+      base: found.base,
+      removed,
+      ...(found.warnings.length > 0 ? { warnings: found.warnings.slice(0, 8) } : {}),
+    };
+    for (const symbol of found.changed) {
+      if (symbol.status !== 'removed') {
+        targets.push({ name: symbol.qualifiedName, path: symbol.path });
+      }
+    }
+    if (targets.length === 0 && files.length === 0) {
+      return json({
+        hops: args.hops ?? 3,
+        targets: [],
+        callers: [],
+        routes: [],
+        entryPoints: [],
+        tests: [],
+        uncertain: [],
+        risk: { level: 'low', reasons: ['no changed functions'] },
+        diff,
+      });
+    }
+  }
   const loaded = await cache.get();
-  const outcome = createApi(loaded.data).impact(refOf(args));
+  const outcome = createApi(loaded.data).impact({
+    targets,
+    files,
+    ...(args.hops === undefined ? {} : { hops: args.hops }),
+  });
   if (isFailure(outcome)) {
     return error(outcome.error, outcome.matches);
   }
-  return json(outcome);
+  return json({ ...outcome, ...(diff ? { diff } : {}) });
 }
 
 export async function pathBetween(

@@ -95,6 +95,18 @@ describe('tools on fixture repos', () => {
     expect(routes.some((route) => route.label.includes('GET'))).toBe(true);
     const tests = impact.tests as { name: string }[];
     expect(tests.some((item) => item.name === 'testGreet')).toBe(true);
+    const several = parse(
+      await impactOf(cache, {
+        targets: ['formatName', 'greet'],
+        hops: 1,
+        files: ['src/greet.test.ts'],
+      }),
+    );
+    const names = (several.targets as { name: string }[]).map((item) => item.name);
+    expect(names).toContain('formatName');
+    expect(names).toContain('greet');
+    expect(names).toContain('testGreet');
+    expect(several.risk).toMatchObject({ level: expect.any(String) });
     const refreshed = parse(await refreshGraph(cache));
     expect(refreshed.symbols).toBeGreaterThan(0);
     cache.dispose();

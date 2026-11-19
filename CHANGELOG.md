@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Impact
+
+- `npx codeflow impact <path#function | file | name>...` prints the blast radius of one or more functions: transitive callers (default 3 hops), affected routes and entry points, likely tests, uncertain edges, and a low/medium/high risk score with the reasons. `--diff` scores the working tree against the merge base. `--json` and `--md` choose the output. Markdown is the default.
+- `impact_of` accepts `targets`, `files`, `hops`, and `diff`. A single `name` still works. `graph.impact(...)` in `codeflow_execute` returns the same report.
+- **CodeFlow: Show Impact** opens a panel for the function under the cursor. **CodeFlow: Show Impact of Current Changes** scores the branch. Rows open the file. `codeflow.impact.hops` (default 3) is the walk. With pull request mode on, a changed function shows a CodeLens, `affects N callers, M routes`.
+- The pull request comment can include the same summary. The action input `impact` defaults to on. The section is shortened or dropped when the comment would pass GitHub's size limit.
+
 ### MCP server
 
 - `npx codeflow mcp` starts a stdio MCP server for the workspace. Agents can search the call graph and run a short read-only query against it, instead of only reading `.codeflow/flow.md`.

@@ -35,6 +35,14 @@ inputs:
       comments with the default token.
     required: false
     default: ${{ github.token }}
+  impact:
+    description: >-
+      Add an impact summary (affected routes, likely tests, and a risk
+      level) to the sticky comment. true by default. Set false to keep the
+      diagram only. The section is shortened or dropped if the comment
+      would pass GitHub's size limit.
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -70,4 +78,5 @@ runs:
         CODEFLOW_MAX_CHANGED_FILES: ${{ inputs.max-changed-files }}
         CODEFLOW_BASE: ${{ inputs.base }}
         CODEFLOW_HEAD: ${{ inputs.head }}
+        CODEFLOW_IMPACT: ${{ inputs.impact }}
       run: node "${{ github.action_path }}/../packages/pr/dist/cli.js" --root "${{ github.workspace }}"
