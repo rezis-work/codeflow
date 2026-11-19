@@ -87,6 +87,12 @@ export interface Failure {
   }[];
 }
 
+export interface ImpactQuery {
+  readonly targets?: readonly (string | Ref)[];
+  readonly files?: readonly string[];
+  readonly hops?: number;
+}
+
 export interface GraphApi {
   find(query?: FindQuery): Array<FnView | FileHit>;
   get(ref: string | Ref): FnView | Failure;
@@ -94,7 +100,10 @@ export interface GraphApi {
   entryPoints(): FnView[];
   routes(): RouteHit[];
   explain(ref: string | Ref): ExplainResult | Failure;
-  impact(ref: string | Ref): ImpactResult | Failure;
+  impact(
+    ref?: string | Ref | ImpactQuery | readonly (string | Ref)[],
+    options?: number | { readonly hops?: number },
+  ): ImpactResult | Failure;
 }
 
 export interface ExplainResult {
@@ -121,6 +130,7 @@ export interface Summary {
 }
 
 export interface ImpactResult {
+  readonly hops: number;
   readonly target: {
     readonly id: string;
     readonly name: string;
@@ -128,6 +138,13 @@ export interface ImpactResult {
     readonly line: number;
     readonly kind: string;
   };
+  readonly targets: readonly {
+    readonly id: string;
+    readonly name: string;
+    readonly file: string;
+    readonly line: number;
+    readonly kind: string;
+  }[];
   readonly callers: readonly Summary[];
   readonly routes: readonly RouteHit[];
   readonly entryPoints: readonly {
@@ -136,12 +153,21 @@ export interface ImpactResult {
     readonly line: number;
     readonly roles: readonly string[];
   }[];
-  readonly tests: readonly {
-    readonly name: string;
-    readonly file: string;
-    readonly line: number;
-    readonly roles: readonly string[];
+  readonly tests: readonly Summary[];
+  readonly uncertain: readonly {
+    readonly from: string;
+    readonly to: string;
+    readonly fromName: string;
+    readonly toName: string;
+    readonly fromFile: string;
+    readonly toFile: string;
+    readonly reason?: string;
   }[];
+  readonly risk: {
+    readonly level: 'low' | 'medium' | 'high';
+    readonly reasons: readonly string[];
+  };
+  readonly unresolved?: readonly Failure[];
 }
 
 export function createApi(data: GraphData): GraphApi;

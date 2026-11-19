@@ -70,7 +70,10 @@ export interface BranchChanges {
   readonly changes: readonly BranchChangeLine[];
 }
 
-export function installPullRequestMode(context: vscode.ExtensionContext): {
+export function installPullRequestMode(
+  context: vscode.ExtensionContext,
+  hooks?: { readonly onChanged?: () => void },
+): {
   status(): PrStatus;
   refresh(): Promise<void>;
   branchChanges(): BranchChanges;
@@ -170,6 +173,7 @@ export function installPullRequestMode(context: vscode.ExtensionContext): {
       })),
     };
     publish();
+    hooks?.onChanged?.();
   };
 
   const schedule = (): void => {

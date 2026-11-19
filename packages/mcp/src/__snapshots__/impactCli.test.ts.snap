@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`codeflow impact > prints markdown and json for a function 1`] = `
+"## Impact
+
+**Risk: low.** 3 public entry points. 2 transitive callers within 2 hops. 1 likely test.
+
+### Targets
+
+- \`format\` — \`src/greet.ts:4\`
+
+### Callers
+
+| Hops | Function | Location | Certainty |
+| --- | --- | --- | --- |
+| 1 | \`testFormat\` | \`src/greet.test.ts:2\` | certain |
+| 1 | \`greet\` | \`src/greet.ts:1\` | certain |
+
+### Routes
+
+No affected routes.
+
+### Tests
+
+- \`testFormat\` — \`src/greet.test.ts:2\` (1 hop)
+
+### Uncertain edges
+
+No uncertain edges on this path.
+"
+`;

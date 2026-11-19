@@ -109,11 +109,51 @@ export function createServer(cache: GraphCache): McpServer {
     {
       title: 'Impact of a function',
       description:
-        'Transitive callers, the routes and entry points that reach this function, and tests in that set. No model call.',
-      inputSchema: { name, path: filePath, id },
+        'Transitive callers (default 3 hops), affected routes and entry points, likely tests, uncertain edges, and a low/medium/high risk score. Pass name/path/id, targets, files, or diff:true for the working tree. A single name still works. No model call.',
+      inputSchema: {
+        name,
+        path: filePath,
+        id,
+        hops: z
+          .number()
+          .int()
+          .min(1)
+          .max(8)
+          .optional()
+          .describe('Caller hops. Defaults to 3. The ceiling is 8.'),
+        targets: z
+          .array(z.string())
+          .optional()
+          .describe('Function names, ids, or path#function values.'),
+        files: z
+          .array(z.string())
+          .optional()
+          .describe('Repository-relative files. Every function in each file is a target.'),
+        diff: z
+          .boolean()
+          .optional()
+          .describe('Score functions changed in the working tree versus the base branch.'),
+        base: z
+          .string()
+          .optional()
+          .describe('Base git ref for diff. Empty tries origin/main, then main.'),
+      },
       annotations: readOnly,
     },
-    async (args) => reply(await impactOf(cache, locatedArgs(args))),
+    async (args) =>
+      reply(
+        await impactOf(cache, {
+          ...locatedArgs(args),
+          ...(Array.isArray(args.targets)
+            ? { targets: args.targets.filter((item): item is string => typeof item === 'string') }
+            : {}),
+          ...(Array.isArray(args.files)
+            ? { files: args.files.filter((item): item is string => typeof item === 'string') }
+            : {}),
+          ...(args.diff === true ? { diff: true } : {}),
+          ...(typeof args.base === 'string' && args.base.length > 0 ? { base: args.base } : {}),
+        }),
+      ),
   );
   register(
     'path_between',

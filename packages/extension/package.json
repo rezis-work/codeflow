@@ -169,6 +169,16 @@
         "icon": "$(arrow-down)"
       },
       {
+        "command": "codeflow.showImpact",
+        "title": "CodeFlow: Show Impact",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "codeflow.showImpactDiff",
+        "title": "CodeFlow: Show Impact of Current Changes",
+        "icon": "$(git-pull-request)"
+      },
+      {
         "command": "codeflow.showFileDependencies",
         "title": "CodeFlow: Show File Dependencies",
         "icon": "$(file-symlink-file)"
@@ -276,6 +286,12 @@
           "command": "codeflow.showCallees"
         },
         {
+          "command": "codeflow.showImpact"
+        },
+        {
+          "command": "codeflow.showImpactDiff"
+        },
+        {
           "command": "codeflow.showFileDependencies"
         },
         {
@@ -357,6 +373,11 @@
         },
         {
           "command": "codeflow.showCallees",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
+          "group": "navigation@3"
+        },
+        {
+          "command": "codeflow.showImpact",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@3"
         },
@@ -652,8 +673,23 @@
         }
       },
       {
-        "title": "CodeFlow: MCP",
+        "title": "CodeFlow: Impact",
         "order": 9,
+        "properties": {
+          "codeflow.impact.hops": {
+            "type": "number",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 8,
+            "order": 1,
+            "description": "How many caller hops CodeFlow: Show Impact walks. 3 is the default. The ceiling is 8.",
+            "markdownDescription": "How many caller hops **CodeFlow: Show Impact** walks. `3` is the default. The ceiling is `8`."
+          }
+        }
+      },
+      {
+        "title": "CodeFlow: MCP",
+        "order": 10,
         "properties": {
           "codeflow.mcp.enabled": {
             "type": "boolean",

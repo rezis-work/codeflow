@@ -18,6 +18,8 @@ export interface CommentInput {
   readonly skippedChangedFiles: number;
   readonly warnings: readonly string[];
   readonly maxNodes: number;
+  /** Blast-radius section. Omitted when impact is turned off or does not fit. */
+  readonly impact?: string;
 }
 
 const FUNCTION_LIST_CAP = 100;
@@ -78,6 +80,10 @@ export function renderComment(input: CommentInput): string {
       );
     }
     parts.push('');
+  }
+
+  if (input.impact && input.impact.trim().length > 0) {
+    parts.push(input.impact.trimEnd(), '');
   }
 
   const calls = input.calls.slice(0, CALL_LIST_CAP);

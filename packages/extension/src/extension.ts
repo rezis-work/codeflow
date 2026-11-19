@@ -35,6 +35,7 @@ import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
 import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
 import { setAiEnabledOverride } from './ai/vscodeSettings';
 import { installAgentExport } from './agentExport';
+import { installImpact } from './impactPanel';
 import { installMcpSetup } from './mcpSetup';
 import { installPullRequestMode } from './prMode';
 import { installRuntimeTrace } from './runtimeTraceHost';
@@ -114,7 +115,13 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   bindControlFlowEngines({ typescript, rust, python });
   const savedFlows = installSavedFlows(context, { typescript, rust, python });
   const runtimeTrace = installRuntimeTrace(context);
-  const pullRequest = installPullRequestMode(context);
+  const impactHooks: { onChanged?: () => void } = {};
+  const pullRequest = installPullRequestMode(context, impactHooks);
+  impactHooks.onChanged = installImpact(
+    context,
+    { typescript, rust, python },
+    pullRequest,
+  ).refreshHints;
   installAgentExport(context, {
     refreshBranch: () => pullRequest.refresh(),
     branchChanges: () => pullRequest.branchChanges(),

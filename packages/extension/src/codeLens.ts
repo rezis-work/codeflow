@@ -4,10 +4,12 @@
  * A burst of re-analysis refreshes the lenses once.
  */
 
+import path from 'node:path';
 import * as vscode from 'vscode';
-import { SHOW_CALLEES_COMMAND, SHOW_CALLERS_COMMAND } from './constants';
+import { SHOW_CALLEES_COMMAND, SHOW_CALLERS_COMMAND, SHOW_IMPACT_COMMAND } from './constants';
 import { CODE_LENS_DEBOUNCE_MS, codeLensEntries, createRefreshGate } from './codeLensModel';
 import { fileUriToPath, sameFilePath } from './analyzers/typescript/uri';
+import { impactHints, onImpactHints } from './impactHints';
 import { getWorkspaceGraph, onWorkspaceGraphChanged } from './workspaceGraph';
 
 export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
@@ -25,9 +27,15 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
         this.gate.schedule();
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration('codeflow.codeLens.enabled')) {
+        if (
+          event.affectsConfiguration('codeflow.codeLens.enabled') ||
+          event.affectsConfiguration('codeflow.pr.enabled')
+        ) {
           this.emitter.fire();
         }
+      }),
+      onImpactHints(() => {
+        this.gate.schedule();
       }),
     );
   }
@@ -41,7 +49,7 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
       this.interest?.(interested);
     }, 0);
     const graph = getWorkspaceGraph().snapshot();
-    return codeLensEntries(graph, {
+    const lenses = codeLensEntries(graph, {
       callers: SHOW_CALLERS_COMMAND,
       callees: SHOW_CALLEES_COMMAND,
     })
@@ -61,6 +69,24 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
             },
           ),
       );
+    const relative = relativePath(document);
+    if (!relative) {
+      return lenses;
+    }
+    for (const hint of impactHints()) {
+      if (hint.file !== relative || hint.line < 0) {
+        continue;
+      }
+      lenses.push(
+        new vscode.CodeLens(new vscode.Range(hint.line, 0, hint.line, 0), {
+          title: hint.title,
+          command: SHOW_IMPACT_COMMAND,
+          arguments: [{ uri: document.uri.toString(), line: hint.line, character: 0 }],
+          tooltip: hint.tooltip,
+        }),
+      );
+    }
+    return lenses;
   }
 
   public dispose(): void {
@@ -69,6 +95,14 @@ export class CodeFlowCodeLensProvider implements vscode.CodeLensProvider, vscode
       subscription.dispose();
     }
   }
+}
+
+function relativePath(document: vscode.TextDocument): string | undefined {
+  const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+  if (!folder) {
+    return undefined;
+  }
+  return path.relative(folder.uri.fsPath, document.uri.fsPath).replaceAll('\\', '/');
 }
 
 function sameDocument(nodeUri: string, document: vscode.Uri): boolean {

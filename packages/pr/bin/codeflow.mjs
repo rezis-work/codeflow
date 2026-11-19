@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * `codeflow export` writes the agent file. `codeflow mcp` starts the MCP server.
- * The export command is the bundled CLI. The MCP server is built separately.
+ * `codeflow impact` prints the blast radius of a function or the current diff.
+ * Export is the bundled CLI. The MCP server and impact command are built separately.
  */
 
 const argv = process.argv.slice(2);
@@ -26,6 +27,26 @@ if (argv[0] === 'mcp') {
     console.error(
       error instanceof Error ? error.message : 'Could not start the CodeFlow MCP server.',
     );
+    console.error('Build it with: npm run build -w @codeflow/mcp');
+    process.exitCode = 1;
+  }
+} else if (argv[0] === 'impact') {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(
+      [
+        'codeflow impact <path#function | file | name>... [--hops 3] [--diff] [--base <ref>] [--json] [--md]',
+        '',
+        'Build it first with npm run build -w @codeflow/mcp',
+      ].join('\n'),
+    );
+    process.exit(0);
+  }
+  try {
+    const loaded = await import(new URL('../../mcp/dist/impactCli.js', import.meta.url));
+    const code = await loaded.main(argv.slice(1));
+    process.exitCode = code;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'Could not run codeflow impact.');
     console.error('Build it with: npm run build -w @codeflow/mcp');
     process.exitCode = 1;
   }

@@ -96,6 +96,8 @@ describe('createPullRequestReport', () => {
       expect(report.markdown).toContain(':::removed');
       expect(report.markdown).toContain('<details>');
       expect(report.markdown).toContain('<summary>Calls</summary>');
+      expect(report.markdown).toContain('### Impact');
+      expect(report.markdown).toContain('**Risk:');
       expect(report.markdown).toContain('run (src/run.ts:');
       expect(report.markdown).toContain('https://github.com/acme/demo/blob/abc123/src/greet.ts#L');
       expect(report.markdown).toContain('https://github.com/acme/demo/blob/def456/src/greet.ts#L');

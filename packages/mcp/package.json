@@ -20,6 +20,7 @@
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
     "@codeflow/pr": "*",
+    "@codeflow/shared": "*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "typescript": "^6.0.3",
     "zod": "^3.25.76"

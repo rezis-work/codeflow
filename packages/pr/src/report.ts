@@ -1,7 +1,10 @@
+import { COMMENT_LIMIT, assessImpact, renderImpactMarkdown } from '@codeflow/shared/impact';
+import type { ImpactReport } from '@codeflow/shared/impact';
 import type { RepositoryRef } from './commentLinks';
 import { blobUrl } from './commentLinks';
 import { renderComment } from './comment';
 import type { CommentFunction } from './comment';
+import { graphDataFromIndexed } from './impactGraph';
 import { analyzeHeadAndBase, diagramSymbols, spansIn } from './analyze';
 import type { CallSite } from './diagram';
 import { selectDiagram } from './diagram';
@@ -33,6 +36,8 @@ export async function createPullRequestReport(input: {
   readonly excludeGlobs?: readonly string[];
   readonly repository?: RepositoryRef;
   readonly warnings?: readonly string[];
+  /** Blast-radius section. Default on. Pass false to leave the comment as a diagram only. */
+  readonly impact?: boolean;
 }): Promise<PullRequestReport> {
   const warnings = [...(input.warnings ?? [])];
   const supported = input.files.filter((file) => {
@@ -155,7 +160,7 @@ export async function createPullRequestReport(input: {
   });
   const mermaid = renderMermaid(diagram);
   const listed = commentFunctions(changed, kept, input.repository);
-  const markdown = renderComment({
+  const comment = {
     changed: listed,
     mermaid,
     calls: callLines(diagram),
@@ -165,7 +170,16 @@ export async function createPullRequestReport(input: {
     skippedChangedFiles,
     warnings: unique(warnings),
     maxNodes: input.maxNodes,
-  });
+  };
+  const impact = input.impact === false ? undefined : impactSection(changed, analyzed.head);
+  let markdown = renderComment({ ...comment, ...(impact ? { impact } : {}) });
+  if (impact && markdown.length > COMMENT_LIMIT) {
+    const brief = impactSection(changed, analyzed.head, true);
+    markdown = renderComment({ ...comment, ...(brief ? { impact: brief } : {}) });
+  }
+  if (markdown.length > COMMENT_LIMIT) {
+    markdown = renderComment(comment);
+  }
   return {
     changed,
     markdown,
@@ -193,6 +207,42 @@ function commentFunctions(
       ...(repository && sha ? { href: blobUrl(repository, sha, path, symbol.line) } : {}),
     };
   });
+}
+
+function impactSection(
+  changed: readonly ChangedSymbol[],
+  head: Parameters<typeof graphDataFromIndexed>[0],
+  brief = false,
+): string | undefined {
+  const live = changed.filter((symbol) => symbol.status !== 'removed');
+  const removed = changed.filter((symbol) => symbol.status === 'removed');
+  if (live.length === 0) {
+    return removed.length > 0
+      ? `### Impact\n\n${removed.length} removed ${removed.length === 1 ? 'function is' : 'functions are'} not on the current graph.\n`
+      : undefined;
+  }
+  const report = assessImpact(graphDataFromIndexed(head), {
+    targets: live.map((symbol) => ({ name: symbol.qualifiedName, path: symbol.path })),
+    hops: 3,
+  });
+  if (isImpactFailure(report)) {
+    return `### Impact\n\n${report.error}\n`;
+  }
+  return renderImpactMarkdown(report, {
+    heading: '### Impact',
+    brief,
+    removed: removed.map((symbol) => ({ name: symbol.qualifiedName, file: symbol.path })),
+    callerCap: 25,
+    routeCap: 15,
+    testCap: 15,
+    uncertainCap: 10,
+  });
+}
+
+function isImpactFailure(
+  report: ImpactReport | { readonly ok: false },
+): report is { readonly ok: false } {
+  return 'ok' in report && report.ok === false;
 }
 
 function owns(file: DiffFile, symbolPath: string): boolean {
