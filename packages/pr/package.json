@@ -5,14 +5,15 @@
   "description": "Headless CodeFlow pull request diagrams. Shared by the codeflow-pr CLI and the GitHub Action.",
   "license": "MIT",
   "type": "module",
-  "bin": {
-    "codeflow-pr": "./dist/cli.js",
-    "codeflow": "./dist/exportCli.js"
-  },
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./core": "./src/core.ts"
+    "./core": "./src/core.ts",
+    "./workspace": "./src/workspace.ts"
+  },
+  "bin": {
+    "codeflow-pr": "./dist/cli.js",
+    "codeflow": "./bin/codeflow.mjs"
   },
   "scripts": {
     "build": "node esbuild.mjs",

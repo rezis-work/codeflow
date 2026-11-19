@@ -35,6 +35,7 @@ import { clearAiApiKey, setAiApiKey } from './ai/explainCommand';
 import { clearFakeEditorModel, fakeEditorPrompts, installFakeEditorModel } from './ai/editorModels';
 import { setAiEnabledOverride } from './ai/vscodeSettings';
 import { installAgentExport } from './agentExport';
+import { installMcpSetup } from './mcpSetup';
 import { installPullRequestMode } from './prMode';
 import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
@@ -118,6 +119,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
     refreshBranch: () => pullRequest.refresh(),
     branchChanges: () => pullRequest.branchChanges(),
   });
+  installMcpSetup(context);
 
   context.subscriptions.push(
     typescript,
