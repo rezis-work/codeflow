@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync } from 'node:fs';
 import { build as bundle } from 'esbuild';
 
 await bundle({
-  entryPoints: ['src/cli.ts', 'src/impactCli.ts'],
+  entryPoints: ['src/cli.ts', 'src/impactCli.ts', 'src/contextCli.ts'],
   outdir: 'dist',
   entryNames: '[name]',
   bundle: true,

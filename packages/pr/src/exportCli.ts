@@ -37,7 +37,9 @@ export async function main(argv: readonly string[]): Promise<number> {
     return argv.includes('--help') || argv.includes('-h') ? 0 : 1;
   }
   if (argv[0] !== 'export') {
-    console.error(`Unknown command ${argv[0]}. Use codeflow export or codeflow mcp.`);
+    console.error(
+      `Unknown command ${argv[0]}. Use codeflow export, codeflow impact, codeflow context, or codeflow mcp.`,
+    );
     return 1;
   }
   try {

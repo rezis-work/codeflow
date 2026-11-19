@@ -181,6 +181,7 @@ describe('extension manifest', () => {
         'codeflow.setupMcp',
         'codeflow.showImpact',
         'codeflow.showImpactDiff',
+        'codeflow.updateAgentContext',
       ]),
     );
   });
@@ -211,6 +212,9 @@ describe('extension manifest', () => {
         'codeflow.ai.snippetChars',
         'codeflow.cache.enabled',
         'codeflow.codeLens.enabled',
+        'codeflow.context.autoUpdate',
+        'codeflow.context.budget',
+        'codeflow.context.targets',
         'codeflow.editor.callDepth',
         'codeflow.editor.followCursor',
         'codeflow.editor.refocusOnCursor',

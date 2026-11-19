@@ -5,6 +5,7 @@
  */
 
 import { changedSymbolsForDiff } from '@codeflow/pr/impact';
+import { buildContext } from '@codeflow/shared/context';
 import type { ImpactRef } from '@codeflow/shared/impact';
 import { API_DOCS } from './apiDocs.js';
 import type { GraphCache } from './cache.js';
@@ -183,6 +184,33 @@ export async function explainFunction(
     return error(outcome.error, outcome.matches);
   }
   return json(outcome);
+}
+
+export async function getContext(
+  cache: GraphCache,
+  args: { readonly focus?: string; readonly budget?: number },
+): Promise<ToolResult> {
+  const loaded = await cache.get();
+  const report = buildContext(
+    {
+      symbols: loaded.data.symbols,
+      calls: loaded.data.calls,
+      routes: loaded.data.routes,
+      imports: loaded.imports,
+    },
+    {
+      ...(args.focus ? { focus: args.focus } : {}),
+      ...(args.budget !== undefined ? { budget: args.budget } : {}),
+    },
+  );
+  return json({
+    markdown: report.markdown,
+    tokens: report.tokens,
+    budget: report.budget,
+    trimmed: report.trimmed,
+    ...(report.focus ? { focus: report.focus } : {}),
+    ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 5) } : {}),
+  });
 }
 
 export async function refreshGraph(cache: GraphCache): Promise<ToolResult> {

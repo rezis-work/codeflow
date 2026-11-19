@@ -7,7 +7,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./impact": "./src/impact.js"
+    "./impact": "./src/impact.js",
+    "./context": "./src/context.js"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

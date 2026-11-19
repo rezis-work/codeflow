@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Agent context
+
+- `npx codeflow context` writes a compact architecture map into the managed block of `AGENTS.md` (`<!-- codeflow:start -->` … `<!-- codeflow:end -->`). `--targets agents,cursor,claude` also fills `.cursor/rules/codeflow.mdc` (with `alwaysApply: true` when the file is new) and `CLAUDE.md`. Text outside the block is left alone. A missing end marker is left untouched. The same content is not rewritten.
+- The map lists languages and packages, entry points and routes, hub functions, high fan-in helpers, module dependencies, and cycles. `--budget` defaults to 1500 tokens (characters / 4) and drops the least important sections first. `--check` exits 1 when a target is stale and writes nothing, for a pre-commit hook or CI. CodeFlow does not install the hook.
+- `get_context` returns the same map. `focus` limits it to a folder, file, or `path#function`.
+- **CodeFlow: Update Agent Context** writes the configured files. `codeflow.context.autoUpdate` (default off) does that after a save. `codeflow.context.targets` defaults to `agents`. `codeflow.context.budget` defaults to 1500.
+
 ### Impact
 
 - `npx codeflow impact <path#function | file | name>...` prints the blast radius of one or more functions: transitive callers (default 3 hops), affected routes and entry points, likely tests, uncertain edges, and a low/medium/high risk score with the reasons. `--diff` scores the working tree against the merge base. `--json` and `--md` choose the output. Markdown is the default.

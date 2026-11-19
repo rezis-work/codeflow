@@ -168,6 +168,9 @@ Open Settings and search for `codeflow`, or filter with `@ext:rezis-work.rezis-c
 | `codeflow.ai.model`                    | empty                                     | Model id for an own-key provider. Empty uses `gpt-4o-mini` or `claude-3-5-haiku-20241022`             |
 | `codeflow.ai.baseUrl`                  | empty                                     | Own-key base URL. Empty uses the provider default. Must start with `http://` or `https://`            |
 | `codeflow.ai.snippetChars`             | `240`                                     | Source characters copied from each node. `0` sends names and edges only. Maximum 2,000                |
+| `codeflow.context.targets`             | `agents`                                  | `agents` (`AGENTS.md`), `cursor` (`.cursor/rules/codeflow.mdc`), and/or `claude` (`CLAUDE.md`)        |
+| `codeflow.context.budget`              | `1500`                                    | Token budget for the architecture map (characters / 4). Range 200–8000                                |
+| `codeflow.context.autoUpdate`          | `false`                                   | Refresh the managed block after a source save. The command always writes                              |
 
 ## Requirements
 
@@ -328,7 +331,7 @@ Claude Code:
 claude mcp add codeflow -- npx codeflow mcp
 ```
 
-`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, and `explain_function` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `explain_function` does not call a model.
+`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, `explain_function`, and `get_context` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `get_context` returns the architecture map, and `focus` narrows it to a folder or function. `explain_function` does not call a model.
 
 ```javascript
 return graph.find({ name: 'greet' });
@@ -375,6 +378,43 @@ Risk is a fixed rule, not a model call:
 - **low** otherwise
 
 A likely test is a caller whose name looks like a test (`test_…`, `testX`) or whose file looks like one (`.test.`, `.spec.`, `tests/`, `__tests__/`, `test_*.py`, `*_test.rs`). An uncertain edge is a call the analyzers could not prove: a callback, dynamic dispatch, or a trait object. The report lists those edges. It does not list a test that only imports a function and never calls it.
+
+## Agent context
+
+`npx codeflow context` keeps a short architecture map next to the repo so an agent starts from languages, packages, routes, hub functions, shared helpers, and cycles instead of rediscovering them. Build the command, then run it in the project:
+
+```bash
+npm run build -w @codeflow/mcp
+npm run build -w @codeflow/pr
+npx codeflow context
+npx codeflow context --targets agents,cursor,claude --budget 1500
+npx codeflow context --check
+```
+
+The map is written only between `<!-- codeflow:start -->` and `<!-- codeflow:end -->`. `AGENTS.md` is the default. `cursor` writes `.cursor/rules/codeflow.mdc` and adds `alwaysApply: true` when that file is new. `claude` writes `CLAUDE.md`. Notes outside the block stay. If the start marker has no end marker, the file is left unchanged. A second run with the same graph does not rewrite the file. `--budget` defaults to 1500 tokens, estimated as characters divided by 4. Cycles are dropped first, then modules, helpers, and hubs. `--check` exits 1 when a target would change and writes nothing.
+
+CodeFlow does not install a git hook. A hook can call the check:
+
+```sh
+#!/bin/sh
+npx codeflow context --check || {
+  echo "Agent context is stale. Run: npx codeflow context"
+  exit 1
+}
+```
+
+Husky: `"pre-commit": "npx codeflow context --check"`. Lefthook:
+
+```yaml
+pre-commit:
+  commands:
+    codeflow-context:
+      run: npx codeflow context --check
+```
+
+In the editor, **CodeFlow: Update Agent Context** writes the same block. `codeflow.context.autoUpdate` (default off) does it after a source file is saved. `codeflow.context.targets` chooses the files. `codeflow.context.budget` is the token budget.
+
+The MCP tool `get_context` returns the map without writing a file. `focus` is a folder, a file, or `path#function`.
 
 ## Development
 
