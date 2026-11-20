@@ -10,6 +10,7 @@ import {
   getContext,
   impactOf,
   pathBetween,
+  reviewChanges,
   refreshGraph,
   type ToolResult,
 } from './tools.js';
@@ -216,6 +217,29 @@ export function createServer(cache: GraphCache): McpServer {
         await getContext(cache, {
           ...(typeof args.focus === 'string' && args.focus.length > 0 ? { focus: args.focus } : {}),
           ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
+        }),
+      ),
+  );
+  register(
+    'review_changes',
+    {
+      title: 'Review agent changes',
+      description:
+        'Diff the call and import graph. With no base, compare the working tree with HEAD. base uses the merge base of that ref. format is json (default) or markdown. Flags cover new cycles, newly dead code, route and entry-point changes, and high fan-in signature changes.',
+      inputSchema: {
+        base: z.string().optional().describe('Git ref. Empty compares the working tree with HEAD.'),
+        format: z
+          .enum(['json', 'markdown', 'md'])
+          .optional()
+          .describe('json returns the report. markdown returns the review text.'),
+      },
+      annotations: readOnly,
+    },
+    async (args) =>
+      reply(
+        await reviewChanges(cache, {
+          ...(typeof args.base === 'string' && args.base.length > 0 ? { base: args.base } : {}),
+          ...(typeof args.format === 'string' ? { format: args.format } : {}),
         }),
       ),
   );

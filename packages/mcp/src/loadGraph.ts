@@ -33,6 +33,7 @@ export async function loadGraph(rootDir: string, maxFiles: number): Promise<Load
       excludeGlobs: DEFAULT_EXCLUDE_GLOBS,
     });
     const flow = inputFromFragments(root, scanned.fragments, scanned.reports);
+    const imports = importsFromFragments(root, scanned.fragments);
     const ranges = new Map<string, { start: number; end: number }>();
     for (const fragment of scanned.fragments) {
       for (const node of fragment.nodes) {
@@ -90,8 +91,9 @@ export async function loadGraph(rootDir: string, maxFiles: number): Promise<Load
             ? { handlerId: at.get(`${route.path}:${route.line}`) }
             : {}),
         })),
+        imports,
       },
-      imports: importsFromFragments(root, scanned.fragments),
+      imports,
       warnings: scanned.warnings,
       files: new Set(symbols.map((symbol) => symbol.file)).size,
     };

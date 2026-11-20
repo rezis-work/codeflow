@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./core": "./src/core.ts",
     "./workspace": "./src/workspace.ts",
-    "./impact": "./src/impactTargets.ts"
+    "./impact": "./src/impactTargets.ts",
+    "./review": "./src/reviewLoad.ts"
   },
   "bin": {
     "codeflow-pr": "./dist/cli.js",

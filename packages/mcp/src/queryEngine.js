@@ -7,6 +7,7 @@
  */
 
 import { assessImpact } from '@codeflow/shared/impact';
+import { reviewGraphs } from '@codeflow/shared/review';
 
 const MAX_HOPS = 8;
 const MAX_WALK = 200;
@@ -349,6 +350,25 @@ function createApi(data) {
     );
   }
 
+  function review(input) {
+    const live = {
+      symbols: [...byId.values()],
+      calls,
+      routes,
+      imports: Array.isArray(data && data.imports) ? data.imports : [],
+    };
+    if (!input || typeof input !== 'object') {
+      return { ok: false, error: 'Pass a before graph, or { before, after }.' };
+    }
+    const wrapped =
+      Object.prototype.hasOwnProperty.call(input, 'before') ||
+      Object.prototype.hasOwnProperty.call(input, 'after');
+    if (wrapped) {
+      return reviewGraphs(input.before ?? live, input.after ?? live);
+    }
+    return reviewGraphs(input, live);
+  }
+
   function get(ref) {
     const resolved = resolveOne(ref);
     if (!resolved.ok) {
@@ -365,6 +385,7 @@ function createApi(data) {
     routes: listRoutes,
     explain,
     impact,
+    review,
   };
 }
 

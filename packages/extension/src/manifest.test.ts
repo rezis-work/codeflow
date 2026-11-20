@@ -182,6 +182,7 @@ describe('extension manifest', () => {
         'codeflow.showImpact',
         'codeflow.showImpactDiff',
         'codeflow.updateAgentContext',
+        'codeflow.reviewChanges',
       ]),
     );
   });

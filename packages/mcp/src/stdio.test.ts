@@ -47,6 +47,7 @@ describe('MCP stdio', () => {
           'impact_of',
           'path_between',
           'refresh',
+          'review_changes',
         ].sort(),
       );
       const search = await client.callTool({

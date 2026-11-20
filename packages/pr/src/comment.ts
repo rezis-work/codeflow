@@ -20,6 +20,8 @@ export interface CommentInput {
   readonly maxNodes: number;
   /** Blast-radius section. Omitted when impact is turned off or does not fit. */
   readonly impact?: string;
+  /** Graph-diff section. Omitted when review is turned off or does not fit. */
+  readonly review?: string;
 }
 
 const FUNCTION_LIST_CAP = 100;
@@ -84,6 +86,10 @@ export function renderComment(input: CommentInput): string {
 
   if (input.impact && input.impact.trim().length > 0) {
     parts.push(input.impact.trimEnd(), '');
+  }
+
+  if (input.review && input.review.trim().length > 0) {
+    parts.push(input.review.trimEnd(), '');
   }
 
   const calls = input.calls.slice(0, CALL_LIST_CAP);
