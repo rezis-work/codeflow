@@ -25,6 +25,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     rootDir: parsed.root,
     ...(parsed.base ? { baseRef: parsed.base } : {}),
     maxFiles: parsed.maxFiles,
+    ...(parsed.threshold !== undefined ? { threshold: parsed.threshold } : {}),
   });
   if (!loaded.ok) {
     console.error(loaded.error);
@@ -60,6 +61,7 @@ function parse(argv: readonly string[]):
       readonly base?: string;
       readonly failOn: readonly string[];
       readonly maxFiles: number;
+      readonly threshold?: number;
     }
   | { readonly ok: false; readonly error: string } {
   let root = process.cwd();
@@ -67,6 +69,7 @@ function parse(argv: readonly string[]):
   let base: string | undefined;
   let failOn: string[] = [];
   let maxFiles = DEFAULT_MAX_FILES;
+  let threshold: number | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const next = argv[index + 1];
@@ -90,6 +93,13 @@ function parse(argv: readonly string[]):
           ? Math.min(Math.floor(parsed), DEFAULT_MAX_FILES)
           : DEFAULT_MAX_FILES;
       index += 1;
+    } else if (arg === '--threshold' && next) {
+      const value = Number(next);
+      if (!Number.isFinite(value) || value < 0.5 || value > 0.95) {
+        return { ok: false, error: '--threshold must be a number from 0.5 to 0.95.' };
+      }
+      threshold = value;
+      index += 1;
     } else if (arg === '--json') {
       json = true;
     } else if (arg === '--md') {
@@ -100,12 +110,20 @@ function parse(argv: readonly string[]):
       return { ok: false, error: `Unknown argument ${arg}.` };
     }
   }
-  return { ok: true, root, json, failOn, maxFiles, ...(base ? { base } : {}) };
+  return {
+    ok: true,
+    root,
+    json,
+    failOn,
+    maxFiles,
+    ...(base ? { base } : {}),
+    ...(threshold !== undefined ? { threshold } : {}),
+  };
 }
 
 function help(): string {
   return [
-    'codeflow review [--base <ref>] [--json] [--md] [--fail-on cycles,dead,routes,signatures]',
+    'codeflow review [--base <ref>] [--json] [--md] [--fail-on cycles,dead,routes,signatures,duplicates]',
     '',
     'Compare the call and import graph after a change with the graph before it.',
     'With no --base, the working tree is compared with HEAD. --base uses the',
@@ -113,7 +131,8 @@ function help(): string {
     'Markdown is the default. --json prints the same report, including flags',
     'and a mermaid diagram of the changed neighbourhood.',
     '--fail-on exits 1 when any of those checks fire. Names are cycles, dead,',
-    'routes, and signatures. A later check can append to the same report.',
+    'routes, signatures, and duplicates. Duplicate helpers are a check on this',
+    'report. --threshold is how similar a new function must be, from 0.5 to 0.95.',
   ].join('\n');
 }
 

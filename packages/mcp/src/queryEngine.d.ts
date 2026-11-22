@@ -1,3 +1,8 @@
+import type {
+  DuplicateGraph,
+  DuplicateOptions,
+  DuplicateReport,
+} from '@codeflow/shared/duplicates';
 import type { PlanFailure, PlanOptions, PlanReport } from '@codeflow/shared/plan';
 import type { ReviewGraph, ReviewReport } from '@codeflow/shared/review';
 
@@ -112,6 +117,10 @@ export interface GraphApi {
     before: ReviewGraph | { readonly before?: ReviewGraph; readonly after?: ReviewGraph },
   ): ReviewReport | { readonly ok: false; readonly error: string };
   plan(task: string, options?: PlanOptions): PlanReport | PlanFailure;
+  duplicates(
+    before?: DuplicateGraph | { readonly before?: DuplicateGraph; readonly after?: DuplicateGraph },
+    options?: DuplicateOptions,
+  ): DuplicateReport;
 }
 
 export interface ExplainResult {

@@ -5,7 +5,8 @@
  * `codeflow context` refreshes the managed architecture map.
  * `codeflow review` diffs the call graph before and after a change.
  * `codeflow plan` ranks functions to read for a task.
- * Export is the bundled CLI. The MCP server, impact, context, review, and plan commands are built separately.
+ * `codeflow duplicates` finds new code that reimplements a helper.
+ * Export is the bundled CLI. The MCP server, impact, context, review, plan, and duplicates commands are built separately.
  */
 
 const argv = process.argv.slice(2);
@@ -79,7 +80,7 @@ if (argv[0] === 'mcp') {
   if (argv.includes('--help') || argv.includes('-h')) {
     console.log(
       [
-        'codeflow review [--base <ref>] [--json] [--md] [--fail-on cycles,dead,routes,signatures]',
+        'codeflow review [--base <ref>] [--json] [--md] [--fail-on cycles,dead,routes,signatures,duplicates]',
         '',
         'Diff the call graph. With no --base, compare the working tree with HEAD.',
         'Build it first with npm run build -w @codeflow/mcp',
@@ -93,6 +94,27 @@ if (argv[0] === 'mcp') {
     process.exitCode = code;
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Could not run codeflow review.');
+    console.error('Build it with: npm run build -w @codeflow/mcp');
+    process.exitCode = 1;
+  }
+} else if (argv[0] === 'duplicates') {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(
+      [
+        'codeflow duplicates [--base <ref>] [--json] [--prompt] [--threshold 0.8]',
+        '',
+        'Find new code that repeats an existing helper, and print a fix prompt.',
+        'Build it first with npm run build -w @codeflow/mcp',
+      ].join('\n'),
+    );
+    process.exit(0);
+  }
+  try {
+    const loaded = await import(new URL('../../mcp/dist/duplicatesCli.js', import.meta.url));
+    const code = await loaded.main(argv.slice(1));
+    process.exitCode = code;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'Could not run codeflow duplicates.');
     console.error('Build it with: npm run build -w @codeflow/mcp');
     process.exitCode = 1;
   }

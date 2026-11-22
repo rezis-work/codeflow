@@ -4,7 +4,9 @@
  * working tree with the merge base of that ref, so branch commits count too.
  */
 
-import { reviewGraphs } from '@codeflow/shared/review';
+import { findDuplicates } from '@codeflow/shared/duplicates';
+import type { DuplicateReport } from '@codeflow/shared/duplicates';
+import { reviewGraphs, withChecks } from '@codeflow/shared/review';
 import type { ReviewReport } from '@codeflow/shared/review';
 import { analyzeHeadAndBase } from './analyze';
 import { parseDiff } from './diff';
@@ -17,6 +19,7 @@ import { reviewGraphFromIndexed } from './reviewGraph';
 export interface LoadedReview {
   readonly ok: true;
   readonly report: ReviewReport;
+  readonly duplicates: DuplicateReport;
   readonly base: string;
   readonly warnings: readonly string[];
 }
@@ -31,6 +34,7 @@ export async function loadReview(input: {
   readonly baseRef?: string;
   readonly maxFiles?: number;
   readonly maxChangedFiles?: number;
+  readonly threshold?: number;
 }): Promise<LoadedReview | LoadedReviewError> {
   const warnings: string[] = [];
   let head: string;
@@ -111,13 +115,16 @@ export async function loadReview(input: {
     absentOnBase,
   });
   warnings.push(...analyzed.warnings);
+  const before = reviewGraphFromIndexed(analyzed.base);
+  const after = reviewGraphFromIndexed(analyzed.head);
+  const duplicates = findDuplicates(before, after, {
+    ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
+  });
   return {
     ok: true,
     base: baseLabel,
-    report: reviewGraphs(
-      reviewGraphFromIndexed(analyzed.base),
-      reviewGraphFromIndexed(analyzed.head),
-    ),
+    report: withChecks(reviewGraphs(before, after), [duplicates.check]),
+    duplicates,
     warnings: unique(warnings),
   };
 }

@@ -37,6 +37,7 @@ import { setAiEnabledOverride } from './ai/vscodeSettings';
 import { installAgentContext } from './agentContext';
 import { installAgentExport } from './agentExport';
 import { installImpact } from './impactPanel';
+import { installDuplicates } from './duplicatesHost';
 import { installPlan } from './planPanel';
 import { installReview } from './reviewPanel';
 import { installMcpSetup } from './mcpSetup';
@@ -132,6 +133,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   installAgentContext(context, { typescript, rust, python });
   installReview(context);
   installPlan(context);
+  installDuplicates(context);
   installMcpSetup(context);
 
   context.subscriptions.push(

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Duplicates
+
+- `npx codeflow duplicates` reports new or changed functions that repeat a helper. It compares a body fingerprint with called APIs and name stems. Shared helpers and functions in `utils`, `lib`, `shared`, `helpers`, or `common` rank first. Two copies inside the same change are included. A pasted block inside a longer function is included. Tests and generated files are skipped. `--threshold` defaults to 0.8. `--json` prints the findings. `--prompt` prints one fix prompt. The check works with no model configured.
+- `npx codeflow review` includes the same check. `--fail-on duplicates` exits 1. `--threshold` sets the score.
+- `find_duplicates` returns that report. `graph.duplicates(before)` and `graph.duplicates({ before, after })` run inside `codeflow_execute`.
+- A warning appears on save for a changed file. **Open existing helper** and **Copy fix prompt** are the quick fixes. **CodeFlow: Check for Duplicate Code** checks every changed file. `codeflow.duplicates.onSave` defaults to on. `codeflow.duplicates.threshold` defaults to 0.8. When AI summaries are already configured, the command can drop findings the model rejects. The warning itself stays offline.
+- The pull request comment adds Possible duplicates, with the fix prompt collapsed. The section follows the `review` input and is the first section dropped when the comment would pass GitHub's size limit.
+
 ### Plan
 
 - `npx codeflow plan "<task>"` ranks the smallest set of functions to read first. It matches names, paths, routes, and comments, then walks callers and callees one or two hops. `--focus` is a file or `path#function`. `--budget` defaults to 12. `--json` prints the report. Each item has a reason, an edit or read action, and a token estimate. Likely edits, read-only files, and related tests are listed separately. Ranking works with no model configured.
@@ -10,7 +18,7 @@
 
 ### Review
 
-- `npx codeflow review` diffs the call and import graph. With no `--base`, the working tree is compared with HEAD. `--base` uses the merge base of that ref. `--json` prints the report. `--fail-on cycles,dead,routes,signatures` exits 1 for CI. The `checks` list is the slot a later duplicate-helper check can fill.
+- `npx codeflow review` diffs the call and import graph. With no `--base`, the working tree is compared with HEAD. `--base` uses the merge base of that ref. `--json` prints the report. `--fail-on cycles,dead,routes,signatures,duplicates` exits 1 for CI.
 - The diff flags new call and import cycles, functions that lost every caller, route and entry-point changes, and signature changes on functions with two or more callers. The signature flag uses the impact risk score. Renames in the same file stay one function when the signature matches without the name.
 - `review_changes` returns that report. `graph.review(before)` and `graph.review({ before, after })` run inside `codeflow_execute`.
 - **CodeFlow: Review Agent Changes** opens a panel for the changed files. A flag opens that line. The panel does not see callers outside those files.

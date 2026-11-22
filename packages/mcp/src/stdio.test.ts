@@ -40,6 +40,7 @@ describe('MCP stdio', () => {
         [
           'codeflow_execute',
           'codeflow_search',
+          'find_duplicates',
           'explain_function',
           'get_callees',
           'get_callers',

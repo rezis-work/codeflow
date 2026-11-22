@@ -22,6 +22,8 @@ export interface CommentInput {
   readonly impact?: string;
   /** Graph-diff section. Omitted when review is turned off or does not fit. */
   readonly review?: string;
+  /** Possible-duplicates section, including a collapsible fix prompt. */
+  readonly duplicates?: string;
 }
 
 const FUNCTION_LIST_CAP = 100;
@@ -90,6 +92,10 @@ export function renderComment(input: CommentInput): string {
 
   if (input.review && input.review.trim().length > 0) {
     parts.push(input.review.trimEnd(), '');
+  }
+
+  if (input.duplicates && input.duplicates.trim().length > 0) {
+    parts.push(input.duplicates.trimEnd(), '');
   }
 
   const calls = input.calls.slice(0, CALL_LIST_CAP);

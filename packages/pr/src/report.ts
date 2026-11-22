@@ -1,5 +1,6 @@
 import { COMMENT_LIMIT, assessImpact, renderImpactMarkdown } from '@codeflow/shared/impact';
 import type { ImpactReport } from '@codeflow/shared/impact';
+import { findDuplicates } from '@codeflow/shared/duplicates';
 import { renderReviewMarkdown, reviewGraphs } from '@codeflow/shared/review';
 import type { RepositoryRef } from './commentLinks';
 import { blobUrl } from './commentLinks';
@@ -178,11 +179,21 @@ export async function createPullRequestReport(input: {
   };
   const impact = input.impact === false ? undefined : impactSection(changed, analyzed.head);
   const review = input.review === false ? undefined : reviewSection(analyzed.base, analyzed.head);
+  const duplicates =
+    input.review === false ? undefined : duplicateSection(analyzed.base, analyzed.head);
   let markdown = renderComment({
     ...comment,
     ...(impact ? { impact } : {}),
     ...(review ? { review } : {}),
+    ...(duplicates ? { duplicates } : {}),
   });
+  if (duplicates && markdown.length > COMMENT_LIMIT) {
+    markdown = renderComment({
+      ...comment,
+      ...(impact ? { impact } : {}),
+      ...(review ? { review } : {}),
+    });
+  }
   if (review && markdown.length > COMMENT_LIMIT) {
     markdown = renderComment({ ...comment, ...(impact ? { impact } : {}) });
   }
@@ -220,6 +231,32 @@ function commentFunctions(
       ...(repository && sha ? { href: blobUrl(repository, sha, path, symbol.line) } : {}),
     };
   });
+}
+
+function duplicateSection(before: IndexedGraph, after: IndexedGraph): string | undefined {
+  const report = findDuplicates(reviewGraphFromIndexed(before), reviewGraphFromIndexed(after));
+  if (report.findings.length === 0) {
+    return undefined;
+  }
+  const lines = ['### Possible duplicates', ''];
+  for (const finding of report.findings.slice(0, 8)) {
+    lines.push(
+      `- \`${finding.fresh.name}\` (\`${finding.fresh.file}:${finding.fresh.line}\`) repeats \`${finding.existing.name}\` (\`${finding.existing.file}:${finding.existing.line}\`, ${finding.confidence}).`,
+    );
+  }
+  if (report.findings.length > 8) {
+    lines.push('', `${report.findings.length - 8} more findings are in the fix prompt.`);
+  }
+  lines.push(
+    '',
+    '<details>',
+    '<summary>Fix prompt</summary>',
+    '',
+    report.prompt.trimEnd(),
+    '',
+    '</details>',
+  );
+  return lines.join('\n');
 }
 
 function reviewSection(before: IndexedGraph, after: IndexedGraph): string {

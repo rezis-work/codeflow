@@ -2,12 +2,13 @@
  * Read-only call-graph queries. This file is plain JavaScript on purpose:
  * the host imports it, and the sandbox runs the same source inside node:vm.
  * It must not touch the file system, the network, require, or process.
- * Impact, review, and plan math live in @codeflow/shared. The sandbox
- * prepends those files and drops these imports, so both sides run the same
- * functions.
+ * Impact, review, plan, and duplicate math live in @codeflow/shared. The
+ * sandbox prepends those files and drops these imports, so both sides run
+ * the same functions.
  */
 
 import { assessImpact } from '@codeflow/shared/impact';
+import { findDuplicates } from '@codeflow/shared/duplicates';
 import { planTask } from '@codeflow/shared/plan';
 import { reviewGraphs } from '@codeflow/shared/review';
 
@@ -371,6 +372,26 @@ function createApi(data) {
     return reviewGraphs(input, live);
   }
 
+  function duplicates(input, options) {
+    const live = {
+      symbols: [...byId.values()],
+      calls,
+      routes,
+      imports: Array.isArray(data && data.imports) ? data.imports : [],
+    };
+    const settings = options && typeof options === 'object' ? options : {};
+    if (!input || typeof input !== 'object') {
+      return findDuplicates({ symbols: [], calls: [] }, live, settings);
+    }
+    const wrapped =
+      Object.prototype.hasOwnProperty.call(input, 'before') ||
+      Object.prototype.hasOwnProperty.call(input, 'after');
+    if (wrapped) {
+      return findDuplicates(input.before ?? live, input.after ?? live, settings);
+    }
+    return findDuplicates(input, live, settings);
+  }
+
   function plan(task, options) {
     const settings = options && typeof options === 'object' ? options : {};
     return planTask(
@@ -407,6 +428,7 @@ function createApi(data) {
     impact,
     review,
     plan,
+    duplicates,
   };
 }
 

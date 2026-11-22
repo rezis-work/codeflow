@@ -12,7 +12,7 @@ const NODE_CAP = 24;
 const EDGE_CAP = 40;
 const SIGNATURE_FAN_IN = 2;
 const CYCLE_STEP_CAP = 4000;
-const FAIL_ON = ['cycles', 'dead', 'routes', 'signatures'];
+const FAIL_ON = ['cycles', 'dead', 'routes', 'signatures', 'duplicates'];
 
 const CHECKS = [
   { id: 'cycles', fail: 'cycles', title: 'New cycles', kinds: ['cycle'] },

@@ -7,6 +7,7 @@
 import { changedSymbolsForDiff } from '@codeflow/pr/impact';
 import { loadReview } from '@codeflow/pr/review';
 import { buildContext } from '@codeflow/shared/context';
+import type { DuplicateReport } from '@codeflow/shared/duplicates';
 import type { ImpactRef } from '@codeflow/shared/impact';
 import { planTask as planReading } from '@codeflow/shared/plan';
 import { API_DOCS } from './apiDocs.js';
@@ -244,6 +245,26 @@ export async function planTask(
     ...report,
     ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 5) } : {}),
   });
+}
+
+export async function findDuplicates(
+  cache: GraphCache,
+  args: { readonly base?: string; readonly threshold?: number },
+): Promise<ToolResult> {
+  const loaded = await loadReview({
+    rootDir: cache.root,
+    ...(args.base ? { baseRef: args.base } : {}),
+    maxFiles: cache.maxFiles,
+    ...(args.threshold !== undefined ? { threshold: args.threshold } : {}),
+  });
+  if (!loaded.ok) {
+    return error(loaded.error);
+  }
+  return json({
+    ...loaded.duplicates,
+    base: loaded.base,
+    ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 8) } : {}),
+  } satisfies DuplicateReport & { base: string; warnings?: readonly string[] });
 }
 
 export async function reviewChanges(
