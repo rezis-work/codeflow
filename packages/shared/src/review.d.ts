@@ -1,4 +1,4 @@
-export const FAIL_ON: readonly ['cycles', 'dead', 'routes', 'signatures'];
+export const FAIL_ON: readonly ['cycles', 'dead', 'routes', 'signatures', 'duplicates'];
 
 export interface ReviewSymbol {
   readonly id: string;
@@ -9,6 +9,7 @@ export interface ReviewSymbol {
   readonly kind?: string;
   readonly language?: string;
   readonly signature?: string;
+  readonly source?: string;
   readonly roles?: readonly string[];
 }
 

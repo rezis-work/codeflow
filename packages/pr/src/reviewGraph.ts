@@ -7,6 +7,7 @@ import type { ReviewGraph } from '@codeflow/shared/review';
 import type { IndexedGraph } from './analyze';
 
 const SIGNATURE_CAP = 160;
+const SOURCE_CAP = 4_000;
 
 export function reviewGraphFromIndexed(graph: IndexedGraph): ReviewGraph {
   const handled = new Set(
@@ -35,6 +36,7 @@ export function reviewGraphFromIndexed(graph: IndexedGraph): ReviewGraph {
         line: symbol.line,
         language: symbol.language,
         ...(signature ? { signature } : {}),
+        ...(symbol.text ? { source: symbol.text.slice(0, SOURCE_CAP) } : {}),
         ...(roles.length > 0 ? { roles } : {}),
       };
     });

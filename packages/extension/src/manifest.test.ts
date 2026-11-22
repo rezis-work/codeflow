@@ -184,6 +184,7 @@ describe('extension manifest', () => {
         'codeflow.updateAgentContext',
         'codeflow.reviewChanges',
         'codeflow.planTask',
+        'codeflow.checkDuplicates',
       ]),
     );
   });
@@ -217,6 +218,8 @@ describe('extension manifest', () => {
         'codeflow.context.autoUpdate',
         'codeflow.context.budget',
         'codeflow.context.targets',
+        'codeflow.duplicates.onSave',
+        'codeflow.duplicates.threshold',
         'codeflow.editor.callDepth',
         'codeflow.editor.followCursor',
         'codeflow.editor.refocusOnCursor',

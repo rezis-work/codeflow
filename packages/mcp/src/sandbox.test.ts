@@ -47,6 +47,11 @@ describe('execute sandbox', () => {
       'return graph.review({ symbols: [], calls: [], routes: [] }).summary.added',
     );
     expect(reviewed).toEqual({ ok: true, result: 2 });
+    const copied = executeSnippet(
+      data,
+      'return graph.duplicates({ symbols: [], calls: [] }).findings.length',
+    );
+    expect(copied.ok).toBe(true);
     const planned = executeSnippet(data, 'return graph.plan("format the greeting").items[0].name');
     expect(planned).toEqual({ ok: true, result: 'format' });
     const source = executeSnippet(data, 'return graph.get("format").source()');

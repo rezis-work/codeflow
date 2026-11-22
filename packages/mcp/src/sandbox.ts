@@ -172,7 +172,8 @@ function engineSource(): string {
   const impact = readFileSync(impactSource(), 'utf8');
   const review = readFileSync(reviewSource(), 'utf8');
   const plan = readFileSync(planSource(), 'utf8');
-  return stripModuleSyntax(`${impact}\n${review}\n${plan}\n${engine}`);
+  const duplicates = readFileSync(duplicatesSource(), 'utf8');
+  return stripModuleSyntax(`${impact}\n${review}\n${plan}\n${duplicates}\n${engine}`);
 }
 
 function stripModuleSyntax(source: string): string {
@@ -193,6 +194,10 @@ function reviewSource(): string {
 
 function planSource(): string {
   return bundledSource('plan.js', '../../shared/src/plan.js');
+}
+
+function duplicatesSource(): string {
+  return bundledSource('duplicates.js', '../../shared/src/duplicates.js');
 }
 
 function bundledSource(name: string, fallback: string): string {

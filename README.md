@@ -121,6 +121,7 @@ rust-analyzer is optional. When it is already running, CodeFlow uses it to mark 
 | CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)                      |
 | CodeFlow: Show Callees                             | Outgoing calls, same depth                                                         |
 | CodeFlow: Review Agent Changes                     | Before and after call graph of the working tree, with flags that jump to code      |
+| CodeFlow: Check for Duplicate Code                 | Warns when new code repeats a helper, and copies a prompt to reuse it              |
 | CodeFlow: Plan a Task                              | Ranked functions to read first for a task, with a reason on each line              |
 | CodeFlow: Show File Dependencies                   | Import edges of the current file                                                   |
 | CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop                   |
@@ -333,7 +334,7 @@ Claude Code:
 claude mcp add codeflow -- npx codeflow mcp
 ```
 
-`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, `explain_function`, `get_context`, and `plan_task` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `get_context` returns the architecture map, and `focus` narrows it to a folder or function. `plan_task` ranks functions to read for a task. `explain_function` does not call a model.
+`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, `explain_function`, `get_context`, `plan_task`, and `find_duplicates` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `get_context` returns the architecture map, and `focus` narrows it to a folder or function. `plan_task` ranks functions to read for a task. `find_duplicates` compares new functions with existing helpers. `explain_function` does not call a model.
 
 ```javascript
 return graph.find({ name: 'greet' });
@@ -346,7 +347,7 @@ return graph.find({ name: 'format' })[0].source();
 
 The snippet is JavaScript or TypeScript with `graph` in scope. It runs in a fresh `node:vm` context. `require`, `process`, the filesystem, and the network are not defined. `eval` and `Function` cannot compile new code, which blocks `globalThis.constructor.constructor("...")`. Host functions are not passed into the context. A synchronous loop is stopped after two seconds, and a result larger than the cap is discarded. `fn.source()` returns the function text captured at the last refresh, not a live file read. `node:vm` is not a kernel sandbox. Keep the server on stdio for the workspace you already have open. Do not point it at a socket.
 
-`impact_of` and `graph.impact(...)` share one blast-radius report. A single name still works. You can also pass several targets, a file, or `diff: true`. `review_changes` and `graph.review(...)` diff the call graph before and after a change. `plan_task` and `graph.plan(task, { focus, budget })` rank what to read first.
+`impact_of` and `graph.impact(...)` share one blast-radius report. A single name still works. You can also pass several targets, a file, or `diff: true`. `review_changes` and `graph.review(...)` diff the call graph before and after a change. `find_duplicates` and `graph.duplicates(...)` report new code that repeats a helper. `plan_task` and `graph.plan(task, { focus, budget })` rank what to read first.
 
 ```javascript
 return graph.impact('format');
@@ -382,16 +383,16 @@ npm run build -w @codeflow/mcp
 npm run build -w @codeflow/pr
 npx codeflow review
 npx codeflow review --base main --json
-npx codeflow review --fail-on cycles,dead
+npx codeflow review --fail-on cycles,dead,duplicates
 ```
 
-Markdown is the default. `--json` prints the same report. The report lists added, removed, modified, and renamed functions, and the calls and imports that changed. It flags new call or import cycles, functions that lost every caller, new or changed routes and entry points, and signature changes on functions that already had two or more callers. That last flag reuses the impact risk score. A line move with the same name is not treated as a removal. A rename in the same file is paired when the signature matches once the name is ignored, or when the names share a stem.
+Markdown is the default. `--json` prints the same report. The report lists added, removed, modified, and renamed functions, and the calls and imports that changed. It flags new call or import cycles, functions that lost every caller, new or changed routes and entry points, signature changes on functions that already had two or more callers, and new functions that repeat an existing helper. The signature flag reuses the impact risk score. A line move with the same name is not treated as a removal. A rename in the same file is paired when the signature matches once the name is ignored, or when the names share a stem.
 
-The diagram is the changed neighbourhood: green added, amber modified or renamed, red removed, gray an unchanged neighbour. It stops at 24 functions. `--fail-on` exits 1 when one of those checks fires. The names are `cycles`, `dead`, `routes`, and `signatures`. The report's `checks` list is where a later duplicate-helper check can add its own section without a new command.
+The diagram is the changed neighbourhood: green added, amber modified or renamed, red removed, gray an unchanged neighbour. It stops at 24 functions. `--fail-on` exits 1 when one of those checks fires. The names are `cycles`, `dead`, `routes`, `signatures`, and `duplicates`. `--threshold` is the duplicate score, from 0.5 to 0.95. The default is 0.8.
 
 In the editor, **CodeFlow: Review Agent Changes** opens a panel for the changed files. A flag or a node opens that line. The panel only analyzes the files that changed. `npx codeflow review` includes the rest of the repo, so a caller outside the change can keep a function off the dead-code list.
 
-The GitHub Action adds a Review section to the sticky comment: new cycles, newly dead code, and entry-point or route changes. The input `review` defaults to `true`. The section is dropped if the comment would pass GitHub's size limit.
+The GitHub Action adds a Review section to the sticky comment: new cycles, newly dead code, and entry-point or route changes. It also adds Possible duplicates, with the fix prompt in a collapsible block. The input `review` defaults to `true`. The duplicates block is dropped first if the comment would pass GitHub's size limit, then the review section.
 
 `review_changes` is the same report over MCP. `format` is `json` or `markdown`. Inside `codeflow_execute`, `graph.review(before)` compares a graph you pass with the loaded one, and `graph.review({ before, after })` compares two graphs.
 
@@ -402,6 +403,26 @@ Risk is a fixed rule, not a model call:
 - **low** otherwise
 
 A likely test is a caller whose name looks like a test (`test_…`, `testX`) or whose file looks like one (`.test.`, `.spec.`, `tests/`, `__tests__/`, `test_*.py`, `*_test.rs`). An uncertain edge is a call the analyzers could not prove: a callback, dynamic dispatch, or a trait object. The report lists those edges. It does not list a test that only imports a function and never calls it.
+
+## Duplicates
+
+`npx codeflow duplicates` compares each new or modified function with helpers already in the repo. It fingerprints the body after names and literals are stripped, then scores that against the called APIs and a shared name stem. A function in `utils`, `lib`, `shared`, `helpers`, or `common`, or one with more callers than callees, is preferred. Two new functions that copy each other are reported too. A pasted block inside a longer new function is reported when it matches a helper body. Tests and generated files are skipped.
+
+```bash
+npm run build -w @codeflow/mcp
+npm run build -w @codeflow/pr
+npx codeflow duplicates
+npx codeflow duplicates --base main --json
+npx codeflow duplicates --prompt
+```
+
+Markdown is the default. `--prompt` prints only the fix prompt: one block an agent can paste, with the new location, the helper to call, the behaviour to keep, and a reminder to run the tests. `--json` prints the findings. Each one has a score, a low, medium, or high confidence, and a short reason. `--threshold` defaults to 0.8. Raising it reports fewer matches. The check does not call a model.
+
+`npx codeflow review` includes the same check. `--fail-on duplicates` exits 1 when a finding is at or above the threshold.
+
+In the editor, a warning appears on save when the saved file differs from HEAD and repeats a helper already in the workspace graph. **Open existing helper** jumps to that function. **Copy fix prompt** copies the replacement instructions. **CodeFlow: Check for Duplicate Code** checks every changed file and opens the list. `codeflow.duplicates.onSave` defaults to on. `codeflow.duplicates.threshold` defaults to 0.8. The editor reads source for changed files and for helpers it already indexed. `npx codeflow duplicates` reads the analyzed repo. When `codeflow.ai.enabled` is already on, the disclosure was accepted, and an API key is stored, the command can ask that model which findings to keep. Diagnostics stay offline.
+
+`find_duplicates` is the same report over MCP. `base` and `threshold` are optional. Inside `codeflow_execute`, `graph.duplicates(before)` compares a graph you pass with the loaded one, and `graph.duplicates({ before, after })` compares two graphs.
 
 ## Plan
 

@@ -5,6 +5,7 @@ import {
   codeflowExecute,
   codeflowSearch,
   explainFunction,
+  findDuplicates,
   getCallees,
   getCallers,
   getContext,
@@ -251,6 +252,31 @@ export function createServer(cache: GraphCache): McpServer {
           ...(typeof args.task === 'string' ? { task: args.task } : {}),
           ...(typeof args.focus === 'string' && args.focus.length > 0 ? { focus: args.focus } : {}),
           ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
+        }),
+      ),
+  );
+  register(
+    'find_duplicates',
+    {
+      title: 'Find duplicate helpers',
+      description:
+        'Find new or changed functions that reimplement an existing helper. With no base, compare the working tree with HEAD. base uses the merge base of that ref. threshold is the similarity required, from 0.5 to 0.95, default 0.8. The result includes a fix prompt. This does not call a language model.',
+      inputSchema: {
+        base: z.string().optional().describe('Git ref. Empty compares the working tree with HEAD.'),
+        threshold: z
+          .number()
+          .min(0.5)
+          .max(0.95)
+          .optional()
+          .describe('Similarity required before a finding is reported. Defaults to 0.8.'),
+      },
+      annotations: readOnly,
+    },
+    async (args) =>
+      reply(
+        await findDuplicates(cache, {
+          ...(typeof args.base === 'string' && args.base.length > 0 ? { base: args.base } : {}),
+          ...(typeof args.threshold === 'number' ? { threshold: args.threshold } : {}),
         }),
       ),
   );

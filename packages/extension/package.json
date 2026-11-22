@@ -191,6 +191,10 @@
         "title": "CodeFlow: Plan a Task"
       },
       {
+        "command": "codeflow.checkDuplicates",
+        "title": "CodeFlow: Check for Duplicate Code"
+      },
+      {
         "command": "codeflow.showFileDependencies",
         "title": "CodeFlow: Show File Dependencies",
         "icon": "$(file-symlink-file)"
@@ -311,6 +315,9 @@
         },
         {
           "command": "codeflow.planTask"
+        },
+        {
+          "command": "codeflow.checkDuplicates"
         },
         {
           "command": "codeflow.showFileDependencies"
@@ -690,6 +697,28 @@
             "order": 3,
             "description": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only.",
             "markdownDescription": "Include saved and unsaved edits, and untracked source files, in the pull request diagram. Off compares the merge base with HEAD only."
+          }
+        }
+      },
+      {
+        "title": "CodeFlow: Duplicates",
+        "order": 12,
+        "properties": {
+          "codeflow.duplicates.onSave": {
+            "type": "boolean",
+            "default": true,
+            "order": 1,
+            "description": "After a save, warn when a changed file reimplements a helper already in the workspace. Only that file is checked. CodeFlow: Check for Duplicate Code covers every changed file.",
+            "markdownDescription": "After a save, warn when a changed file reimplements a helper already in the workspace. Only that file is checked. **CodeFlow: Check for Duplicate Code** covers every changed file."
+          },
+          "codeflow.duplicates.threshold": {
+            "type": "number",
+            "default": 0.8,
+            "minimum": 0.5,
+            "maximum": 0.95,
+            "order": 2,
+            "description": "How similar a new function must be to an existing helper before CodeFlow warns. 0.8 is the default. Higher values report fewer matches.",
+            "markdownDescription": "How similar a new function must be to an existing helper before CodeFlow warns. `0.8` is the default. Higher values report fewer matches."
           }
         }
       },

@@ -38,7 +38,7 @@ export async function main(argv: readonly string[]): Promise<number> {
   }
   if (argv[0] !== 'export') {
     console.error(
-      `Unknown command ${argv[0]}. Use codeflow export, codeflow impact, codeflow context, codeflow review, codeflow plan, or codeflow mcp.`,
+      `Unknown command ${argv[0]}. Use codeflow export, codeflow impact, codeflow context, codeflow review, codeflow plan, codeflow duplicates, or codeflow mcp.`,
     );
     return 1;
   }

@@ -8,6 +8,7 @@ await bundle({
     'src/contextCli.ts',
     'src/reviewCli.ts',
     'src/planCli.ts',
+    'src/duplicatesCli.ts',
   ],
   outdir: 'dist',
   entryNames: '[name]',
@@ -39,3 +40,4 @@ copyFileSync('src/queryEngine.js', 'dist/queryEngine.js');
 copyFileSync('../shared/src/impact.js', 'dist/impact.js');
 copyFileSync('../shared/src/review.js', 'dist/review.js');
 copyFileSync('../shared/src/plan.js', 'dist/plan.js');
+copyFileSync('../shared/src/duplicates.js', 'dist/duplicates.js');

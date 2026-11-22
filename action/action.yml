@@ -46,8 +46,9 @@ inputs:
   review:
     description: >-
       Add a review section (new cycles, newly dead code, and entry-point
-      or route changes) to the sticky comment. true by default. The section
-      is dropped if the comment would pass GitHub's size limit.
+      or route changes) to the sticky comment, plus a Possible duplicates
+      subsection and a collapsible fix prompt. true by default. Either
+      section is dropped if the comment would pass GitHub's size limit.
     required: false
     default: 'true'
 runs:
