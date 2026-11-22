@@ -6,23 +6,48 @@
 
   let { children }: { children: import('svelte').Snippet } = $props();
   let query = $state('');
+  let menuOpen = $state(false);
   const matches = $derived(searchDocs(query));
   const current = $derived(page.url.pathname.replace(/\/$/, '') || '/docs');
   const currentPage = $derived(docPages.find((item) => item.href === current));
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') menuOpen = false;
+  }
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <SiteHeader />
 <div class="wrap docs-shell">
-  <aside class="docs-nav">
+  <div class="docs-toolbar">
+    <button
+      type="button"
+      class="docs-menu"
+      aria-expanded={menuOpen}
+      aria-controls="docs-menu"
+      onclick={() => (menuOpen = !menuOpen)}
+    >
+      {menuOpen ? 'Close docs' : 'Docs menu'}
+    </button>
+  </div>
+  {#if menuOpen}
+    <button type="button" class="docs-scrim" aria-label="Close docs menu" onclick={() => (menuOpen = false)}></button>
+  {/if}
+  <aside id="docs-menu" class="docs-nav" class:open={menuOpen}>
+    <div class="docs-nav-head">
+      <p class="docs-group">Docs</p>
+      <button type="button" class="docs-close" onclick={() => (menuOpen = false)}>Close</button>
+    </div>
     <form role="search" onsubmit={(event) => event.preventDefault()}>
-      <label class="search-label" for="docs-search">Search docs</label>
+      <label class="sr-only" for="docs-search">Search docs</label>
       <input id="docs-search" type="search" placeholder="Search docs" bind:value={query} />
     </form>
     {#if query.trim().length > 0}
       <ul class="search-hits">
         {#each matches as hit (hit.href)}
           <li>
-            <a href={hit.href} onclick={() => (query = '')}>{hit.title}</a>
+            <a href={hit.href} onclick={() => (menuOpen = false)}>{hit.title}</a>
           </li>
         {:else}
           <li class="muted">No matching page.</li>
@@ -34,7 +59,11 @@
       <ul>
         {#each group.pages as item (item.href)}
           <li>
-            <a href={item.href} aria-current={current === item.href ? 'page' : undefined}>{item.title}</a>
+            <a
+              href={item.href}
+              aria-current={current === item.href ? 'page' : undefined}
+              onclick={() => (menuOpen = false)}>{item.title}</a
+            >
           </li>
         {/each}
       </ul>
