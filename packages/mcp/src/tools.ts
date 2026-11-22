@@ -8,6 +8,7 @@ import { changedSymbolsForDiff } from '@codeflow/pr/impact';
 import { loadReview } from '@codeflow/pr/review';
 import { buildContext } from '@codeflow/shared/context';
 import type { ImpactRef } from '@codeflow/shared/impact';
+import { planTask as planReading } from '@codeflow/shared/plan';
 import { API_DOCS } from './apiDocs.js';
 import type { GraphCache } from './cache.js';
 import type { Failure, FileHit, FnView } from './queryEngine.js';
@@ -210,6 +211,37 @@ export async function getContext(
     budget: report.budget,
     trimmed: report.trimmed,
     ...(report.focus ? { focus: report.focus } : {}),
+    ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 5) } : {}),
+  });
+}
+
+export async function planTask(
+  cache: GraphCache,
+  args: { readonly task?: string; readonly focus?: string; readonly budget?: number },
+): Promise<ToolResult> {
+  const task = typeof args.task === 'string' ? args.task.trim() : '';
+  if (task.length === 0) {
+    return error('Pass a task.');
+  }
+  const loaded = await cache.get();
+  const report = planReading(
+    {
+      symbols: loaded.data.symbols,
+      calls: loaded.data.calls,
+      routes: loaded.data.routes,
+      imports: loaded.imports,
+    },
+    task,
+    {
+      ...(args.focus ? { focus: args.focus } : {}),
+      ...(args.budget !== undefined ? { budget: args.budget } : {}),
+    },
+  );
+  if (isFailure(report)) {
+    return error(report.error);
+  }
+  return json({
+    ...report,
     ...(loaded.warnings.length > 0 ? { warnings: loaded.warnings.slice(0, 5) } : {}),
   });
 }

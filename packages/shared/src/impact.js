@@ -219,7 +219,7 @@ function indexGraph(data) {
     stored.push({ from: call.from, to: call.to, certainty, reason: edge.reason });
   }
   for (const edges of incoming.values()) {
-    edges.sort((left, right) => compareSymbol(byId.get(left.id), byId.get(right.id)));
+    edges.sort((left, right) => impactOrder(byId.get(left.id), byId.get(right.id)));
   }
   const listedRoutes = routes
     .map((route) => ({
@@ -377,7 +377,7 @@ function oneOf(named, label) {
     ok: false,
     error: `More than one function matched ${label}. Pass a path.`,
     matches: [...named]
-      .sort(compareSymbol)
+      .sort(impactOrder)
       .slice(0, 10)
       .map((symbol) => ({
         name: symbol.name,
@@ -403,7 +403,7 @@ function splitRef(value) {
 function symbolsInFile(indexed, needle) {
   return [...indexed.byId.values()]
     .filter((symbol) => fileMatches(symbol.file, needle))
-    .sort(compareSymbol);
+    .sort(impactOrder);
 }
 
 function fileMatches(file, needle) {
@@ -451,7 +451,7 @@ function walkCallers(indexed, startIds, depth) {
         next.push(edge.id);
         const symbol = indexed.byId.get(edge.id);
         if (symbol && !roots.has(symbol.id)) {
-          callers.push(summarize(symbol, hop, edge.certainty));
+          callers.push(impactCaller(symbol, hop, edge.certainty));
         }
         if (callers.length >= MAX_IMPACT_WALK) {
           return { callers, uncertain };
@@ -479,12 +479,12 @@ function finish(indexed, resolved, walked, depth) {
   const routes = routesFor(indexed, reached);
   const entryPoints = [...indexed.byId.values()]
     .filter((symbol) => reached.has(symbol.id) && hasPublicRole(symbol))
-    .sort(compareSymbol)
+    .sort(impactOrder)
     .map((symbol) => ({
       name: symbol.name,
       file: symbol.file,
       line: symbol.line,
-      roles: rolesOf(symbol),
+      roles: impactRoles(symbol),
     }));
   const tests = walked.callers.filter((caller) =>
     isLikelyTest(indexed.byId.get(caller.id), caller),
@@ -599,14 +599,16 @@ function isTopLevel(symbol) {
 }
 
 function hasPublicRole(symbol) {
-  return rolesOf(symbol).some((role) => role === 'route' || role === 'main' || role === 'exported');
+  return impactRoles(symbol).some(
+    (role) => role === 'route' || role === 'main' || role === 'exported',
+  );
 }
 
-function rolesOf(symbol) {
+function impactRoles(symbol) {
   return Array.isArray(symbol.roles) ? symbol.roles : [];
 }
 
-function summarize(symbol, hops, certainty) {
+function impactCaller(symbol, hops, certainty) {
   return {
     id: symbol.id,
     name: symbol.name,
@@ -628,7 +630,7 @@ function locate(symbol) {
   };
 }
 
-function compareSymbol(left, right) {
+function impactOrder(left, right) {
   if (!left || !right) {
     return 0;
   }

@@ -37,6 +37,7 @@ import { setAiEnabledOverride } from './ai/vscodeSettings';
 import { installAgentContext } from './agentContext';
 import { installAgentExport } from './agentExport';
 import { installImpact } from './impactPanel';
+import { installPlan } from './planPanel';
 import { installReview } from './reviewPanel';
 import { installMcpSetup } from './mcpSetup';
 import { installPullRequestMode } from './prMode';
@@ -130,6 +131,7 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
   });
   installAgentContext(context, { typescript, rust, python });
   installReview(context);
+  installPlan(context);
   installMcpSetup(context);
 
   context.subscriptions.push(

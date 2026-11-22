@@ -121,6 +121,7 @@ rust-analyzer is optional. When it is already running, CodeFlow uses it to mark 
 | CodeFlow: Show Callers                             | Incoming calls, depth `codeflow.editor.callDepth` (default 2)                      |
 | CodeFlow: Show Callees                             | Outgoing calls, same depth                                                         |
 | CodeFlow: Review Agent Changes                     | Before and after call graph of the working tree, with flags that jump to code      |
+| CodeFlow: Plan a Task                              | Ranked functions to read first for a task, with a reason on each line              |
 | CodeFlow: Show File Dependencies                   | Import edges of the current file                                                   |
 | CodeFlow: Show Dependencies                        | Imports for a file, or the files in a folder plus one import hop                   |
 | CodeFlow: Show Control Flow for Function at Cursor | Flowchart of the function at the cursor (TypeScript, JavaScript, Rust, and Python) |
@@ -332,7 +333,7 @@ Claude Code:
 claude mcp add codeflow -- npx codeflow mcp
 ```
 
-`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, `explain_function`, and `get_context` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `get_context` returns the architecture map, and `focus` narrows it to a folder or function. `explain_function` does not call a model.
+`codeflow_search` finds functions, files, routes, and entry points. The result includes a short description of the query API. `codeflow_execute` runs a snippet against that API. `get_callers`, `get_callees`, `impact_of`, `path_between`, `explain_function`, `get_context`, and `plan_task` answer the common questions without a snippet. `impact_of` can take several targets or `diff: true`. `get_context` returns the architecture map, and `focus` narrows it to a folder or function. `plan_task` ranks functions to read for a task. `explain_function` does not call a model.
 
 ```javascript
 return graph.find({ name: 'greet' });
@@ -345,7 +346,7 @@ return graph.find({ name: 'format' })[0].source();
 
 The snippet is JavaScript or TypeScript with `graph` in scope. It runs in a fresh `node:vm` context. `require`, `process`, the filesystem, and the network are not defined. `eval` and `Function` cannot compile new code, which blocks `globalThis.constructor.constructor("...")`. Host functions are not passed into the context. A synchronous loop is stopped after two seconds, and a result larger than the cap is discarded. `fn.source()` returns the function text captured at the last refresh, not a live file read. `node:vm` is not a kernel sandbox. Keep the server on stdio for the workspace you already have open. Do not point it at a socket.
 
-`impact_of` and `graph.impact(...)` share one blast-radius report. A single name still works. You can also pass several targets, a file, or `diff: true`. `review_changes` and `graph.review(...)` diff the call graph before and after a change.
+`impact_of` and `graph.impact(...)` share one blast-radius report. A single name still works. You can also pass several targets, a file, or `diff: true`. `review_changes` and `graph.review(...)` diff the call graph before and after a change. `plan_task` and `graph.plan(task, { focus, budget })` rank what to read first.
 
 ```javascript
 return graph.impact('format');
@@ -401,6 +402,23 @@ Risk is a fixed rule, not a model call:
 - **low** otherwise
 
 A likely test is a caller whose name looks like a test (`test_…`, `testX`) or whose file looks like one (`.test.`, `.spec.`, `tests/`, `__tests__/`, `test_*.py`, `*_test.rs`). An uncertain edge is a call the analyzers could not prove: a callback, dynamic dispatch, or a trait object. The report lists those edges. It does not list a test that only imports a function and never calls it.
+
+## Plan
+
+`npx codeflow plan` ranks the smallest set of functions an agent should read for a task. It matches names, paths, routes, and comments, then walks one or two hops of callers and callees, plus an import whose path matches the task. A route handler, a shared helper, a function called by several targets, and a covering test each get a one-line reason. Files are split into likely edits and read-only context. The token estimate is the source text divided by 4.
+
+```bash
+npm run build -w @codeflow/mcp
+npm run build -w @codeflow/pr
+npx codeflow plan "add rate limiting to the login route"
+npx codeflow plan "add rate limiting to the login route" --focus src/auth/login.ts --budget 8 --json
+```
+
+Markdown is the default. `--budget` is how many functions to return. The default is 12 and the ceiling is 40. `--focus` is a file or `path#function`. Ranking does not call a model. The edit targets are also scored with the impact risk rule.
+
+In the editor, **CodeFlow: Plan a Task** asks for the task and opens the list. A row opens that line. The panel draws the selected set and has **Copy as agent prompt**. When `codeflow.ai.enabled` is already on, the disclosure was accepted, and an API key is stored, that model can reorder the list. The first list is the offline ranking. A failed call leaves that order in place. The editor graph does not include function text, so its token estimate is a stand-in. `npx codeflow plan` counts the source.
+
+`plan_task` is the same report over MCP. `focus` and `budget` are optional. Inside `codeflow_execute`, `graph.plan(task, { focus, budget })` ranks the loaded graph.
 
 ## Agent context
 

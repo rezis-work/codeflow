@@ -46,6 +46,7 @@ describe('MCP stdio', () => {
           'get_context',
           'impact_of',
           'path_between',
+          'plan_task',
           'refresh',
           'review_changes',
         ].sort(),
