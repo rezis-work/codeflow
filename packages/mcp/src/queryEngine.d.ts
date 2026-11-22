@@ -1,3 +1,4 @@
+import type { PlanFailure, PlanOptions, PlanReport } from '@codeflow/shared/plan';
 import type { ReviewGraph, ReviewReport } from '@codeflow/shared/review';
 
 export interface GraphSymbol {
@@ -110,6 +111,7 @@ export interface GraphApi {
   review(
     before: ReviewGraph | { readonly before?: ReviewGraph; readonly after?: ReviewGraph },
   ): ReviewReport | { readonly ok: false; readonly error: string };
+  plan(task: string, options?: PlanOptions): PlanReport | PlanFailure;
 }
 
 export interface ExplainResult {

@@ -10,6 +10,7 @@ import {
   getContext,
   impactOf,
   pathBetween,
+  planTask,
   reviewChanges,
   refreshGraph,
   type ToolResult,
@@ -215,6 +216,39 @@ export function createServer(cache: GraphCache): McpServer {
     async (args) =>
       reply(
         await getContext(cache, {
+          ...(typeof args.focus === 'string' && args.focus.length > 0 ? { focus: args.focus } : {}),
+          ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
+        }),
+      ),
+  );
+  register(
+    'plan_task',
+    {
+      title: 'Plan a task',
+      description:
+        'Rank the smallest set of functions to read first for a natural-language task. focus is a file or path#function. budget is how many items to return, from 1 to 40, default 12. Each item has a one-line reason, an edit or read action, and a token estimate. This does not call a language model.',
+      inputSchema: {
+        task: z.string().min(1).describe('What the agent should do, in plain language.'),
+        focus: z
+          .string()
+          .optional()
+          .describe(
+            'File or path#function to keep in the set even when the task does not name it.',
+          ),
+        budget: z
+          .number()
+          .int()
+          .min(1)
+          .max(40)
+          .optional()
+          .describe('How many functions to return. Defaults to 12.'),
+      },
+      annotations: readOnly,
+    },
+    async (args) =>
+      reply(
+        await planTask(cache, {
+          ...(typeof args.task === 'string' ? { task: args.task } : {}),
           ...(typeof args.focus === 'string' && args.focus.length > 0 ? { focus: args.focus } : {}),
           ...(typeof args.budget === 'number' ? { budget: args.budget } : {}),
         }),

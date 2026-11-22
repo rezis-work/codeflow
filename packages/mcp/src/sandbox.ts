@@ -171,7 +171,8 @@ function engineSource(): string {
   const engine = readFileSync(fileURLToPath(new URL('./queryEngine.js', import.meta.url)), 'utf8');
   const impact = readFileSync(impactSource(), 'utf8');
   const review = readFileSync(reviewSource(), 'utf8');
-  return stripModuleSyntax(`${impact}\n${review}\n${engine}`);
+  const plan = readFileSync(planSource(), 'utf8');
+  return stripModuleSyntax(`${impact}\n${review}\n${plan}\n${engine}`);
 }
 
 function stripModuleSyntax(source: string): string {
@@ -188,6 +189,10 @@ function impactSource(): string {
 
 function reviewSource(): string {
   return bundledSource('review.js', '../../shared/src/review.js');
+}
+
+function planSource(): string {
+  return bundledSource('plan.js', '../../shared/src/plan.js');
 }
 
 function bundledSource(name: string, fallback: string): string {

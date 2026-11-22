@@ -4,7 +4,8 @@
  * `codeflow impact` prints the blast radius of a function or the current diff.
  * `codeflow context` refreshes the managed architecture map.
  * `codeflow review` diffs the call graph before and after a change.
- * Export is the bundled CLI. The MCP server, impact, context, and review commands are built separately.
+ * `codeflow plan` ranks functions to read for a task.
+ * Export is the bundled CLI. The MCP server, impact, context, review, and plan commands are built separately.
  */
 
 const argv = process.argv.slice(2);
@@ -92,6 +93,27 @@ if (argv[0] === 'mcp') {
     process.exitCode = code;
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Could not run codeflow review.');
+    console.error('Build it with: npm run build -w @codeflow/mcp');
+    process.exitCode = 1;
+  }
+} else if (argv[0] === 'plan') {
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(
+      [
+        'codeflow plan "<task>" [--focus path] [--budget 12] [--json] [--md]',
+        '',
+        'Rank functions to read first. Markdown is the default.',
+        'Build it first with npm run build -w @codeflow/mcp',
+      ].join('\n'),
+    );
+    process.exit(0);
+  }
+  try {
+    const loaded = await import(new URL('../../mcp/dist/planCli.js', import.meta.url));
+    const code = await loaded.main(argv.slice(1));
+    process.exitCode = code;
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'Could not run codeflow plan.');
     console.error('Build it with: npm run build -w @codeflow/mcp');
     process.exitCode = 1;
   }

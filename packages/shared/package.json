@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./impact": "./src/impact.js",
     "./context": "./src/context.js",
-    "./review": "./src/review.js"
+    "./review": "./src/review.js",
+    "./plan": "./src/plan.js"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

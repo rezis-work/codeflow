@@ -47,6 +47,8 @@ describe('execute sandbox', () => {
       'return graph.review({ symbols: [], calls: [], routes: [] }).summary.added',
     );
     expect(reviewed).toEqual({ ok: true, result: 2 });
+    const planned = executeSnippet(data, 'return graph.plan("format the greeting").items[0].name');
+    expect(planned).toEqual({ ok: true, result: 'format' });
     const source = executeSnippet(data, 'return graph.get("format").source()');
     expect(source.ok).toBe(true);
     if (source.ok) {

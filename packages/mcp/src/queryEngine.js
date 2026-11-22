@@ -2,11 +2,13 @@
  * Read-only call-graph queries. This file is plain JavaScript on purpose:
  * the host imports it, and the sandbox runs the same source inside node:vm.
  * It must not touch the file system, the network, require, or process.
- * Impact math lives in @codeflow/shared/impact. The sandbox prepends that
- * file and drops this import, so both sides run the same function.
+ * Impact, review, and plan math live in @codeflow/shared. The sandbox
+ * prepends those files and drops these imports, so both sides run the same
+ * functions.
  */
 
 import { assessImpact } from '@codeflow/shared/impact';
+import { planTask } from '@codeflow/shared/plan';
 import { reviewGraphs } from '@codeflow/shared/review';
 
 const MAX_HOPS = 8;
@@ -369,6 +371,24 @@ function createApi(data) {
     return reviewGraphs(input, live);
   }
 
+  function plan(task, options) {
+    const settings = options && typeof options === 'object' ? options : {};
+    return planTask(
+      {
+        symbols: [...byId.values()],
+        calls,
+        routes,
+        imports: Array.isArray(data && data.imports) ? data.imports : [],
+      },
+      typeof task === 'string' ? task : '',
+      {
+        ...(typeof settings.focus === 'string' ? { focus: settings.focus } : {}),
+        ...(typeof settings.budget === 'number' ? { budget: settings.budget } : {}),
+        ...(typeof settings.hops === 'number' ? { hops: settings.hops } : {}),
+      },
+    );
+  }
+
   function get(ref) {
     const resolved = resolveOne(ref);
     if (!resolved.ok) {
@@ -386,6 +406,7 @@ function createApi(data) {
     explain,
     impact,
     review,
+    plan,
   };
 }
 

@@ -175,5 +175,8 @@ describe('query API', () => {
     const reviewed = graph.review({ symbols: [], calls: [], routes: [] });
     expect('summary' in reviewed && reviewed.summary.added).toBeGreaterThan(0);
     expect('markdown' in reviewed && reviewed.markdown).toContain('## Review');
+    const planned = graph.plan('format the greeting', { budget: 4 });
+    expect('items' in planned && planned.items.some((item) => item.name === 'format')).toBe(true);
+    expect('markdown' in planned && planned.markdown).toContain('## Plan');
   });
 });

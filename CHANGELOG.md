@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Plan
+
+- `npx codeflow plan "<task>"` ranks the smallest set of functions to read first. It matches names, paths, routes, and comments, then walks callers and callees one or two hops. `--focus` is a file or `path#function`. `--budget` defaults to 12. `--json` prints the report. Each item has a reason, an edit or read action, and a token estimate. Likely edits, read-only files, and related tests are listed separately. Ranking works with no model configured.
+- `plan_task` returns that report. `graph.plan(task, { focus, budget })` runs inside `codeflow_execute`.
+- **CodeFlow: Plan a Task** opens the ranked list. A row opens that line. The panel draws the selected set and copies an agent prompt. When AI summaries are already configured, that model can reorder the list. The offline order is shown first.
+
 ### Review
 
 - `npx codeflow review` diffs the call and import graph. With no `--base`, the working tree is compared with HEAD. `--base` uses the merge base of that ref. `--json` prints the report. `--fail-on cycles,dead,routes,signatures` exits 1 for CI. The `checks` list is the slot a later duplicate-helper check can fill.

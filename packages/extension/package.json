@@ -187,6 +187,10 @@
         "title": "CodeFlow: Review Agent Changes"
       },
       {
+        "command": "codeflow.planTask",
+        "title": "CodeFlow: Plan a Task"
+      },
+      {
         "command": "codeflow.showFileDependencies",
         "title": "CodeFlow: Show File Dependencies",
         "icon": "$(file-symlink-file)"
@@ -304,6 +308,9 @@
         },
         {
           "command": "codeflow.reviewChanges"
+        },
+        {
+          "command": "codeflow.planTask"
         },
         {
           "command": "codeflow.showFileDependencies"
