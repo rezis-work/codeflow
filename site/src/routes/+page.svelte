@@ -3,13 +3,15 @@
   import CopyButton from '#lib/components/CopyButton.svelte';
   import Flowchart from '#lib/components/Flowchart.svelte';
   import SequenceDiagram from '#lib/components/SequenceDiagram.svelte';
+  import SiteFooter from '#lib/components/SiteFooter.svelte';
+  import SiteHeader from '#lib/components/SiteHeader.svelte';
   import TraitMap from '#lib/components/TraitMap.svelte';
   import {
+    agentFeatures,
     cliInstall,
     extInstall,
     faqs,
     features,
-    licenseUrl,
     marketplaceUrl,
     openVsxUrl,
     releaseUrl,
@@ -47,21 +49,7 @@
   {@html `<script type="application/ld+json">${data.jsonLd}</script>`}
 </svelte:head>
 
-<header class="wrap">
-  <nav class="nav" aria-label="Primary">
-    <a class="brand" href="#content">
-      <img src="/icon.svg" width="36" height="36" alt="" />
-      Rezis CodeFlow
-    </a>
-    <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#how">How it works</a>
-      <a href="#faq">FAQ</a>
-      <a href={repoUrl}>GitHub</a>
-      <a class="btn btn-primary" href={marketplaceUrl}>Install</a>
-    </div>
-  </nav>
-</header>
+<SiteHeader brandHref="#content" />
 
 <main id="content">
   <div class="wrap hero">
@@ -76,6 +64,7 @@
       <div class="actions">
         <a class="btn btn-primary" href={marketplaceUrl}>Install for VS Code</a>
         <a class="btn btn-primary" href={openVsxUrl}>Install for Cursor / Open VSX</a>
+        <a class="btn btn-secondary" href="/docs">Read the docs</a>
         <a class="btn btn-secondary" href={repoUrl}>GitHub</a>
         <a class="btn btn-secondary" href={releaseUrl}>Download .vsix</a>
       </div>
@@ -113,14 +102,14 @@
   <section class="wrap" id="features" use:reveal>
     <h2>What it draws</h2>
     <p class="section-intro">
-      One symbol, the calls around it, and the path through a function. TypeScript, JavaScript, and
-      Rust. Analysis stays on your machine.
+      One symbol, the calls around it, and the path through a function. TypeScript, JavaScript,
+      Rust, and Python. Analysis stays on your machine.
     </p>
     <ul class="langs">
       <li>TypeScript</li>
       <li>JavaScript</li>
       <li>Rust</li>
-      <li>Local analysis, no telemetry</li>
+      <li>Python</li>
     </ul>
     <div class="features" style="margin-top: 22px">
       {#each features as feature (feature.title)}
@@ -198,18 +187,41 @@
     </div>
   </section>
 
-  <section class="wrap" id="how" use:reveal>
-    <h2>How it works</h2>
+  <section class="wrap" id="agents" use:reveal>
+    <h2>Built for AI agents</h2>
+    <p class="section-intro">
+      The same graph the diagram uses, as checks and prompts an agent can follow. Each one works
+      offline. A model is optional, and only after you turn explanations on.
+    </p>
+    <div class="features">
+      {#each agentFeatures as feature (feature.title)}
+        <article class="card">
+          <h3><a href={feature.href}>{feature.title}</a></h3>
+          <p>{feature.body}</p>
+        </article>
+      {/each}
+    </div>
+  </section>
+
+  <section class="wrap" id="start" use:reveal>
+    <h2>Get started in 3 steps</h2>
     <ol class="steps">
       {#each steps as step (step.title)}
         <li>
           <div>
             <h3>{step.title}</h3>
             <p>{step.body}</p>
+            {#if step.title === 'Install'}
+              <p class="step-links">
+                <a href={marketplaceUrl}>VS Code Marketplace</a>
+                <a href={openVsxUrl}>Open VSX</a>
+              </p>
+            {/if}
           </div>
         </li>
       {/each}
     </ol>
+    <p class="note"><a href="/docs/getting-started">Full install guide</a></p>
   </section>
 
   <section class="wrap faq" id="faq" use:reveal>
@@ -236,14 +248,4 @@
   </section>
 </main>
 
-<footer class="wrap">
-  <div class="foot">
-    <p>© 2026 rezis-work. <a href={licenseUrl}>MIT License</a>.</p>
-    <nav aria-label="Footer">
-      <a href={repoUrl}>GitHub</a>
-      <a href={marketplaceUrl}>VS Code Marketplace</a>
-      <a href={openVsxUrl}>Open VSX</a>
-      <a href={releaseUrl}>Latest release</a>
-    </nav>
-  </div>
-</footer>
+<SiteFooter />

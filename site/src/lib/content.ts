@@ -13,6 +13,39 @@ export const title = 'Rezis CodeFlow — see how your code runs, beside the code
 export const description =
   'CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, sequence diagrams, Rust trait maps, and request traces for TypeScript, JavaScript, Rust, and Python. Analysis stays on your machine. There is no telemetry.';
 
+export const agentFeatures = [
+  {
+    title: 'MCP server',
+    body: 'A stdio server for the call graph. Agents search it, or run a short read-only snippet in a sandbox with no filesystem and no network.',
+    href: '/docs/agents',
+  },
+  {
+    title: 'Impact check',
+    body: 'Transitive callers, affected routes, likely tests, and a low, medium, or high risk score for a function or the current diff.',
+    href: '/docs/cli#codeflow-impact',
+  },
+  {
+    title: 'Agent context',
+    body: 'A managed architecture map in AGENTS.md, and optionally Cursor and Claude files. Auto-update after save is off until you turn it on.',
+    href: '/docs/workflows#keep-agents-md-up-to-date-in-ci',
+  },
+  {
+    title: 'Review agent changes',
+    body: 'A before-and-after call graph. Flags new cycles, newly dead code, route changes, signature changes, and duplicate helpers.',
+    href: '/docs/workflows#check-what-an-ai-agent-changed-before-you-merge',
+  },
+  {
+    title: 'Task planner',
+    body: 'Ranks the smallest set of functions to read for a task, with a reason on each line and a prompt an agent can paste.',
+    href: '/docs/workflows#plan-a-task-for-an-agent',
+  },
+  {
+    title: 'Duplicate checker',
+    body: 'Warns when new code repeats a helper, and writes a fix prompt that names the function to reuse.',
+    href: '/docs/workflows#stop-an-agent-from-duplicating-helpers',
+  },
+] as const;
+
 export const features = [
   {
     title: 'Call graph',
@@ -51,15 +84,15 @@ export const features = [
 export const steps = [
   {
     title: 'Install',
-    body: 'Install Rezis CodeFlow (rezis-work.rezis-codeflow) from the VS Code Marketplace or Open VSX, or from the .vsix on the latest GitHub Release.',
+    body: 'Install from the VS Code Marketplace or Open VSX. The publisher is rezis-work, the extension is rezis-codeflow, and the display name is Rezis CodeFlow.',
   },
   {
-    title: 'Show the flow',
-    body: 'Open a TypeScript, JavaScript, Rust, or Python file and run CodeFlow: Show Flow for Symbol at Cursor. Right-click, or press Ctrl+Alt+F (Cmd+Alt+F on macOS).',
+    title: 'Open a project',
+    body: 'Open a folder in VS Code or Cursor. TypeScript, JavaScript, Rust, and Python are analyzed on your machine. Nothing is uploaded.',
   },
   {
-    title: 'Follow it',
-    body: 'Click a node to open that symbol. Move the cursor and the diagram follows. Open control flow, a sequence, or a request from the same symbol. While debugging, Start Runtime Trace numbers the path the session actually took.',
+    title: 'Run the first command',
+    body: 'Open a supported file and run CodeFlow: Show Flow for Symbol at Cursor. Right-click, or press Ctrl+Alt+F (Cmd+Alt+F on macOS).',
   },
 ] as const;
 

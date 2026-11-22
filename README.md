@@ -8,6 +8,8 @@ CodeFlow draws how your code runs, beside the code. Call graphs, flowcharts, seq
 
 Install **Rezis CodeFlow** from the Extensions view in Cursor or VS Code. The extension id is `rezis-work.rezis-codeflow`. Cursor installs it from [Open VSX](https://open-vsx.org/extension/rezis-work/rezis-codeflow). VS Code installs it from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=rezis-work.rezis-codeflow).
 
+The step-by-step guide is at [https://rezis-codeflow.vercel.app/docs](https://rezis-codeflow.vercel.app/docs): install, every command and setting, the CLI, the GitHub Action, and the MCP tools.
+
 Open a supported file and run **CodeFlow: Show Flow for Symbol at Cursor** (right-click, or Ctrl+Alt+F, Cmd+Alt+F on macOS). Click a node to open that symbol. Move the cursor and the diagram follows.
 
 ![CodeFlow beside the editor: an uncertain call drawn dashed, with the legend](https://raw.githubusercontent.com/rezis-work/codeflow/main/docs/images/uncertain-edges.png)

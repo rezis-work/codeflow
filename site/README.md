@@ -1,6 +1,8 @@
 # Rezis CodeFlow site
 
-Marketing page for [Rezis CodeFlow](https://github.com/rezis-work/codeflow). SvelteKit (Svelte 5, TypeScript) with server rendering. The Vercel adapter is configured in `vite.config.ts`.
+Marketing page and docs for [Rezis CodeFlow](https://github.com/rezis-work/codeflow). SvelteKit (Svelte 5, TypeScript) with server rendering. The Vercel adapter is configured in `vite.config.ts`.
+
+Guides live in `src/lib/content/*.md`. `/docs` is the index. `npm run check:links` fails when an internal link, image, command title, or setting key is missing.
 
 This folder is not an npm workspace. Install and build it here. The extension package, tests, and release workflow do not use it.
 
