@@ -11,9 +11,10 @@
   },
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "node scripts/check-links.mjs && vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-links.mjs",
+    "check:links": "node scripts/check-links.mjs"
   },
   "devDependencies": {
     "@sveltejs/adapter-vercel": "^7.0.3",
