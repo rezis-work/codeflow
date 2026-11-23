@@ -2,7 +2,7 @@
   "name": "rezis-codeflow",
   "displayName": "Rezis CodeFlow",
   "description": "Call graphs, flowcharts, and sequence diagrams for TypeScript, JavaScript, Python, and Rust, in VS Code and Cursor. Analysis stays local.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "publisher": "rezis-work",
   "license": "MIT",
   "pricing": "Free",

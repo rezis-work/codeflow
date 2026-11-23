@@ -35,7 +35,7 @@ const hops = z
   .describe('Call steps. Defaults to 1. The ceiling is 8.');
 
 export function createServer(cache: GraphCache): McpServer {
-  const server = new McpServer({ name: 'codeflow', version: '1.1.0' });
+  const server = new McpServer({ name: 'codeflow', version: '1.2.0' });
   // The SDK's tool generics recurse on Zod schemas until tsc gives up.
   // The schemas are still Zod, so clients receive real JSON Schema.
   const register = server.registerTool.bind(server) as (

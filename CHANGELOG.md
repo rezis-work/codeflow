@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.2.0 (2026-11-23)
+
+Version 1.2.0 packages the work since 1.1.0. The file is `rezis-codeflow-1.2.0.vsix`. It adds an MCP server for the call graph, an impact check, agent context files, a review of what an agent changed, a task planner, a duplicate-helper check, and a documentation site.
+
+### Docs
+
+- The marketing site documents every command, setting, CLI flag, MCP tool, and GitHub Action input. `/docs` has a sidebar, search, and an on-this-page list. The landing page covers the agent features and a three-step install.
+
 ### Duplicates
 
 - `npx codeflow duplicates` reports new or changed functions that repeat a helper. It compares a body fingerprint with called APIs and name stems. Shared helpers and functions in `utils`, `lib`, `shared`, `helpers`, or `common` rank first. Two copies inside the same change are included. A pasted block inside a longer function is included. Tests and generated files are skipped. `--threshold` defaults to 0.8. `--json` prints the findings. `--prompt` prints one fix prompt. The check works with no model configured.

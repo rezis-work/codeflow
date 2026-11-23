@@ -3,12 +3,17 @@ title: Changelog
 description: What shipped in each Rezis CodeFlow release, from the repository changelog.
 ---
 
-Versions below match `CHANGELOG.md` in the repository. Unreleased notes are on `main` and are not a tagged release yet. The current extension version in the manifest is 1.1.0. The display name is Rezis CodeFlow. The extension id is `rezis-work.rezis-codeflow`.
+Versions below match `CHANGELOG.md` in the repository. The current extension version in the manifest is 1.2.0. The display name is Rezis CodeFlow. The extension id is `rezis-work.rezis-codeflow`.
 
 ## Unreleased
 
-On `main`, after 1.1.0:
+Nothing since 1.2.0.
 
+## 1.2.0 (2026-11-23)
+
+The file is `rezis-codeflow-1.2.0.vsix`. It packages the work since 1.1.0: Phase 5 and the documentation site.
+
+- **Docs.** This site documents every command, setting, CLI flag, MCP tool, and GitHub Action input. The landing page covers the agent features and a three-step install.
 - **Duplicates.** `npx codeflow duplicates` reports new or changed functions that repeat a helper. `npx codeflow review --fail-on duplicates` exits 1. `find_duplicates` and `graph.duplicates()` expose it over MCP. The editor warns on save and copies a fix prompt. The pull request comment adds Possible duplicates.
 - **Plan.** `npx codeflow plan` ranks functions to read first. `plan_task` and `graph.plan()` expose it. **Plan a Task** opens the list and can copy an agent prompt.
 - **Review.** `npx codeflow review` diffs the call and import graph and flags new cycles, newly dead code, route changes, and signature changes. **Review Agent Changes** opens that report for the changed files.
