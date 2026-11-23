@@ -46,6 +46,7 @@ export interface DiagramHost {
   explainFlow?(): void;
   cancelExplain?(): void;
   clearExplain?(): void;
+  openFullWindow?(placement?: 'active' | 'beside' | 'newWindow'): void;
 }
 
 const SHOW_INFERRED_EDGES = true;
@@ -167,6 +168,9 @@ export function handleDiagramMessage(message: unknown, host: DiagramHost): void 
       return;
     case 'clearExplain':
       host.clearExplain?.();
+      return;
+    case 'openFullWindow':
+      host.openFullWindow?.(message.placement);
       return;
     default: {
       const unreachable: never = message;

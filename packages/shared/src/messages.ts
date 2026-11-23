@@ -177,6 +177,12 @@ export interface ClearExplainMessage {
   readonly type: 'clearExplain';
 }
 
+/** Asks the host to open this diagram in a full editor tab. */
+export interface OpenFullWindowMessage {
+  readonly type: 'openFullWindow';
+  readonly placement?: 'active' | 'beside' | 'newWindow';
+}
+
 export interface DiagramViewport {
   readonly x: number;
   readonly y: number;
@@ -200,7 +206,8 @@ export type DiagramWebviewToExtensionMessage =
   | ClearRuntimeTraceMessage
   | ExplainFlowMessage
   | CancelExplainMessage
-  | ClearExplainMessage;
+  | ClearExplainMessage
+  | OpenFullWindowMessage;
 
 export interface AckMessage {
   readonly type: 'ack';
@@ -379,6 +386,14 @@ export function isExtensionToDiagramWebviewMessage(
   return parseExtensionMessage(value) !== undefined;
 }
 
+function parseOpenFullWindow(value: Record<string, unknown>): OpenFullWindowMessage {
+  const placement = value.placement;
+  if (placement === 'active' || placement === 'beside' || placement === 'newWindow') {
+    return { type: 'openFullWindow', placement };
+  }
+  return { type: 'openFullWindow' };
+}
+
 function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage | undefined {
   if (!isRecord(value)) {
     return undefined;
@@ -418,6 +433,8 @@ function parseWebviewMessage(value: unknown): DiagramWebviewToExtensionMessage |
       return { type: 'cancelExplain' };
     case 'clearExplain':
       return { type: 'clearExplain' };
+    case 'openFullWindow':
+      return parseOpenFullWindow(value);
     default:
       return undefined;
   }

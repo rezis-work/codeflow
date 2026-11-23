@@ -88,6 +88,21 @@
         "icon": "$(open-preview)"
       },
       {
+        "command": "codeflow.openDiagramWindow",
+        "title": "CodeFlow: Open Diagram in Full Window",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "codeflow.openDiagramBeside",
+        "title": "CodeFlow: Open Diagram Beside",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "codeflow.openDiagramNewWindow",
+        "title": "CodeFlow: Open Diagram in New Window",
+        "icon": "$(multiple-windows)"
+      },
+      {
         "command": "codeflow.saveFlow",
         "title": "CodeFlow: Save Flow",
         "icon": "$(save)"
@@ -277,6 +292,28 @@
           "command": "codeflow.openDiagram",
           "when": "view == codeflow.sidebar",
           "group": "navigation"
+        },
+        {
+          "command": "codeflow.openDiagramWindow",
+          "when": "view == codeflow.sidebar",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "codeflow.openDiagramWindow",
+          "when": "activeWebviewPanelId == 'codeflow.diagram' || activeWebviewPanelId == 'codeflow.diagramWindow'",
+          "group": "navigation"
+        },
+        {
+          "command": "codeflow.openDiagramBeside",
+          "when": "activeWebviewPanelId == 'codeflow.diagram' || activeWebviewPanelId == 'codeflow.diagramWindow'",
+          "group": "navigation"
+        },
+        {
+          "command": "codeflow.openDiagramNewWindow",
+          "when": "activeWebviewPanelId == 'codeflow.diagram' || activeWebviewPanelId == 'codeflow.diagramWindow'",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -327,6 +364,15 @@
         },
         {
           "command": "codeflow.openDiagram"
+        },
+        {
+          "command": "codeflow.openDiagramWindow"
+        },
+        {
+          "command": "codeflow.openDiagramBeside"
+        },
+        {
+          "command": "codeflow.openDiagramNewWindow"
         },
         {
           "command": "codeflow.saveFlow"
@@ -413,6 +459,11 @@
           "command": "codeflow.showFileDependencies",
           "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
           "group": "navigation@4"
+        },
+        {
+          "command": "codeflow.openDiagramWindow",
+          "when": "editorLangId == typescript || editorLangId == typescriptreact || editorLangId == javascript || editorLangId == javascriptreact || editorLangId == python || editorLangId == rust",
+          "group": "navigation@9"
         }
       ],
       "explorer/context": [
@@ -486,6 +537,13 @@
             "order": 2,
             "description": "Maximum number of nodes the diagram draws at first. The panel can show 100 more at a time, up to 2,000. A snapshot larger than 2,000 nodes is not posted, and the panel says how many were left out. This also caps trait-method fan-out and a request flow.",
             "markdownDescription": "Maximum number of nodes the diagram draws at first. **Show 100 more** raises that up to 2,000. A snapshot larger than 2,000 nodes is not posted, and the panel says how many were left out. This also caps trait-method fan-out and a request flow."
+          },
+          "codeflow.diagram.openInFullWindow": {
+            "type": "boolean",
+            "default": false,
+            "order": 3,
+            "description": "When a diagram opens, also open it in a full editor tab. The beside panel still opens. Drag that tab out of the editor, or run CodeFlow: Open Diagram in New Window, to put it in its own window.",
+            "markdownDescription": "When a diagram opens, also open it in a full editor tab. The beside panel still opens. Drag that tab out of the editor, or run **CodeFlow: Open Diagram in New Window**, to put it in its own window."
           }
         }
       },

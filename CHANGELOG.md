@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Diagram
+
+- Diagrams fit the window when they open. The wheel and a trackpad pinch zoom, drag pans, and the zoom bar can zoom in, zoom out, reset, or fit. `+`, `-`, `0`, `f`, and the arrow keys do the same when the diagram is focused. Node labels are larger and stay readable when zoomed out. A chosen zoom is kept when the diagram refreshes. Clicking a node still opens the symbol. The beside panel, the flowchart, and sequences use the same controls.
+- **Open Diagram in Full Window** opens the diagram in an editor tab with no side panel. **Open Diagram Beside** opens that tab in a new editor group. **Open Diagram in New Window** moves the tab into its own window when the editor supports Move into New Window. The tab can also be dragged out. The same actions are on the diagram and on the editor title. `codeflow.diagram.openInFullWindow` defaults to off. When it is on, opening a diagram also opens the full-window tab.
+
 ## 1.2.0 (2026-11-23)
 
 Version 1.2.0 packages the work since 1.1.0. The file is `rezis-codeflow-1.2.0.vsix`. It adds an MCP server for the call graph, an impact check, agent context files, a review of what an agent changed, a task planner, a duplicate-helper check, and a documentation site.

@@ -1,12 +1,16 @@
 import type {
   DiagramTheme,
+  DiagramViewport,
   SequenceDiagram,
   SequenceGranularity,
   SequenceMessage,
   SourceLocation,
 } from '@codeflow/shared';
 import { uncertaintyTooltip } from '@codeflow/shared';
+import { useEffect, useRef, useState } from 'react';
 import { layoutSequence } from './sequenceLayout';
+import { ZoomControls, useDiagramKeys } from './DiagramZoomBar';
+import { ZOOM_STEP, clampZoom, panBy, withZoom, zoomBy } from './zoom';
 
 const GRANULARITIES: readonly { readonly id: SequenceGranularity; readonly label: string }[] = [
   { id: 'file', label: 'File' },
@@ -27,6 +31,55 @@ export function SequenceView(props: {
     diagram.participants.map((participant) => [participant.id, participant]),
   );
   const messages = new Map(diagram.messages.map((message) => [message.id, message]));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState<DiagramViewport>({ x: 0, y: 0, zoom: 1 });
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  const drag = useRef<{ x: number; y: number; originX: number; originY: number } | undefined>(
+    undefined,
+  );
+
+  const fit = () => {
+    const box = scrollRef.current?.getBoundingClientRect();
+    if (!box || box.width <= 0 || box.height <= 0 || layout.width <= 0 || layout.height <= 0) {
+      setViewport({ x: 0, y: 0, zoom: 1 });
+      return;
+    }
+    const scale = Math.min(box.width / layout.width, box.height / layout.height);
+    setViewport({ x: 0, y: 0, zoom: clampZoom(scale) });
+  };
+
+  useDiagramKeys({
+    zoomIn: () => {
+      setViewport((current) => zoomBy(current, ZOOM_STEP));
+    },
+    zoomOut: () => {
+      setViewport((current) => zoomBy(current, 1 / ZOOM_STEP));
+    },
+    reset: () => {
+      setViewport((current) => withZoom(current, 1));
+    },
+    fit,
+    pan: (dx, dy) => {
+      setViewport((current) => panBy(current, dx, dy));
+    },
+  });
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) {
+      return undefined;
+    }
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+      setViewport((current) => zoomBy(current, factor));
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      node.removeEventListener('wheel', onWheel);
+    };
+  }, []);
 
   return (
     <div
@@ -54,6 +107,20 @@ export function SequenceView(props: {
           ))}
         </div>
         <p className="sequence-title">{diagram.title}</p>
+        <ZoomControls
+          inline
+          zoom={viewport.zoom}
+          onZoomIn={() => {
+            setViewport((current) => zoomBy(current, ZOOM_STEP));
+          }}
+          onZoomOut={() => {
+            setViewport((current) => zoomBy(current, 1 / ZOOM_STEP));
+          }}
+          onReset={() => {
+            setViewport((current) => withZoom(current, 1));
+          }}
+          onFit={fit}
+        />
       </nav>
       {diagram.truncated ? (
         <p className="sequence-truncated" role="status" data-testid="sequence-truncated">
@@ -69,8 +136,49 @@ export function SequenceView(props: {
           Calls run downward. A dashed call is uncertain. A thin dashed arrow is the return.
         </p>
       )}
-      <div className="sequence-scroll">
-        <div className="sequence-stage" style={{ width: layout.width, height: layout.height }}>
+      <div
+        className="sequence-scroll"
+        ref={scrollRef}
+        onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          const target = event.target;
+          if (target instanceof Element && target.closest('button, a')) {
+            return;
+          }
+          drag.current = {
+            x: event.clientX,
+            y: event.clientY,
+            originX: viewportRef.current.x,
+            originY: viewportRef.current.y,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const active = drag.current;
+          if (!active) {
+            return;
+          }
+          setViewport((current) => ({
+            ...current,
+            x: active.originX + event.clientX - active.x,
+            y: active.originY + event.clientY - active.y,
+          }));
+        }}
+        onPointerUp={() => {
+          drag.current = undefined;
+        }}
+      >
+        <div
+          className="sequence-stage"
+          style={{
+            width: layout.width,
+            height: layout.height,
+            transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+            transformOrigin: '0 0',
+          }}
+        >
           {layout.lifelines.map((lifeline) => {
             const participant = participants.get(lifeline.id);
             const location = participant?.location;

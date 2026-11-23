@@ -10,6 +10,9 @@ import {
   CLEAR_CACHE_COMMAND,
   EDITOR_LANGUAGE_IDS,
   OPEN_DIAGRAM_COMMAND,
+  OPEN_DIAGRAM_WINDOW_COMMAND,
+  OPEN_DIAGRAM_BESIDE_COMMAND,
+  OPEN_DIAGRAM_NEW_WINDOW_COMMAND,
   SHOW_CALLEES_COMMAND,
   SHOW_CALLERS_COMMAND,
   SHOW_DEPENDENCIES_COMMAND,
@@ -44,6 +47,7 @@ import { installMcpSetup } from './mcpSetup';
 import { installPullRequestMode } from './prMode';
 import { installRuntimeTrace } from './runtimeTraceHost';
 import { bindControlFlowEngines, DiagramPanel } from './diagramPanel';
+import { openDiagramWindow } from './diagramWindow';
 import { startEditorSync } from './editorSync';
 import { watchGitChanges } from './gitWatch';
 import {
@@ -109,6 +113,9 @@ export interface CodeFlowExtensionApi {
  */
 export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi {
   DiagramPanel.bind(context);
+  DiagramPanel.openWindow = (placement) => {
+    void openDiagramWindow(context, placement);
+  };
   const typescript = new TypeScriptIndexer(context);
   const rust = new RustIndexer(context);
   const python = new PythonIndexer(context);
@@ -151,6 +158,24 @@ export function activate(context: vscode.ExtensionContext): CodeFlowExtensionApi
       rust.scheduleBackground(true);
       python.scheduleBackground(true);
       DiagramPanel.open(context);
+    }),
+    vscode.commands.registerCommand(OPEN_DIAGRAM_WINDOW_COMMAND, (argument?: unknown) => {
+      typescript.scheduleBackground(true);
+      rust.scheduleBackground(true);
+      python.scheduleBackground(true);
+      void openDiagramWindow(context, argument);
+    }),
+    vscode.commands.registerCommand(OPEN_DIAGRAM_BESIDE_COMMAND, () => {
+      typescript.scheduleBackground(true);
+      rust.scheduleBackground(true);
+      python.scheduleBackground(true);
+      void openDiagramWindow(context, 'beside');
+    }),
+    vscode.commands.registerCommand(OPEN_DIAGRAM_NEW_WINDOW_COMMAND, () => {
+      typescript.scheduleBackground(true);
+      rust.scheduleBackground(true);
+      python.scheduleBackground(true);
+      void openDiagramWindow(context, 'newWindow');
     }),
     vscode.commands.registerCommand(CLEAR_CACHE_COMMAND, () => {
       clearAnalysisCache(analysisCacheDir(context));

@@ -7,6 +7,12 @@ The pictures on this page are the diagrams the extension draws. The illustration
 
 `codeflow.view.maxNodes` (default 300) is how many nodes are drawn at first. The panel can show 100 more at a time, up to 2,000. A snapshot larger than 2,000 nodes is not posted.
 
+## Zoom, pan, and the full window
+
+The diagram fits the visible area when it opens. The scroll wheel and a trackpad pinch zoom it. Drag the background to pan. The zoom bar has zoom in, zoom out, reset, and fit. With the diagram focused, `+` or `=` zooms in, `-` zooms out, `0` resets to 100%, `f` fits, and the arrow keys pan. Node labels are drawn at 15px and the view will not zoom out below 75%, so the text stays readable. A zoom you set is kept when the diagram refreshes. Click a node to open that symbol. The same controls are on the beside panel, the full-window tab, the flowchart, and a sequence.
+
+**Open Diagram in Full Window** opens that diagram in an editor tab. `codeflow.diagram.openInFullWindow` (default off) also opens that tab whenever a diagram opens. **Open Diagram Beside** puts the tab in a new editor group. **Open Diagram in New Window** moves the tab into its own operating-system window when the editor allows it. You can also drag the tab out and choose **Move into New Window**.
+
 ## Call graph
 
 **CodeFlow: Show Flow for Symbol at Cursor** draws two calls out in every direction. `codeflow.view.defaultMode` is `focus` or `workspace`. Focus is the neighbourhood. Workspace draws the whole graph and highlights the symbol. The toolbar toggle changes this for the open panel. Trait map, request flow, control flow, and sequence do not use that mode.

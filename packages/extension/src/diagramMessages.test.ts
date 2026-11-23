@@ -34,6 +34,17 @@ function hostWith(store = createGraphStore()) {
 }
 
 describe('diagram message handler', () => {
+  it('asks the host to open the diagram in a full window', () => {
+    const opened: string[] = [];
+    const { host } = hostWith();
+    host.openFullWindow = (placement) => {
+      opened.push(placement ?? 'active');
+    };
+    handleDiagramMessage({ type: 'openFullWindow' }, host);
+    handleDiagramMessage({ type: 'openFullWindow', placement: 'beside' }, host);
+    expect(opened).toEqual(['active', 'beside']);
+  });
+
   it('answers ready with ack, the theme, and the current graph', () => {
     const symbol = createNode({
       kind: 'function',

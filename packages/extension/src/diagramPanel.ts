@@ -40,7 +40,7 @@ import { diffGraphs } from './graphDiff';
 import { renderDiagramHtml, renderMissingAssetsHtml } from './html';
 import { createNonce } from './nonce';
 import { noteDiagramReveal } from './revealGuard';
-import { readMaxNodes, readViewMode } from './viewSettings';
+import { readMaxNodes, readOpenInFullWindow, readViewMode } from './viewSettings';
 import { controlFlowForRefresh, controlFlowForRequest, sessionFrom } from './controlFlowHost';
 import type { FlowEngines, FlowSession } from './controlFlowHost';
 import { sequenceDiagramFor } from './sequenceHost';
@@ -253,15 +253,36 @@ export class DiagramPanel {
   private explainGeneration = 0;
 
   private static extensionContext: vscode.ExtensionContext | undefined;
+  private static readonly mirrors = new Set<vscode.Webview>();
+  /** Set from activate so a webview can ask for the full-window tab. */
+  public static openWindow: ((placement: 'active' | 'beside' | 'newWindow') => void) | undefined;
 
   public static bind(context: vscode.ExtensionContext): void {
     DiagramPanel.extensionContext = context;
   }
 
+  /** The full-window tab receives the same diagram messages as the beside panel. */
+  public static attachMirror(webview: vscode.Webview): vscode.Disposable {
+    DiagramPanel.mirrors.add(webview);
+    return new vscode.Disposable(() => {
+      DiagramPanel.mirrors.delete(webview);
+    });
+  }
+
   public static open(context: vscode.ExtensionContext): void {
+    DiagramPanel.ensure(context, true);
+    if (readOpenInFullWindow()) {
+      DiagramPanel.openWindow?.('active');
+    }
+  }
+
+  /** Opens the beside panel that owns diagram state. */
+  public static ensure(context: vscode.ExtensionContext, reveal = true): void {
     DiagramPanel.extensionContext = context;
     if (DiagramPanel.current) {
-      DiagramPanel.current.panel.reveal(DiagramPanel.current.panel.viewColumn);
+      if (reveal) {
+        DiagramPanel.current.panel.reveal(DiagramPanel.current.panel.viewColumn);
+      }
       return;
     }
     const column = vscode.window.activeTextEditor
@@ -900,6 +921,9 @@ export class DiagramPanel {
       clearExplain: () => {
         this.clearExplain();
       },
+      openFullWindow: (placement) => {
+        DiagramPanel.openWindow?.(placement ?? 'active');
+      },
     };
   }
 
@@ -1050,6 +1074,9 @@ export class DiagramPanel {
       DiagramPanel.posted.splice(0, DiagramPanel.posted.length - TRANSCRIPT_LIMIT);
     }
     void this.panel.webview.postMessage(message);
+    for (const mirror of DiagramPanel.mirrors) {
+      void mirror.postMessage(message);
+    }
   }
 
   private revealLocation(location: SourceLocation): void {

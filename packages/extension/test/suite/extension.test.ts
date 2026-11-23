@@ -39,6 +39,9 @@ suite('CodeFlow smoke', () => {
 
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes(OPEN_DIAGRAM_COMMAND));
+    assert.ok(commands.includes('codeflow.openDiagramWindow'));
+    assert.ok(commands.includes('codeflow.openDiagramBeside'));
+    assert.ok(commands.includes('codeflow.openDiagramNewWindow'));
     assert.ok(commands.includes(SHOW_FLOW_COMMAND));
     assert.ok(commands.includes('codeflow.showCallers'));
     assert.ok(commands.includes('codeflow.showCallees'));

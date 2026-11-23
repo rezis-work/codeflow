@@ -158,6 +158,13 @@ export function postClearExplain(): void {
   post({ type: 'clearExplain' });
 }
 
+export function postOpenFullWindow(placement?: 'active' | 'beside' | 'newWindow'): void {
+  post({
+    type: 'openFullWindow',
+    ...(placement ? { placement } : {}),
+  });
+}
+
 export function onExtensionMessage(
   handler: (message: ExtensionToDiagramWebviewMessage) => void,
 ): () => void {

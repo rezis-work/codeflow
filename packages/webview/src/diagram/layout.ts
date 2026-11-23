@@ -41,8 +41,8 @@ const NODE_GAP = 24;
 export function nodeBox(title: string, detail?: string): { width: number; height: number } {
   const chars = Math.max(title.length, detail?.length ?? 0);
   return {
-    width: Math.min(280, Math.max(168, 64 + chars * 7)),
-    height: detail ? 64 : 48,
+    width: Math.min(340, Math.max(196, 80 + chars * 8.2)),
+    height: detail ? 78 : 58,
   };
 }
 

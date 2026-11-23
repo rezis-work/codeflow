@@ -1,4 +1,7 @@
 export const OPEN_DIAGRAM_COMMAND = 'codeflow.openDiagram';
+export const OPEN_DIAGRAM_WINDOW_COMMAND = 'codeflow.openDiagramWindow';
+export const OPEN_DIAGRAM_BESIDE_COMMAND = 'codeflow.openDiagramBeside';
+export const OPEN_DIAGRAM_NEW_WINDOW_COMMAND = 'codeflow.openDiagramNewWindow';
 export const SHOW_FLOW_COMMAND = 'codeflow.showFlowAtCursor';
 export const SHOW_CALLERS_COMMAND = 'codeflow.showCallers';
 export const SHOW_CALLEES_COMMAND = 'codeflow.showCallees';
@@ -65,6 +68,7 @@ export const NOT_IN_DIAGRAM = 'Not in this diagram';
 export const VIEW_CONTAINER_ID = 'codeflow';
 export const SIDEBAR_VIEW_ID = 'codeflow.sidebar';
 export const DIAGRAM_PANEL_VIEW_TYPE = 'codeflow.diagram';
+export const DIAGRAM_WINDOW_VIEW_TYPE = 'codeflow.diagramWindow';
 /** How far "Show Flow for Symbol at Cursor" walks out from the symbol. */
 export const SYMBOL_FLOW_DEPTH = 2;
 /** Diagram mode used when the user has not chosen one. */

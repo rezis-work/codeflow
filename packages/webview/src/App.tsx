@@ -30,6 +30,7 @@ import {
   postClearRuntimeTrace,
   postCopyMermaid,
   postExplainFlow,
+  postOpenFullWindow,
   postDismissSequence,
   postExpandNode,
   postExportDiagram,
@@ -41,6 +42,11 @@ import {
   postSetViewMode,
   postViewState,
 } from './messaging';
+
+const diagramChrome =
+  typeof document !== 'undefined' && document.getElementById('root')?.dataset.chrome === 'full'
+    ? 'full'
+    : 'panel';
 
 const DEFAULT_MAX_NODES = 300;
 const DIAGRAM_HARD_CAP = 2000;
@@ -250,7 +256,7 @@ export function App() {
     );
   }, []);
   const onViewport = useCallback((next: DiagramViewport) => {
-    setHoldViewport(false);
+    setHoldViewport(true);
     setViewport(next);
   }, []);
 
@@ -306,11 +312,35 @@ export function App() {
       data-show-uncertain={String(showUncertain)}
       data-view-mode={viewMode}
       data-surface={surface}
+      data-chrome={diagramChrome}
     >
       <header className="shell-header">
         <h1>CodeFlow</h1>
         <div className="header-side">
           <div className="flow-actions">
+            {diagramChrome === 'full' ? (
+              <button
+                type="button"
+                data-testid="open-new-window"
+                title="Move this diagram into its own window"
+                onClick={() => {
+                  postOpenFullWindow('newWindow');
+                }}
+              >
+                New window
+              </button>
+            ) : (
+              <button
+                type="button"
+                data-testid="open-full-window"
+                title="Open this diagram in a full editor tab"
+                onClick={() => {
+                  postOpenFullWindow('active');
+                }}
+              >
+                Full window
+              </button>
+            )}
             <button
               type="button"
               data-testid="explain-flow"

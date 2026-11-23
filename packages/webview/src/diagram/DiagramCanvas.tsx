@@ -1,5 +1,4 @@
 import {
-  Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -22,7 +21,9 @@ import { elkEngine } from './elkLayout';
 import { filterDiagram } from './filters';
 import { nodeText } from './labels';
 import { layoutIncremental, nodeBox } from './layout';
+import { DiagramZoomBar } from './DiagramZoomBar';
 import { focusPanDuration } from './motion';
+import { FIT_MAX_ZOOM, FIT_MIN_ZOOM, MAX_ZOOM, MIN_ZOOM, shouldFitDiagram } from './zoom';
 import type { LayoutPoint } from './layout';
 import { RelationEdge } from './RelationEdge';
 import { SymbolNodeView } from './SymbolNode';
@@ -253,12 +254,17 @@ function DiagramSurface({
     void reactFlow.setViewport(viewport, { duration: 0 });
   }, [viewport, viewportToken, reactFlow]);
   useEffect(() => {
-    if (fitToken === 0 || holdViewport) {
+    if (!shouldFitDiagram({ fitToken, holdViewport })) {
       return;
     }
     const duration = focusPanDuration(reducedMotion);
     const handle = window.setTimeout(() => {
-      void reactFlow.fitView({ duration, padding: 0.16 });
+      void reactFlow.fitView({
+        duration,
+        padding: 0.16,
+        minZoom: FIT_MIN_ZOOM,
+        maxZoom: FIT_MAX_ZOOM,
+      });
     }, 40);
     return () => {
       window.clearTimeout(handle);
@@ -267,7 +273,10 @@ function DiagramSurface({
   useEffect(() => {
     const layoutJustFitted = fittedToken.current !== fitToken;
     fittedToken.current = fitToken;
-    if (holdViewport || fitToken === 0 || !focusTarget || layoutJustFitted) {
+    if (fitToken === 0 || !focusTarget) {
+      return;
+    }
+    if (layoutJustFitted && !holdViewport) {
       return;
     }
     if (!positionsRef.current.has(focusTarget)) {
@@ -275,11 +284,25 @@ function DiagramSurface({
     }
     const duration = focusPanDuration(reducedMotion);
     const handle = window.setTimeout(() => {
+      if (holdViewport) {
+        const node = reactFlow.getNode(focusTarget);
+        if (!node) {
+          return;
+        }
+        const width = node.measured?.width ?? node.width ?? 0;
+        const height = node.measured?.height ?? node.height ?? 0;
+        void reactFlow.setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+          zoom: reactFlow.getZoom(),
+          duration,
+        });
+        return;
+      }
       void reactFlow.fitView({
         nodes: [{ id: focusTarget }],
         duration,
         padding: 0.4,
         maxZoom: 1.2,
+        minZoom: FIT_MIN_ZOOM,
       });
     }, 40);
     return () => {
@@ -353,13 +376,16 @@ function DiagramSurface({
           setPositions(next);
         }}
         colorMode={colorMode(theme)}
-        minZoom={0.08}
-        maxZoom={2}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        zoomOnScroll
+        zoomOnPinch
+        panOnDrag
         nodesConnectable={false}
         edgesReconnectable={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Controls showInteractive={false} />
+        <DiagramZoomBar reducedMotion={reducedMotion} onViewport={onViewport} />
         {showMinimap ? (
           <MiniMap pannable zoomable nodeColor={minimapColor} maskColor="rgba(0, 0, 0, 0.35)" />
         ) : null}

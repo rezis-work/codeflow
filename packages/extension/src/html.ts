@@ -3,6 +3,8 @@ export interface DiagramHtmlOptions {
   readonly cspSource: string;
   readonly scriptUri: string;
   readonly styleUri: string;
+  /** `full` is the editor-tab diagram with the status chrome left out. */
+  readonly chrome?: 'panel' | 'full';
 }
 
 export interface HostHtmlOptions {
@@ -65,7 +67,7 @@ export function renderDiagramHtml(options: DiagramHtmlOptions): string {
       `script-src 'nonce-${nonce}'`,
     ]),
     head: `<link rel="stylesheet" href="${styleUri}" />`,
-    body: `<div id="root"></div>
+    body: `<div id="root"${options.chrome === 'full' ? ' data-chrome="full"' : ''}></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>`,
   });
 }

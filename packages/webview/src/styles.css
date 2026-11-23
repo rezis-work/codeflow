@@ -463,7 +463,7 @@ body {
   border-radius: 2px;
   background: var(--vscode-badge-background, #4d4d4d);
   color: var(--vscode-badge-foreground, #ffffff);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.03em;
   text-transform: lowercase;
 }
@@ -473,6 +473,7 @@ body {
 }
 
 .code-node-title {
+  font-size: 15px;
   font-weight: 600;
   max-width: 100%;
   overflow: hidden;
@@ -484,7 +485,7 @@ body {
   max-width: 100%;
   overflow: hidden;
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -509,6 +510,52 @@ body {
   height: 6px;
   background: var(--vscode-foreground, #cccccc);
   border: 0;
+}
+
+.zoom-bar {
+  position: absolute;
+  z-index: 6;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--vscode-panel-border, #3c3c3c);
+  background: var(--vscode-editorWidget-background, #252526);
+  color: var(--vscode-foreground, #cccccc);
+}
+
+.zoom-bar-inline {
+  position: static;
+  margin-left: auto;
+}
+
+.zoom-bar button {
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.zoom-bar button:hover {
+  background: var(--vscode-toolbar-hoverBackground, #3c3c3c);
+}
+
+.zoom-readout {
+  min-width: 52px;
+  text-align: center;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.shell[data-chrome='full'] .shell-header h1,
+.shell[data-chrome='full'] .status,
+.shell[data-chrome='full'] .graph-meta {
+  display: none;
 }
 
 .react-flow__controls {
@@ -604,7 +651,7 @@ body {
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .code-node-flow:hover {
@@ -712,14 +759,14 @@ body {
 }
 
 .flow-kicker {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--vscode-descriptionForeground, #9d9d9d);
 }
 
 .flow-label {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.3;
 }
 
@@ -729,7 +776,7 @@ body {
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, inherit);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .react-flow__edge.flow-edge-exception .react-flow__edge-path,
@@ -743,7 +790,7 @@ body {
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, inherit);
   padding: 2px 8px;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .flow-crumb button.flow-uncertain[aria-pressed='false'] {
@@ -823,7 +870,9 @@ body {
 .sequence-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
 }
 
 .sequence-stage {
@@ -866,7 +915,11 @@ body {
 
 .sequence-head-note {
   color: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 11px;
+  font-size: 13px;
+}
+
+.sequence-head-label {
+  font-size: 15px;
 }
 
 .sequence-svg {
@@ -903,7 +956,7 @@ body {
 
 .sequence-frame text {
   fill: var(--vscode-descriptionForeground, #9d9d9d);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .sequence-message {
@@ -923,7 +976,7 @@ body {
 
 .sequence-message text {
   fill: var(--vscode-editor-foreground, #d4d4d4);
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .sequence[data-theme='light'] .sequence-message text,
