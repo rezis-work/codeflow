@@ -20,6 +20,7 @@ Settings live under **CodeFlow** in the editor settings. Defaults below are the 
 | --- | --- | --- |
 | `codeflow.view.defaultMode` | `focus` | `focus` draws the neighbourhood around the symbol (depth 2). `workspace` draws the whole graph and highlights the symbol. The toolbar toggle changes this for the open panel. Trait map, request flow, control flow, and sequence do not use this mode. |
 | `codeflow.view.maxNodes` | `300` | Maximum nodes drawn at first. Minimum 1. The panel can show 100 more at a time, up to 2,000. A snapshot larger than 2,000 nodes is not posted. This also caps trait-method fan-out and a request flow. |
+| `codeflow.diagram.openInFullWindow` | `false` | When a diagram opens, also open it in a full editor tab. The beside panel still opens. Drag that tab out, or run **Open Diagram in New Window**, to put it in its own window. |
 
 ## Analysis
 

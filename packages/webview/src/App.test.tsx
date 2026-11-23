@@ -353,3 +353,38 @@ describe('outgoing diagram messages', () => {
     expect(postMessage).toHaveBeenCalledWith({ type: 'setViewMode', mode: 'focus' });
   });
 });
+
+describe('full window and zoom', () => {
+  it('asks the host to open the diagram in a full editor tab', () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Full window' }));
+    expect(postMessage).toHaveBeenCalledWith({ type: 'openFullWindow', placement: 'active' });
+  });
+
+  it('keeps the chosen zoom when a refreshed graph arrives', async () => {
+    render(<App />);
+    send({ type: 'ack' });
+    send({
+      type: 'graphSnapshot',
+      graph: { nodes: [mainNode], edges: [], pendingEdges: [] },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Zoom in' }));
+    await waitFor(() => {
+      expect(latestZoom()).toBeGreaterThan(1);
+    });
+    const zoom = latestZoom();
+    send({
+      type: 'graphSnapshot',
+      graph: { nodes: [mainNode], edges: [], pendingEdges: [] },
+    });
+    await screen.findByRole('button', { name: 'function main' });
+    expect(latestZoom()).toBe(zoom);
+  });
+});
+
+function latestZoom(): number | undefined {
+  const states = postMessage.mock.calls
+    .map((call) => call[0] as { type?: string; viewport?: { zoom?: number } })
+    .filter((message) => message.type === 'viewState' && message.viewport);
+  return states.at(-1)?.viewport?.zoom;
+}

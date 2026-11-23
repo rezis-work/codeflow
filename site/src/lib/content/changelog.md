@@ -7,7 +7,7 @@ Versions below match `CHANGELOG.md` in the repository. The current extension ver
 
 ## Unreleased
 
-Nothing since 1.2.0.
+- **Diagram.** Diagrams fit on open, zoom with the wheel or a pinch, and pan by dragging. The zoom bar and `+`, `-`, `0`, `f`, and the arrow keys do the same. A chosen zoom is kept when the diagram refreshes, and node labels stay readable. **Open Diagram in Full Window** opens an editor tab with only the diagram. **Open Diagram Beside** uses a new editor group. **Open Diagram in New Window** moves that tab into its own window when the editor supports it. `codeflow.diagram.openInFullWindow` defaults to off.
 
 ## 1.2.0 (2026-11-23)
 

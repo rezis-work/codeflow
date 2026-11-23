@@ -39,6 +39,17 @@ describe('renderDiagramHtml', () => {
     expect(html).not.toContain('https://');
   });
 
+  it('marks the full-window document so the webview can drop the status chrome', () => {
+    const full = renderDiagramHtml({
+      nonce,
+      cspSource: 'vscode-webview-resource:',
+      scriptUri: 'vscode-webview-resource:/index.js',
+      styleUri: 'vscode-webview-resource:/index.css',
+      chrome: 'full',
+    });
+    expect(full).toContain('<div id="root" data-chrome="full"></div>');
+  });
+
   it('escapes attribute values that could break out of the markup', () => {
     const escaped = renderDiagramHtml({
       nonce,

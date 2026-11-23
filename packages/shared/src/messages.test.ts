@@ -91,6 +91,13 @@ describe('webview to extension messages', () => {
     expect(isDiagramWebviewToExtensionMessage({ type: 'explainFlow' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'cancelExplain' })).toBe(true);
     expect(isDiagramWebviewToExtensionMessage({ type: 'clearExplain' })).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'openFullWindow' })).toBe(true);
+    expect(
+      isDiagramWebviewToExtensionMessage({ type: 'openFullWindow', placement: 'newWindow' }),
+    ).toBe(true);
+    expect(isDiagramWebviewToExtensionMessage({ type: 'openFullWindow', placement: 'nope' })).toBe(
+      true,
+    );
     expect(isDiagramWebviewToExtensionMessage({ type: 'requestSequence' })).toBe(true);
     expect(
       isDiagramWebviewToExtensionMessage({ type: 'requestSequence', granularity: 'module' }),

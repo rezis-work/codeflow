@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   OPEN_DIAGRAM_COMMAND,
+  OPEN_DIAGRAM_WINDOW_COMMAND,
   SHOW_CALLEES_COMMAND,
   SHOW_CALLERS_COMMAND,
   SHOW_DEPENDENCIES_COMMAND,
@@ -45,6 +46,7 @@ interface Manifest {
     views?: Record<string, Array<{ id?: string; type?: string }>>;
     menus?: {
       'editor/context'?: Array<{ command?: string; when?: string }>;
+      'editor/title'?: Array<{ command?: string; when?: string }>;
       'explorer/context'?: Array<{ command?: string; when?: string }>;
       commandPalette?: Array<{ command?: string }>;
     };
@@ -166,6 +168,26 @@ describe('extension manifest', () => {
     expect(refocus).toMatchObject({ type: 'boolean', default: false });
     const depth = settingsOf(manifest)?.['codeflow.editor.callDepth'];
     expect(depth).toMatchObject({ type: 'number', default: 2 });
+    const fullWindow = settingsOf(manifest)?.['codeflow.diagram.openInFullWindow'];
+    expect(fullWindow).toMatchObject({ type: 'boolean', default: false });
+    expect(manifest.contributes?.commands).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          command: OPEN_DIAGRAM_WINDOW_COMMAND,
+          title: 'CodeFlow: Open Diagram in Full Window',
+        }),
+      ]),
+    );
+    expect(manifest.contributes?.menus?.commandPalette).toEqual(
+      expect.arrayContaining([expect.objectContaining({ command: OPEN_DIAGRAM_WINDOW_COMMAND })]),
+    );
+    expect(manifest.contributes?.menus?.['editor/title']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ command: OPEN_DIAGRAM_WINDOW_COMMAND }),
+        expect.objectContaining({ command: 'codeflow.openDiagramBeside' }),
+        expect.objectContaining({ command: 'codeflow.openDiagramNewWindow' }),
+      ]),
+    );
     const codeLens = settingsOf(manifest)?.['codeflow.codeLens.enabled'];
     expect(codeLens).toMatchObject({ type: 'boolean', default: true });
     const cache = settingsOf(manifest)?.['codeflow.cache.enabled'];
@@ -218,6 +240,7 @@ describe('extension manifest', () => {
         'codeflow.context.autoUpdate',
         'codeflow.context.budget',
         'codeflow.context.targets',
+        'codeflow.diagram.openInFullWindow',
         'codeflow.duplicates.onSave',
         'codeflow.duplicates.threshold',
         'codeflow.editor.callDepth',

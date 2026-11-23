@@ -19,6 +19,20 @@ Run it from the Command Palette, the editor context menu, or Ctrl+Alt+F (Cmd+Alt
 
 Opens the CodeFlow side panel. It is also on the sidebar view title.
 
+### Open Diagram in Full Window
+
+Opens the current diagram in its own editor tab. That tab is only the diagram: no side panel and no status line. It is on the Command Palette, the editor context menu in TypeScript, JavaScript, Rust, and Python files, the editor title of a CodeFlow diagram, the sidebar view title, and the **Full window** button on the diagram.
+
+The tab opens in the current editor group and fills that group. Drag the tab out of the editor and choose **Move into New Window** (Cursor has the same tab action) to put it in a separate operating-system window.
+
+### Open Diagram Beside
+
+Opens the same full-window diagram in a new editor group next to the current one. Command Palette and the diagram's editor title.
+
+### Open Diagram in New Window
+
+Opens the full-window diagram, then moves that tab into a new operating-system window when the editor provides Move into New Window. If that action is missing, drag the tab out instead. Command Palette, the diagram's editor title, and the **New window** button on the full-window diagram.
+
 ### Show Callers
 
 Walks incoming calls. Depth is `codeflow.editor.callDepth` (default 2). Command Palette and the editor context menu. The caller CodeLens runs this too.

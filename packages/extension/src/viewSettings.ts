@@ -7,6 +7,10 @@ export function readViewMode(): DiagramViewMode {
   return value === 'workspace' || value === 'focus' ? value : DEFAULT_VIEW_MODE;
 }
 
+export function readOpenInFullWindow(): boolean {
+  return vscode.workspace.getConfiguration('codeflow').get('diagram.openInFullWindow') === true;
+}
+
 export function readMaxNodes(): number {
   const value = vscode.workspace.getConfiguration('codeflow').get<unknown>('view.maxNodes');
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {

@@ -6,14 +6,16 @@ import type {
   RuntimeTraceStep,
   SourceRange,
 } from '@codeflow/shared';
-import { Background, Controls, ReactFlow, getSmoothStepPath } from '@xyflow/react';
+import { Background, ReactFlow, getSmoothStepPath, useReactFlow } from '@xyflow/react';
 import type { EdgeProps, NodeProps } from '@xyflow/react';
 import { Handle, Position as HandlePosition } from '@xyflow/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { controlFlowBox, controlFlowToFlow } from './controlFlowToFlow';
 import type { ControlBlockNode, ControlFlowEdgeView } from './controlFlowToFlow';
+import { DiagramZoomBar } from './DiagramZoomBar';
 import { layoutControlFlow } from './elkLayout';
 import type { LayoutPoint } from './layout';
+import { FIT_MAX_ZOOM, FIT_MIN_ZOOM, MAX_ZOOM, MIN_ZOOM } from './zoom';
 
 const nodeTypes = { control: ControlBlock };
 const edgeTypes = { flowEdge: FlowEdge };
@@ -118,6 +120,7 @@ export function ControlFlowView(props: {
     runtimeEdgeOrders,
   ]);
 
+  const pinnedFor = useRef<string | undefined>(undefined);
   const limit = graph.blockLimit ?? CONTROL_FLOW_BLOCK_LIMIT;
   const title =
     graph.qualifiedName === graph.name ? graph.name : `${graph.name} · ${graph.qualifiedName}`;
@@ -150,24 +153,73 @@ export function ControlFlowView(props: {
         </p>
       ) : null}
       <ReactFlow
-        key={layoutKey}
         nodes={flow.nodes}
         edges={flow.edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
         colorMode={colorMode(theme)}
-        minZoom={0.2}
-        maxZoom={2}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        zoomOnScroll
+        zoomOnPinch
+        panOnDrag
+        onMoveEnd={(event) => {
+          if (event) {
+            pinnedFor.current = graph.functionId;
+          }
+        }}
         nodesConnectable={false}
         edgesReconnectable={false}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
-        <Controls showInteractive={false} />
+        <FlowFit
+          layoutKey={layoutKey}
+          functionId={graph.functionId}
+          reducedMotion={reducedMotion}
+          pinnedFor={pinnedFor}
+        />
+        <DiagramZoomBar
+          reducedMotion={reducedMotion}
+          onViewport={() => {
+            pinnedFor.current = graph.functionId;
+          }}
+        />
       </ReactFlow>
     </div>
   );
+}
+
+function FlowFit(props: {
+  readonly layoutKey: string;
+  readonly functionId: string;
+  readonly reducedMotion: boolean;
+  readonly pinnedFor: { current: string | undefined };
+}) {
+  const flow = useReactFlow();
+  const seen = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (seen.current === props.layoutKey) {
+      return undefined;
+    }
+    const first = seen.current === undefined;
+    seen.current = props.layoutKey;
+    if (!first && props.pinnedFor.current === props.functionId) {
+      return undefined;
+    }
+    const handle = window.setTimeout(() => {
+      void flow.fitView({
+        duration: props.reducedMotion || first ? 0 : 180,
+        padding: 0.16,
+        minZoom: FIT_MIN_ZOOM,
+        maxZoom: FIT_MAX_ZOOM,
+      });
+    }, 40);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [props.layoutKey, props.functionId, props.reducedMotion, props.pinnedFor, flow]);
+  return null;
 }
 
 function FlowEdge(props: EdgeProps<ControlFlowEdgeView>) {
