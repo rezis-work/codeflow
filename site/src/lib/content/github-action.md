@@ -25,10 +25,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: rezis-work/codeflow/action@v1.1.0
+      - uses: rezis-work/codeflow/action@v1.2.0
 ```
 
-`fetch-depth: 0` is required so the merge base is available. `v1.1.0` is the release tag that contains `action/`. From a checkout of this repository, the same action is `./action`.
+`fetch-depth: 0` is required so the merge base is available. `v1.2.0` is the release tag that contains `action/`. From a checkout of this repository, the same action is `./action`.
 
 ## Inputs
 
@@ -46,7 +46,7 @@ jobs:
 A larger diff is truncated and the comment says so. If the comment would pass GitHub's size limit, the duplicates block is dropped first, then the review section, then the impact summary is shortened to the risk line and dropped, and finally the comment is the diagram only.
 
 ```yaml
-- uses: rezis-work/codeflow/action@v1.1.0
+- uses: rezis-work/codeflow/action@v1.2.0
   with:
     max-nodes: 40
     impact: true

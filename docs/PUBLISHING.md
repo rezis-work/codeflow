@@ -88,7 +88,7 @@ Both publish commands pass `--skip-duplicate`, so running the workflow again for
 
 Use this after you add a secret that was missing, or to retry a failed publish. In the GitHub Actions tab, open **Release**, choose **Run workflow**, and enter the tag `v1.0.1` (the `v` is required). The workflow checks out that tag, packages again, and publishes the same version. `--skip-duplicate` makes an already-published version a no-op.
 
-A new version needs a version bump in `packages/extension/package.json` (the tag check reads that file), a changelog section, a merge to `main`, and a new tag such as `v1.1.0`. The Marketplace and Open VSX will not replace an existing version.
+A new version needs a version bump in `packages/extension/package.json` (the tag check reads that file), a changelog section, a merge to `main`, and a new tag such as `v1.2.0`. The Marketplace and Open VSX will not replace an existing version.
 
 ## 6. Check the listings
 
